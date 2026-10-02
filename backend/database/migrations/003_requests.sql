@@ -1,0 +1,62 @@
+-- Pilarweb migration 003: request transaction headers and item snapshots
+
+USE pilarweb;
+
+CREATE TABLE IF NOT EXISTS requests (
+  id VARCHAR(36) NOT NULL,
+  request_number VARCHAR(80) NOT NULL,
+  request_purpose_id BIGINT UNSIGNED NOT NULL,
+  request_purpose_code VARCHAR(50) NOT NULL,
+  request_purpose_name VARCHAR(150) NOT NULL,
+  workflow_definition_id BIGINT UNSIGNED NOT NULL,
+  workflow_code VARCHAR(80) NOT NULL,
+  workflow_name VARCHAR(150) NOT NULL,
+  workflow_version INT NOT NULL,
+  requires_return TINYINT(1) NOT NULL DEFAULT 0,
+  return_due_date DATE DEFAULT NULL,
+  status VARCHAR(80) NOT NULL DEFAULT 'DRAFT',
+  requester_user_id VARCHAR(36) NOT NULL,
+  requester_internal_id INT DEFAULT NULL,
+  requester_name VARCHAR(255) DEFAULT NULL,
+  requester_job_level_value INT DEFAULT NULL,
+  requester_job_level_name VARCHAR(150) DEFAULT NULL,
+  department_id INT NOT NULL,
+  department_name VARCHAR(255) DEFAULT NULL,
+  company_id VARCHAR(100) DEFAULT NULL,
+  company_name VARCHAR(255) DEFAULT NULL,
+  reason TEXT DEFAULT NULL,
+  submitted_at DATETIME DEFAULT NULL,
+  completed_at DATETIME DEFAULT NULL,
+  canceled_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_requests_number (request_number),
+  KEY idx_requests_requester (requester_user_id, created_at),
+  KEY idx_requests_department_status (department_id, status),
+  KEY idx_requests_purpose (request_purpose_id),
+  KEY idx_requests_workflow (workflow_definition_id),
+  KEY idx_requests_status_created (status, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS request_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  request_id VARCHAR(36) NOT NULL,
+  itembase_item_id VARCHAR(36) NOT NULL,
+  item_code VARCHAR(100) NOT NULL,
+  item_name VARCHAR(255) NOT NULL,
+  selling_name VARCHAR(255) DEFAULT NULL,
+  parent_id VARCHAR(100) DEFAULT NULL,
+  parent_name VARCHAR(255) DEFAULT NULL,
+  variant_name VARCHAR(255) DEFAULT NULL,
+  uom_code VARCHAR(80) DEFAULT NULL,
+  item_kind VARCHAR(50) NOT NULL DEFAULT 'regular',
+  requested_qty DECIMAL(18,4) NOT NULL,
+  notes VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_request_items_request (request_id),
+  KEY idx_request_items_item_code (item_code),
+  KEY idx_request_items_itembase_id (itembase_item_id)
+) ENGINE=InnoDB;
