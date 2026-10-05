@@ -5,36 +5,22 @@ function notFound(req, res) {
 }
 
 function errorHandler(err, req, res, next) {
-  if (res.headersSent) {
-    return next(err);
-  }
+  if (res.headersSent) return next(err);
 
   if (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062) {
-    return R.badRequest(res, 'Data already exists', {
+    return R.error(res, 'Data already exists', 409, {
       code: 'DUPLICATE_ENTRY',
     });
   }
 
-  if (err?.statusCode === 400) {
-    return R.badRequest(res, err.message, err.errors || null);
-  }
-
-  if (err?.statusCode === 401) {
-    return R.unauthorized(res, err.message, { code: err.code || 'UNAUTHORIZED' });
-  }
-
-  if (err?.statusCode === 403) {
-    return R.forbidden(res, err.message, { code: err.code || 'FORBIDDEN' });
-  }
-
   if (err?.statusCode && err.statusCode >= 400 && err.statusCode < 600) {
-    return R.error(res, err.message || 'Request failed', err.statusCode, {
-      code: err.code || 'REQUEST_FAILED',
-    });
+    const errors = err.errors && typeof err.errors === 'object'
+      ? { code: err.code || 'REQUEST_FAILED', ...err.errors }
+      : { code: err.code || 'REQUEST_FAILED' };
+    return R.error(res, err.message || 'Request failed', err.statusCode, errors);
   }
 
   console.error(err);
-
   return R.error(res, 'Internal Server Error', 500, {
     code: 'INTERNAL_SERVER_ERROR',
   });

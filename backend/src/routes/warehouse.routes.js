@@ -1,0 +1,18 @@
+const express=require('express');
+const config=require('../config');
+const WarehouseController=require('../controllers/warehouse.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/requests',WarehouseController.index);
+router.get('/requests/:requestId',WarehouseController.show);
+router.post('/requests/:requestId/accept',WarehouseController.accept);
+router.post('/fulfillments/:fulfillmentId/print',WarehouseController.print);
+router.put('/fulfillments/:fulfillmentId/items/:fulfillmentItemId',WarehouseController.updateItem);
+router.post('/fulfillments/:fulfillmentId/confirm-picking',WarehouseController.confirmPicking);
+router.post('/fulfillments/:fulfillmentId/inventory-transfers',WarehouseController.addTransfer);
+router.put('/inventory-transfers/:transferId',WarehouseController.updateTransfer);
+router.delete('/inventory-transfers/:transferId',WarehouseController.deleteTransfer);
+router.post('/fulfillments/:fulfillmentId/handover',WarehouseController.handover);
+router.post('/handovers/:handoverId/receive',WarehouseController.receive);
+module.exports=router;

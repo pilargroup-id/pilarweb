@@ -1,0 +1,11 @@
+const express = require('express');
+const config = require('../config');
+const ApprovalController = require('../controllers/approval.controller');
+const { authenticate, requireApp } = require('../middleware/auth.middleware');
+const router = express.Router();
+router.use(authenticate, requireApp(config.app.slug));
+router.get('/', ApprovalController.index);
+router.get('/:id', ApprovalController.show);
+router.post('/:id/approve', ApprovalController.approve);
+router.post('/:id/reject', ApprovalController.reject);
+module.exports = router;

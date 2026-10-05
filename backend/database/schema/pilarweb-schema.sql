@@ -109,6 +109,26 @@ CREATE TABLE IF NOT EXISTS request_purpose_workflows (
   KEY idx_purpose_workflows_definition (workflow_definition_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS module_access_rules (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  module_code VARCHAR(80) NOT NULL,
+  user_id VARCHAR(36) DEFAULT NULL,
+  department_id INT DEFAULT NULL,
+  company_id VARCHAR(100) DEFAULT NULL,
+  min_job_level_value DECIMAL(10,2) DEFAULT NULL,
+  max_job_level_value DECIMAL(10,2) DEFAULT NULL,
+  priority INT NOT NULL DEFAULT 100,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by_user_id VARCHAR(36) DEFAULT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_module_access_rules_lookup (module_code, is_active, priority),
+  KEY idx_module_access_rules_user (user_id, is_active),
+  KEY idx_module_access_rules_department (department_id, is_active)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS approval_rules (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(100) NOT NULL,
@@ -137,10 +157,10 @@ CREATE TABLE IF NOT EXISTS requests (
   request_purpose_id BIGINT UNSIGNED NOT NULL,
   request_purpose_code VARCHAR(50) NOT NULL,
   request_purpose_name VARCHAR(150) NOT NULL,
-  workflow_definition_id BIGINT UNSIGNED NOT NULL,
-  workflow_code VARCHAR(80) NOT NULL,
-  workflow_name VARCHAR(150) NOT NULL,
-  workflow_version INT NOT NULL,
+  workflow_definition_id BIGINT UNSIGNED DEFAULT NULL,
+  workflow_code VARCHAR(80) DEFAULT NULL,
+  workflow_name VARCHAR(150) DEFAULT NULL,
+  workflow_version INT DEFAULT NULL,
   requires_return TINYINT(1) NOT NULL DEFAULT 0,
   return_due_date DATE DEFAULT NULL,
   status VARCHAR(80) NOT NULL DEFAULT 'DRAFT',
@@ -198,6 +218,11 @@ CREATE TABLE IF NOT EXISTS request_approvals (
   request_id VARCHAR(36) NOT NULL,
   approval_rule_id BIGINT UNSIGNED DEFAULT NULL,
   approval_order INT NOT NULL DEFAULT 1,
+  department_id INT DEFAULT NULL,
+  department_name VARCHAR(255) DEFAULT NULL,
+  required_job_level_value INT DEFAULT NULL,
+  required_job_level_name VARCHAR(150) DEFAULT NULL,
+  allow_higher_job_level TINYINT(1) NOT NULL DEFAULT 1,
   status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
   approver_user_id VARCHAR(36) DEFAULT NULL,
   approver_internal_id INT DEFAULT NULL,
@@ -211,7 +236,8 @@ CREATE TABLE IF NOT EXISTS request_approvals (
   PRIMARY KEY (id),
   KEY idx_request_approvals_request (request_id, approval_order),
   KEY idx_request_approvals_status (status),
-  KEY idx_request_approvals_approver (approver_user_id, status)
+  KEY idx_request_approvals_approver (approver_user_id, status),
+  KEY idx_request_approvals_department_status (department_id, status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS finance_reviews (
@@ -344,7 +370,7 @@ CREATE TABLE IF NOT EXISTS warehouse_handovers (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_warehouse_handovers_request (request_id),
-  KEY idx_warehouse_handovers_fulfillment (fulfillment_id),
+  UNIQUE KEY uq_warehouse_handovers_fulfillment (fulfillment_id),
   KEY idx_warehouse_handovers_status (status)
 ) ENGINE=InnoDB;
 -- Pilarweb migration 006: returnable goods tracking
@@ -378,6 +404,7 @@ CREATE TABLE IF NOT EXISTS return_items (
   item_code VARCHAR(100) NOT NULL,
   item_name VARCHAR(255) NOT NULL,
   returned_qty DECIMAL(18,4) NOT NULL,
+  stock_returned_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   condition_code VARCHAR(80) NOT NULL DEFAULT 'GOOD',
   condition_note VARCHAR(500) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -437,9 +464,10 @@ CREATE TABLE IF NOT EXISTS inventory_adjustment_batch_items (
   item_code VARCHAR(100) NOT NULL,
   item_name VARCHAR(255) NOT NULL,
   actual_issued_qty DECIMAL(18,4) NOT NULL,
-  source_warehouse_code VARCHAR(80) DEFAULT NULL,
+  returned_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
+  source_warehouse_code VARCHAR(500) DEFAULT NULL,
   loan_warehouse_code VARCHAR(80) NOT NULL DEFAULT 'LOAN',
-  inventory_transfer_number VARCHAR(100) DEFAULT NULL,
+  inventory_transfer_number VARCHAR(500) DEFAULT NULL,
   adjustment_qty DECIMAL(18,4) NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

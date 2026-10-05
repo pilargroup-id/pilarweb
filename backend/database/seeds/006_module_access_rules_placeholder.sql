@@ -1,0 +1,21 @@
+-- Pilarweb module access rules intentionally contain no guessed organization IDs.
+-- Configure these after confirming the actual PilarGroup user/department ownership.
+--
+-- Supported module_code values used by the backend:
+--   ADMIN
+--   FINANCE
+--   WAREHOUSE
+--
+-- Examples only (DO NOT run without replacing placeholders):
+--
+-- INSERT INTO module_access_rules
+--   (module_code, department_id, min_job_level_value, priority, is_active)
+-- VALUES
+--   ('FINANCE', <FINANCE_DEPARTMENT_ID>, NULL, 100, 1),
+--   ('WAREHOUSE', <WAREHOUSE_DEPARTMENT_ID>, NULL, 100, 1);
+--
+-- Bootstrap one Pilarweb administrator with a confirmed PilarGroup UUID:
+-- INSERT INTO module_access_rules
+--   (module_code, user_id, priority, is_active)
+-- VALUES
+--   ('ADMIN', '<PILARGROUP_USER_UUID>', 1, 1);

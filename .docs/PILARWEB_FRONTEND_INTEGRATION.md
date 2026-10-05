@@ -1,36 +1,16 @@
 # Pilarweb Frontend Integration Guide
 
-This document is the frontend source of truth for the current Pilarweb backend baseline.
+This document is the frontend source of truth for the current Pilarweb backend.
 
-## 1. Application Purpose
+## 1. Purpose
 
-Pilarweb is used internally to request physical goods from Warehouse. Item master data remains owned by Itembase. Pilarweb owns request workflow, approvals, Finance review, Warehouse fulfillment, NetSuite Inventory Transfer references, return tracking, and monthly financial closing data.
+Pilarweb is an internal goods-request application. Item master data stays in Itembase. Pilarweb owns request workflow, Department Approval, Finance Review, Warehouse fulfillment, NetSuite Inventory Transfer references, handover, returns, activity history, and monthly Inventory Adjustment closing data.
 
-## 2. Current Backend Scope
+All production UI terminology must use English.
 
-Implemented now:
+## 2. Authentication and Capabilities
 
-- PilarGroup authentication through `/api/auth/me`.
-- Pilarweb application access check using the `pilarweb` app slug.
-- Item search/list proxy at `GET /api/item/items`.
-- Itembase filtering is enforced by backend: `item_kind=regular` only.
-- Read-only master/bootstrap endpoints.
-- Database schema and seeds for the complete business flow.
-
-Not implemented in this baseline yet:
-
-- Request create/edit/submit endpoints.
-- Approval actions.
-- Finance decision actions.
-- Warehouse fulfillment write actions.
-- Return write actions.
-- Financial-closing write actions.
-
-Do not invent frontend request/action endpoints before the backend contract is added. The UI/state guidance below defines the intended behavior so screen implementation can be prepared without guessing business rules.
-
-## 3. Authentication
-
-Every protected request uses:
+Protected requests use the PilarGroup JWT:
 
 ```http
 Authorization: Bearer <PILARGROUP_JWT>
@@ -42,99 +22,91 @@ Current user:
 GET /api/auth/me
 ```
 
-Expected backend response wrapper:
+Frontend capability source:
+
+```http
+GET /api/auth/capabilities
+```
+
+Example response data:
+
+```json
+{
+  "can_create_request": true,
+  "can_approve_department": false,
+  "finance_access": false,
+  "warehouse_access": false,
+  "admin_access": false,
+  "approval_rule_configured": true
+}
+```
+
+Do not reproduce job-level authorization logic in the frontend. Use these capability flags for menu/action visibility; backend authorization remains authoritative.
+
+## 3. Itembase Integration
+
+Only these Itembase-backed endpoints are exposed by Pilarweb:
+
+```http
+GET /api/item/items
+GET /api/item/items/:id
+```
+
+For the list endpoint, Pilarweb always forces:
+
+```text
+item_kind=regular
+```
+
+A client-supplied `item_kind` is ignored. Search/pagination parameters supported by Itembase are forwarded.
+
+Pilarweb calls Itembase server-to-server using `ITEMBASE_INTERNAL_SECRET`. The secret must never be exposed to frontend code.
+
+## 4. Common Response Shape
+
+Normal Pilarweb success:
 
 ```json
 {
   "success": true,
-  "message": "Authenticated",
+  "message": "...",
   "data": {}
 }
 ```
 
-Use the returned user profile as the current user. Do not build authorization from localStorage-only role assumptions.
-
-General handling:
-
-| HTTP | FE behavior |
-|---|---|
-| 401 | Clear auth state and return user to login/session recovery. |
-| 403 | Show no-access state. Do not retry automatically. |
-| 404 | Show not-found or stale-resource state. |
-| 409 | Show conflict and refresh current transaction state. |
-| 422 | Show field/business validation messages. |
-| 5xx | Show server/upstream error and allow manual retry. |
-
-## 4. Item API
-
-Pilarweb exposes the same route name used by Itembase:
-
-```http
-GET /api/item/items
-```
-
-The backend calls Itembase:
-
-```http
-GET https://itembase.pilargroup.id/api/item/items?item_kind=regular
-```
-
-Important rules:
-
-1. FE must never assume bundle items can be requested.
-2. FE does not need to send `item_kind`.
-3. If FE sends `item_kind=bundle`, backend ignores it and still forwards `item_kind=regular`.
-4. Other query parameters are forwarded to Itembase, including pagination/search parameters supported by the existing Itembase endpoint.
-5. The response body is passed through from Itembase without Pilarweb reshaping it. Use the existing Itembase item-list response contract.
-
-Example FE call:
-
-```http
-GET /api/item/items?page=1&limit=20&search=fan
-Authorization: Bearer <token>
-```
-
-## 5. Master Bootstrap
-
-Recommended initial page bootstrap:
-
-```http
-GET /api/master/bootstrap
-Authorization: Bearer <token>
-```
-
-Response:
+Paginated:
 
 ```json
 {
   "success": true,
-  "message": "Pilarweb master data loaded",
-  "data": {
-    "request_purposes": [],
-    "workflows": [],
-    "purpose_workflow_assignments": [],
-    "approval_rules": [],
-    "warehouse_locations": [],
-    "financial_closing": null
+  "message": "...",
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 1
   }
 }
 ```
 
-Individual routes also exist:
+Error:
 
-```text
-GET /api/master/request-purposes
-GET /api/master/workflows
-GET /api/master/purpose-workflows
-GET /api/master/approval-rules
-GET /api/master/approval-rules?department_id=<id>
-GET /api/master/warehouse-locations
-GET /api/master/financial-closing
+```json
+{
+  "success": false,
+  "message": "...",
+  "errors": {
+    "code": "..."
+  }
+}
 ```
 
-## 6. Request Purposes
+Recommended FE handling: `401` session recovery, `403` no-access, `404` not found, `409` refresh transaction state, `422` business/field validation, `5xx` server/upstream error.
 
-Initial codes and labels:
+## 5. Request Purposes and Workflow
+
+Initial purposes:
 
 | Code | Label |
 |---|---|
@@ -144,150 +116,317 @@ Initial codes and labels:
 | `MARKETING_REQUEST` | Marketing Request |
 | `PRODUCT_SAMPLE` | Product Sample |
 
-The FE must use `code`/`id` from API data. Do not hardcode which purpose is returnable.
+Request Purpose and Workflow are separate. The active mapping is stored in `request_purpose_workflows`. A purpose can be moved from Returnable to Non-Returnable (or vice versa) for future requests without changing old transactions.
 
-## 7. Dynamic Workflow Rule
+Workflow is snapshotted when a DRAFT request is submitted, not when the draft is created.
 
-A Request Purpose is not permanently tied to one flow.
+## 6. Requester / Approver Rule
 
-The backend database maps:
+`approval_rules` controls both requester eligibility and Department Approval.
 
-```text
-Request Purpose -> Active Workflow Definition + Version
+- Users below `requester_block_min_job_level_value` may create requests.
+- Users at or above the configured blocking level cannot create requests.
+- The approver must meet `approver_min_job_level_value`.
+- `allow_higher_job_level=1` allows higher levels to approve.
+- The rule is selected by requester's department; a global rule (`department_id=NULL`) may be used as fallback.
+- Product or any other department can use Assistant Manager without source-code special cases.
+- Approval requirement is snapshotted into `request_approvals` at submit time.
+- Requester cannot approve their own request.
+
+## 7. Request Endpoints
+
+### My Requests
+
+```http
+GET /api/requests/my?page=1&limit=20&status=DRAFT&search=...
+```
+
+### Create Draft
+
+```http
+POST /api/requests
+Content-Type: application/json
 ```
 
 Example:
 
-```text
-PRODUCT_SAMPLE -> RETURNABLE v1
+```json
+{
+  "request_purpose_id": 1,
+  "reason": "Goods required for content production",
+  "return_due_date": null,
+  "items": [
+    {
+      "itembase_item_id": "<ITEMBASE_UUID>",
+      "requested_qty": 2,
+      "notes": "Optional line note"
+    }
+  ]
+}
 ```
 
-can later become:
+`items` may be omitted and added later. Backend fetches each Itembase item and stores a snapshot: item ID, SKU code, item name, selling name, parent, variant summary, UOM, and `item_kind=regular`.
+
+Request number is generated as:
 
 ```text
-PRODUCT_SAMPLE -> NON_RETURNABLE v2
+PWR-YY-00001
 ```
 
-without changing old transactions.
+### Request Detail
 
-FE rule:
+```http
+GET /api/requests/:id
+```
 
-- For a new request, use the active assignment returned by backend.
-- For an existing request, render the workflow snapshot stored on that request.
-- Never recompute an old request's workflow from the current purpose configuration.
+The detail includes header, request items, approvals, Finance Review, fulfillments, Inventory Transfers, handovers, and returns.
 
-## 8. Requester / Approver Behavior
+### Edit Draft
 
-Business requirement:
+```http
+PUT /api/requests/:id
+```
 
-- Staff below Assistant Manager may create requests.
-- Assistant Manager level and above cannot create requests.
-- Approval minimum is configurable in `approval_rules`.
-- A department that has no Manager may use Assistant Manager as its approval level.
-- Product Department is the known case where Assistant Manager may be the effective approver.
+Editable only while `DRAFT`.
 
-The exact PilarGroup numeric `job_level_value` for Assistant Manager is intentionally not seeded yet. FE must not hardcode a number before backend configuration is finalized.
+Example:
 
-When backend later returns capability flags, FE should use those flags instead of reproducing numeric authorization rules locally.
+```json
+{
+  "request_purpose_id": 2,
+  "reason": "Updated reason",
+  "return_due_date": "2026-10-20"
+}
+```
 
-## 9. Intended Main Flow
+### Add Item
+
+```http
+POST /api/requests/:id/items
+```
+
+```json
+{
+  "itembase_item_id": "<ITEMBASE_UUID>",
+  "requested_qty": 3,
+  "notes": null
+}
+```
+
+### Update Item
+
+```http
+PUT /api/requests/:id/items/:itemId
+```
+
+```json
+{
+  "requested_qty": 4,
+  "notes": "Updated"
+}
+```
+
+### Remove Item
+
+```http
+DELETE /api/requests/:id/items/:itemId
+```
+
+### Submit
+
+```http
+POST /api/requests/:id/submit
+```
+
+Submit validates: request owner, requester eligibility, at least one item, reason, active Request Purpose -> Workflow mapping, approval rule, and `return_due_date` when the selected workflow requires return.
+
+### Cancel
+
+```http
+DELETE /api/requests/:id
+```
+
+This is a business cancel (soft close), not a destructive database delete. Requester can cancel only while `DRAFT` or `PENDING_DEPARTMENT_APPROVAL`.
+
+### Activity and Comments
+
+```http
+GET  /api/requests/:id/activity
+GET  /api/requests/:id/comments
+POST /api/requests/:id/comments
+```
+
+Comment payload:
+
+```json
+{
+  "comment_text": "Warehouse, please prioritize this request."
+}
+```
+
+## 8. Department Approval
+
+Queue:
+
+```http
+GET /api/approvals?page=1&limit=20&search=...
+```
+
+The backend only returns pending approvals where the current user's department and job level satisfy the snapshotted approval requirement.
+
+Detail:
+
+```http
+GET /api/approvals/:id
+```
+
+Approve:
+
+```http
+POST /api/approvals/:id/approve
+```
+
+```json
+{
+  "note": "Approved"
+}
+```
+
+Reject:
+
+```http
+POST /api/approvals/:id/reject
+```
+
+```json
+{
+  "reason": "Request does not meet department requirements"
+}
+```
+
+Rejection reason is required. Approval creates the Finance Review records and moves the request to `PENDING_FINANCE_REVIEW`. Rejection moves the request to `REJECTED`.
+
+## 9. Finance Review
+
+Requires `FINANCE` access from `module_access_rules`.
+
+Queue:
+
+```http
+GET /api/finance/requests?page=1&limit=20&search=...
+```
+
+Detail:
+
+```http
+GET /api/finance/requests/:requestId
+```
+
+Submit review:
+
+```http
+POST /api/finance/requests/:requestId/review
+```
+
+Example:
+
+```json
+{
+  "note": "Finance review completed",
+  "items": [
+    {
+      "request_item_id": 11,
+      "decision": "APPROVED",
+      "approved_qty": 5,
+      "note": null
+    },
+    {
+      "request_item_id": 12,
+      "decision": "REJECTED",
+      "approved_qty": 0,
+      "note": "Not permitted"
+    }
+  ]
+}
+```
+
+Finance decision is per item. `approved_qty` must not exceed `requested_qty`. If at least one item has approved quantity > 0, request becomes `READY_FOR_WAREHOUSE`; otherwise it becomes `REJECTED`.
+
+## 10. Warehouse Queue and Fulfillment
+
+Requires `WAREHOUSE` access from `module_access_rules`.
+
+Queue:
+
+```http
+GET /api/warehouse/requests
+```
+
+Detail:
+
+```http
+GET /api/warehouse/requests/:requestId
+```
+
+Accept request / create next fulfillment:
+
+```http
+POST /api/warehouse/requests/:requestId/accept
+```
+
+A request can have multiple fulfillments. New fulfillment lines use remaining Finance-approved quantity after previously resolved quantity.
+
+Fulfillment number:
 
 ```text
-DRAFT
-  -> PENDING_DEPARTMENT_APPROVAL
-  -> PENDING_FINANCE_REVIEW
-  -> READY_FOR_WAREHOUSE
-  -> PICKING
-  -> PENDING_INVENTORY_TRANSFER
-  -> READY_FOR_HANDOVER
-  -> HANDED_OVER
+FUL-YY-00001
 ```
 
-Non-returnable:
+### Print Event
 
-```text
-HANDED_OVER -> COMPLETED
+```http
+POST /api/warehouse/fulfillments/:fulfillmentId/print
 ```
 
-Returnable:
+Printing is tracked by `print_count`, printer snapshot, and timestamp; it is not a request status.
 
-```text
-HANDED_OVER
-  -> RETURN_PENDING
-  -> PARTIALLY_RETURNED (optional)
-  -> RETURNED
-  -> RETURN_INSPECTION
-  -> COMPLETED
+### Input Actual Qty
+
+```http
+PUT /api/warehouse/fulfillments/:fulfillmentId/items/:fulfillmentItemId
 ```
 
-Rejected/canceled branches can stop the flow before Warehouse fulfillment.
+Full quantity:
 
-## 10. Create Request Screen
-
-Recommended fields:
-
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| Request Purpose | Select | Yes | Load from master API. |
-| Reason | Textarea | Yes | Business justification. |
-| Return Due Date | Date | Conditional | Show only when selected workflow `requires_return = 1`. |
-| Items | Repeating rows | Yes | Source only from `/api/item/items`. |
-| Requested Qty | Decimal/number | Yes | Must be > 0. |
-| Item Notes | Text | No | Per-item note. |
-
-Do not allow manual SKU free typing as the primary path. User should select an Itembase item so the backend can later snapshot the correct item ID/code/name.
-
-## 11. Finance Review Screen
-
-Finance decides whether requested goods are permitted.
-
-The schema supports per-item decisions:
-
-```text
-PENDING
-APPROVED
-REJECTED
+```json
+{
+  "actual_qty": 10
+}
 ```
 
-and `approved_qty` per item.
+Shortage / backorder:
 
-FE should be prepared for a request where some items are approved and others rejected. Do not assume Finance approval is always all-or-nothing.
-
-## 12. Warehouse Queue and Picking
-
-Warehouse receives requests after Finance approval.
-
-Warehouse flow:
-
-```text
-Accept Request
--> Print Picking Request
--> Physically Pick Goods
--> Input Actual Qty
--> Resolve Shortages
--> Create Inventory Transfer in NetSuite
--> Input NetSuite IT No. in Pilarweb
--> Handover Goods
+```json
+{
+  "actual_qty": 7,
+  "shortage_reason_code": "INSUFFICIENT_STOCK",
+  "remainder_disposition": "BACKORDER_REMAINDER",
+  "shortage_note": "3 units expected later"
+}
 ```
 
-Printing is an event, not a business status. The database keeps `print_count`, `last_printed_at`, and last printer snapshot.
+Shortage / close short:
 
-## 13. Actual Quantity and Shortage
-
-Never overwrite requested quantity with picked quantity.
-
-For each line show at minimum:
-
-```text
-Requested Qty
-Finance Approved Qty
-Actual Qty
-Shortage Qty
-Shortage Reason
-Remainder Disposition
+```json
+{
+  "actual_qty": 7,
+  "shortage_reason_code": "OUT_OF_STOCK",
+  "remainder_disposition": "CLOSE_SHORT",
+  "shortage_note": "Remaining quantity will not be fulfilled"
+}
 ```
 
-Suggested shortage reason codes:
+Allowed shortage reason codes:
 
 ```text
 OUT_OF_STOCK
@@ -305,119 +444,156 @@ BACKORDER_REMAINDER
 CLOSE_SHORT
 ```
 
-Example:
+Requested quantity is never overwritten.
 
-```text
-Requested: 10
-Approved: 10
-Actual: 7
-Shortage: 3
-Disposition: BACKORDER_REMAINDER
+### Confirm Picking
+
+```http
+POST /api/warehouse/fulfillments/:fulfillmentId/confirm-picking
 ```
 
-The remaining 3 can be fulfilled later without changing the original requested quantity.
+Every fulfillment line must resolve its Finance-approved snapshot as `actual_qty + shortage_qty`. If actual quantity exists, status becomes `PENDING_INVENTORY_TRANSFER`.
 
-## 14. NetSuite Inventory Transfer Gate
+## 11. NetSuite Inventory Transfer
 
-Before Warehouse may hand goods to the requester, the physical source stock must first be transferred in NetSuite to the Loan warehouse.
+Before handover, Warehouse must transfer physical stock in NetSuite from the source warehouse to the Loan warehouse.
 
-Example:
+Create IT record:
 
-```text
-GOTO Warehouse -> LOAN
-GOSAVE Warehouse -> LOAN
+```http
+POST /api/warehouse/fulfillments/:fulfillmentId/inventory-transfers
 ```
-
-A single Pilarweb request may need multiple Inventory Transfer records when goods come from different source warehouses.
-
-The Inventory Transfer number is stored as string/free text because NetSuite is the source of truth.
-
-Current NetSuite example format:
-
-```text
-IT2604868
-```
-
-Meaning:
-
-```text
-IT = Inventory Transfer
-26 = year 2026
-04868 = incrementing sequence portion
-```
-
-Frontend field:
-
-```text
-Label: Inventory Transfer No.
-Example placeholder: IT2604868
-Required: Yes before handover
-```
-
-Recommended client-side validation: trim whitespace and uppercase. A lightweight `^IT\d+$` check may be used for typo prevention, but Pilarweb must not generate the NetSuite number or increment.
-
-Critical gate:
-
-```text
-Actual Qty saved
-+ all issued quantities covered by Inventory Transfer records
-+ Inventory Transfer No. present
-= handover may continue
-```
-
-If IT number is missing, disable the final Handover/Confirm Shipment action and show a clear blocking message.
-
-## 15. Multiple Inventory Transfers
-
-Do not design the UI as one IT number per request header.
 
 Example:
 
-```text
-Request WP-001
-
-Transfer 1
-Source: GOTO
-IT No.: IT2604868
-Items: SKU A x 5
-
-Transfer 2
-Source: GOSAVE
-IT No.: IT2604869
-Items: SKU B x 3
+```json
+{
+  "inventory_transfer_number": "IT2604868",
+  "source_warehouse_code": "GOTO",
+  "transfer_date": "2026-10-05",
+  "note": null,
+  "items": [
+    {
+      "fulfillment_item_id": 21,
+      "transferred_qty": 5
+    }
+  ]
+}
 ```
 
-UI should therefore use an Inventory Transfer section/list, with each transfer containing:
+`inventory_transfer_number` is a required free-text string, trimmed and uppercased. Pilarweb does not generate the NetSuite increment. Current NetSuite convention is `IT` + two-digit year + increment, e.g. `IT2604868`.
 
-- Source Warehouse
-- Destination Warehouse (normally LOAN)
-- IT No.
-- Transfer Date
-- Covered item lines and transferred quantities
-- Optional note
+Multiple IT records are supported for one fulfillment and one request. A transfer item may not exceed the uncovered actual quantity.
 
-## 16. Returnable Flow
+When all actual quantities are exactly covered by Inventory Transfer item quantities, the fulfillment becomes `READY_FOR_HANDOVER`.
 
-The return obligation is based on actual goods issued, not originally requested quantity.
+Before handover, Warehouse may correct or remove an IT record:
 
-Example:
-
-```text
-Requested 10
-Actually issued 7
-Return obligation 7
+```http
+PUT    /api/warehouse/inventory-transfers/:transferId
+DELETE /api/warehouse/inventory-transfers/:transferId
 ```
 
-Partial returns are supported:
+`PUT` updates IT number/source warehouse/date/note. If line coverage itself is wrong, delete the transfer and recreate it. After deletion, backend recalculates the IT coverage gate. IT records cannot be changed after handover.
 
-```text
-Issued: 7
-Return #1: 4
-Return #2: 3
-Balance: 0
+## 12. Handover
+
+Warehouse handover:
+
+```http
+POST /api/warehouse/fulfillments/:fulfillmentId/handover
 ```
 
-Condition codes prepared by schema:
+```json
+{
+  "note": "Handed to requester"
+}
+```
+
+This action is blocked unless all actual quantities are covered by IT records.
+
+Requester (or Warehouse) confirms receipt:
+
+```http
+POST /api/warehouse/handovers/:handoverId/receive
+```
+
+After receipt:
+
+- If approved quantity still remains as backorder: request -> `PARTIALLY_FULFILLED`.
+- If all quantity is resolved and request is non-returnable: -> `COMPLETED`.
+- If all quantity is resolved and request is returnable: -> `RETURN_PENDING`.
+
+## 13. Return Flow
+
+Return obligation is based on actual received/issued quantity, not requested quantity.
+
+List / queue:
+
+```http
+GET /api/returns
+```
+
+Warehouse users see return queue. A normal requester sees their own returns.
+
+Requester submits return:
+
+```http
+POST /api/returns
+```
+
+```json
+{
+  "request_id": "<REQUEST_UUID>",
+  "note": "Returning equipment",
+  "items": [
+    {
+      "request_item_id": 11,
+      "returned_qty": 2
+    }
+  ]
+}
+```
+
+Return number:
+
+```text
+RET-YY-00001
+```
+
+Detail:
+
+```http
+GET /api/returns/:id
+```
+
+Warehouse receives:
+
+```http
+POST /api/returns/:id/receive
+```
+
+Warehouse inspection:
+
+```http
+POST /api/returns/:id/inspect
+```
+
+```json
+{
+  "note": "Inspection completed",
+  "items": [
+    {
+      "return_item_id": 31,
+      "condition_code": "GOOD",
+      "condition_note": null,
+      "stock_returned_qty": 2
+    }
+  ]
+}
+```
+
+Condition codes:
 
 ```text
 GOOD
@@ -426,51 +602,198 @@ MISSING
 OTHER
 ```
 
-Warehouse performs final receipt/inspection.
+`stock_returned_qty` is intentionally explicit and must be between `0` and `returned_qty`. Finance closing uses this numeric field rather than guessing inventory impact from the condition label.
 
-## 17. Activity Timeline
+## 14. Financial Closing
 
-Every important action should be rendered as a chronological timeline when the API is implemented:
+Finance closing uses `FINANCE` module access.
 
-- Request created/submitted.
-- Approval decision.
-- Finance decision.
-- Warehouse acceptance.
-- Print event.
-- Actual quantity entry.
-- Shortage resolution.
-- Inventory Transfer recorded.
-- Handover.
-- Return events.
-- Completion.
-- Financial close/batch inclusion.
+Closing day is loaded from master configuration. Default seed is day 7 / `Asia/Jakarta`, but it can be changed without code deployment.
 
-Free comments are separate from system activity events.
+List periods:
 
-## 18. Financial Closing
-
-Default business setting:
-
-```text
-Closing day: 7
-Timezone: Asia/Jakarta
+```http
+GET /api/financial-closing/periods
 ```
 
-This is configuration, not a frontend constant. Always load it from backend.
+Create period:
 
-The planned period lifecycle is:
+```http
+POST /api/financial-closing/periods
+```
+
+```json
+{
+  "period_key": "2026-09"
+}
+```
+
+Backend derives:
+
+```text
+period_start = 2026-09-01
+period_end   = 2026-09-30
+closing_date = 2026-10-07 (using current closing setting)
+```
+
+Get period and batches:
+
+```http
+GET /api/financial-closing/periods/:id
+```
+
+Start closing:
+
+```http
+POST /api/financial-closing/periods/:id/start-closing
+```
+
+Generate / regenerate DRAFT Inventory Adjustment batch:
+
+```http
+POST /api/financial-closing/periods/:id/generate-batch
+```
+
+Batch number:
+
+```text
+IA-YYYYMM-001
+```
+
+Batch detail:
+
+```http
+GET /api/financial-closing/batches/:id
+```
+
+Record NetSuite posting/reference:
+
+```http
+POST /api/financial-closing/batches/:id/post
+```
+
+```json
+{
+  "netsuite_reference": "<NetSuite Inventory Adjustment reference>"
+}
+```
+
+Close period:
+
+```http
+POST /api/financial-closing/periods/:id/close
+```
+
+Period lifecycle:
 
 ```text
 OPEN -> CLOSING -> CLOSED
 ```
 
-Inventory Adjustment output must be based on actual issued quantity, not requested quantity.
+Closed period is immutable through these APIs.
 
-Once a transaction is included in a closed Finance batch, historical records should be treated as immutable. Corrections belong to a later adjustment instead of silently editing the old closed period.
+Batch movement calculation for the selected period:
 
-## 19. Recommended FE Navigation
+```text
+adjustment_qty = actual issued quantity - stock_returned_qty
+```
 
-Suggested modules:
+Issue timing uses confirmed handover receipt. Return timing uses completed Warehouse inspection. A later-period return can therefore create a negative adjustment in the later period.
+
+## 15. Admin / Dynamic Configuration
+
+Admin endpoints require `ADMIN` access in `module_access_rules`.
+
+Current master read endpoints:
+
+```http
+GET /api/master/bootstrap
+GET /api/master/request-purposes
+GET /api/master/workflows
+GET /api/master/purpose-workflows
+GET /api/master/approval-rules
+GET /api/master/approval-rules?department_id=<id>
+GET /api/master/warehouse-locations
+GET /api/master/financial-closing
+```
+
+Admin endpoints:
+
+```http
+GET  /api/master/module-access-rules
+POST /api/master/purpose-workflows
+POST /api/master/approval-rules
+PUT  /api/master/approval-rules/:id
+PUT  /api/master/financial-closing
+POST /api/master/module-access-rules
+PUT  /api/master/module-access-rules/:id
+```
+
+Assign purpose -> workflow:
+
+```json
+{
+  "request_purpose_id": 5,
+  "workflow_definition_id": 2
+}
+```
+
+The previous active assignment is ended; historical requests are unaffected because workflow is snapshotted at submit.
+
+Financial closing setting:
+
+```json
+{
+  "closing_day": 7,
+  "timezone": "Asia/Jakarta"
+}
+```
+
+Module access example:
+
+```json
+{
+  "module_code": "WAREHOUSE",
+  "department_id": 123,
+  "min_job_level_value": null,
+  "max_job_level_value": null,
+  "priority": 100,
+  "is_active": 1
+}
+```
+
+Supported operational modules:
+
+```text
+ADMIN
+FINANCE
+WAREHOUSE
+```
+
+The backend intentionally does not guess organization IDs. The first ADMIN rule must be inserted directly into the database using a confirmed user UUID; after that, admin endpoints can maintain configuration.
+
+## 16. Request Status Reference
+
+```text
+DRAFT
+PENDING_DEPARTMENT_APPROVAL
+PENDING_FINANCE_REVIEW
+READY_FOR_WAREHOUSE
+PICKING
+PENDING_INVENTORY_TRANSFER
+READY_FOR_HANDOVER
+HANDED_OVER
+PARTIALLY_FULFILLED
+RETURN_PENDING
+PARTIALLY_RETURNED
+COMPLETED
+REJECTED
+CANCELED
+```
+
+Do not invent transitions in FE. Render backend state and enable only actions relevant to that state/capability.
+
+## 17. Recommended Sidebar
 
 ```text
 Dashboard
@@ -484,43 +807,7 @@ Warehouse
   - Fulfillment / Picking
   - Returns
 Finance Closing
-Settings (future admin-only)
+Settings
 ```
 
-Menu visibility must eventually follow backend capability/permission data. Hiding a menu is not authorization.
-
-## 20. Loading and Empty States
-
-Use skeletons for item/master/request lists rather than plain "Loading..." text.
-
-Required empty states:
-
-- No Itembase item matches search.
-- No pending approvals.
-- No Finance requests.
-- No Warehouse requests.
-- No pending returns.
-- No closing batch for selected period.
-
-## 21. Terminology
-
-Use these English terms consistently:
-
-```text
-Request Purpose
-Requested Qty
-Approved Qty
-Actual Qty
-Shortage Qty
-Inventory Transfer No.
-Source Warehouse
-Loan Warehouse
-Handover
-Return Due Date
-Return Balance
-Finance Review
-Financial Closing
-Inventory Adjustment
-```
-
-Do not mix Indonesian labels into the production UI unless a later localization requirement is explicitly added.
+Visibility should use `/api/auth/capabilities`. Hiding a menu is not authorization.
