@@ -14,14 +14,25 @@ export interface AuthUser {
   [key: string]: unknown
 }
 
+export interface AuthCapabilities {
+  can_create_request: boolean
+  can_approve_department: boolean
+  finance_access: boolean
+  warehouse_access: boolean
+  admin_access: boolean
+  approval_rule_configured: boolean
+}
+
 interface AuthState {
   user: AuthUser | null
+  capabilities: AuthCapabilities | null
   isLoading: boolean
   isReady: boolean
 }
 
 const state = reactive<AuthState>({
   user: null,
+  capabilities: null,
   isLoading: false,
   isReady: false,
 })
@@ -75,9 +86,39 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   }
 }
 
+interface AuthCapabilitiesResponse {
+  success: boolean
+  message: string
+  data: AuthCapabilities
+}
+
+export async function fetchCapabilities(): Promise<AuthCapabilities | null> {
+  const token = getToken()
+
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/capabilities`, { headers })
+
+  if (response.status === 401) {
+    clearToken()
+    state.capabilities = null
+    return null
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch capabilities (${response.status})`)
+  }
+
+  const result: AuthCapabilitiesResponse = await response.json()
+  state.capabilities = result.data
+  return state.capabilities
+}
+
 export function logout(): void {
   clearToken()
   state.user = null
+  state.capabilities = null
   state.isReady = false
 }
 

@@ -136,17 +136,87 @@
         </div>
         <p v-if="receiveError" class="mt-3 text-sm text-error-600 dark:text-error-500">{{ receiveError }}</p>
       </ComponentCard>
+
+      <ComponentCard v-if="requestDetail?.requires_return" title="Returns">
+        <div class="flex flex-col gap-5">
+          <div v-if="returnBalance > 0" class="flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-800 dark:bg-brand-500/5">
+            <p class="text-theme-sm text-gray-600 dark:text-gray-300">
+              {{ returnBalance }} unit(s) are still eligible to be returned.
+            </p>
+            <button
+              @click="isSubmitReturnDialogOpen = true"
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white hover:bg-brand-600"
+            >
+              Submit Return
+            </button>
+          </div>
+
+          <div v-if="!requestDetail.returns?.length" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            No returns have been submitted yet.
+          </div>
+          <div
+            v-for="ret in requestDetail.returns"
+            :key="ret.id"
+            v-else
+            class="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
+          >
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span class="text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ ret.return_number }}</span>
+              <Badge :color="statusColor(ret.status)" size="sm">{{ formatStatusLabel(ret.status) }}</Badge>
+            </div>
+            <p class="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
+              Submitted {{ formatDate(ret.returned_at) }}
+              <span v-if="ret.note"> &middot; {{ ret.note }}</span>
+            </p>
+            <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                <thead class="bg-gray-50 dark:bg-white/[0.02]">
+                  <tr>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Returned Qty</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Condition</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                  <tr v-for="ri in ret.items" :key="ri.id">
+                    <td class="px-4 py-3 align-top">
+                      <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ ri.item_name }}</span>
+                      <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ ri.item_code }}</span>
+                    </td>
+                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ ri.returned_qty }}</td>
+                    <td class="px-4 py-3 align-top">
+                      <Badge v-if="ri.condition_code !== 'PENDING'" :color="ri.condition_code === 'GOOD' ? 'success' : 'error'" size="sm">
+                        {{ ri.condition_code }}
+                      </Badge>
+                      <span v-else class="text-gray-400 text-theme-sm dark:text-gray-600">Awaiting inspection</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </ComponentCard>
     </div>
+
+    <DialogSubmitReturn
+      :is-open="isSubmitReturnDialogOpen"
+      :request="requestDetail"
+      @close="isSubmitReturnDialogOpen = false"
+      @submitted="loadRequest"
+    />
   </AdminLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import Badge from '@/components/ui/Badge.vue'
+import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
 import { CheckIcon } from '@/icons'
 import { getRequestById, receiveHandover } from '@/service/api'
 
@@ -158,9 +228,11 @@ const loadError = ref('')
 const requestDetail = ref(null)
 const receivingId = ref('')
 const receiveError = ref('')
+const isSubmitReturnDialogOpen = ref(false)
 
 const STATUS_BADGE_COLOR = {
   DRAFT: 'light',
+  SUBMITTED: 'warning',
   REVERTED_TO_REQUESTER: 'warning',
   PENDING_DEPARTMENT_APPROVAL: 'warning',
   PENDING_FINANCE_REVIEW: 'warning',
@@ -196,6 +268,32 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
+
+// Section 13: same issued-minus-returned balance DialogSubmitReturn.vue
+// computes, used here only to decide whether the Submit Return action shows.
+const returnBalance = computed(() => {
+  if (!requestDetail.value) return 0
+  const issuedByItem = new Map()
+  for (const fulfillment of requestDetail.value.fulfillments || []) {
+    if (fulfillment.handover?.status !== 'RECEIVED') continue
+    for (const fi of fulfillment.items || []) {
+      const id = Number(fi.request_item_id)
+      issuedByItem.set(id, (issuedByItem.get(id) || 0) + Number(fi.actual_qty || 0))
+    }
+  }
+  const usedByItem = new Map()
+  for (const ret of requestDetail.value.returns || []) {
+    for (const ri of ret.items || []) {
+      const id = Number(ri.request_item_id)
+      usedByItem.set(id, (usedByItem.get(id) || 0) + Number(ri.returned_qty || 0))
+    }
+  }
+  let total = 0
+  for (const [id, issued] of issuedByItem) {
+    total += Math.max(0, issued - (usedByItem.get(id) || 0))
+  }
+  return Math.round(total * 100) / 100
+})
 
 async function loadRequest() {
   isLoading.value = true

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-const APP_TITLE = 'Asset Management Template'
+const APP_TITLE = 'Pilarweb'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -94,6 +94,14 @@ const router = createRouter({
       component: () => import('../components/pages/werehouse/FullfilmentPage.vue'),
       meta: {
         title: 'Fulfillment / Picking',
+      },
+    },
+    {
+      path: '/returns',
+      name: 'Returns',
+      component: () => import('../components/pages/werehouse/ReturnPage.vue'),
+      meta: {
+        title: 'Returns',
       },
     },
     {

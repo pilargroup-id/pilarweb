@@ -468,3 +468,68 @@ export function receiveHandover(
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/warehouse/handovers/${handoverId}/receive`, { method: 'POST', body: payload })
 }
+
+// ---------------------------------------------------------------------------
+// Return Flow (section 13)
+// ---------------------------------------------------------------------------
+
+export interface ReturnQueueItem extends AnyRecord {
+  id: number | string
+  return_number: string
+  request_id: string
+  request_number?: string
+  requester_name?: string
+  department_name?: string
+  status: 'SUBMITTED' | 'RECEIVED' | 'COMPLETED'
+}
+
+export function getReturns(
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<PaginatedResponse<ReturnQueueItem[]>> {
+  return request('/api/returns', { params })
+}
+
+export interface CreateReturnItemPayload {
+  request_item_id: number | string
+  returned_qty: number
+}
+
+export interface CreateReturnPayload {
+  request_id: string
+  note?: string | null
+  items: CreateReturnItemPayload[]
+}
+
+export function createReturn(payload: CreateReturnPayload): Promise<ApiResponse<AnyRecord>> {
+  return request('/api/returns', { method: 'POST', body: payload })
+}
+
+export function getReturnById(id: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/returns/${id}`)
+}
+
+export function receiveReturn(
+  id: string | number,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/returns/${id}/receive`, { method: 'POST', body: payload })
+}
+
+export interface ReturnInspectionItemPayload {
+  return_item_id: number | string
+  condition_code: 'GOOD' | 'DAMAGED' | 'MISSING' | 'OTHER'
+  condition_note?: string | null
+  stock_returned_qty: number
+}
+
+export interface InspectReturnPayload {
+  note?: string | null
+  items: ReturnInspectionItemPayload[]
+}
+
+export function inspectReturn(
+  id: string | number,
+  payload: InspectReturnPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/returns/${id}/inspect`, { method: 'POST', body: payload })
+}

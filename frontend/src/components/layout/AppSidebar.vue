@@ -202,19 +202,23 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
+import { authState, fetchCapabilities } from "@/service/auth";
 
 import {
   ChevronDownIcon,
   HorizontalDots,
   BoxIcon,
+  BoxCubeIcon,
   SettingsIcon,
   FolderIcon,
   LayoutDashboardIcon,
   PieChartIcon,
+  BarChartIcon,
   TableIcon,
   ChatIcon,
+  CheckIcon,
 } from "../../icons";
 import { useSidebar } from "@/composables/useSidebar";
 
@@ -222,7 +226,7 @@ const route = useRoute();
 
 const { isExpanded, isMobileOpen, isHovered, openSubmenu } = useSidebar();
 
-const menuGroups = [
+const rawMenuGroups = [
   {
     title: "Menu",
     items: [
@@ -246,30 +250,27 @@ const menuGroups = [
       // },
        {
         icon: BoxIcon,
-        name: "Request",
-        subItems: [
-          { name: "My Request", path: "/request/my", pro: false },
-          { name: "New Request", path: "/request/new", pro: false },
-        ],
+        name: "My Request",
+        path: "/request/my",
       },
       {
-        icon: PieChartIcon,
+        icon: CheckIcon,
         name: "Approvals",
         path: "/approvals",
       },
-       {
-        icon: PieChartIcon,
-        name: "Finance Review",
-        path: "/finance-review",
+      {
+        icon: BarChartIcon,
+        name: "Finance",
+        capability: "finance_access",
+        subItems: [
+          { name: "Finance Review", path: "/finance-review", pro: false },
+          { name: "Financial Closing", path: "/financial-closing", pro: false },
+        ],
       },
       {
-        icon: PieChartIcon,
-        name: "Financial Closing",
-        path: "/financial-closing",
-      },
-      {
-        icon: TableIcon,
+        icon: BoxCubeIcon,
         name: "Warehouse",
+        capability: "warehouse_access",
         subItems: [
           { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
@@ -289,6 +290,26 @@ const menuGroups = [
   },
 ];
 
+const hasCapability = (item) => {
+  if (!item.capability) return true;
+  return Boolean(authState.capabilities?.[item.capability]);
+};
+
+const menuGroups = computed(() =>
+  rawMenuGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(hasCapability),
+    }))
+    .filter((group) => group.items.length > 0)
+);
+
+onMounted(() => {
+  if (!authState.capabilities) {
+    fetchCapabilities().catch(() => {});
+  }
+});
+
 const isActive = (path) => route.path === path;
 
 const toggleSubmenu = (groupIndex, itemIndex) => {
@@ -297,7 +318,7 @@ const toggleSubmenu = (groupIndex, itemIndex) => {
 };
 
 const isAnySubmenuRouteActive = computed(() => {
-  return menuGroups.some((group) =>
+  return menuGroups.value.some((group) =>
     group.items.some(
       (item) =>
         item.subItems && item.subItems.some((subItem) => isActive(subItem.path))
@@ -310,7 +331,7 @@ const isSubmenuOpen = (groupIndex, itemIndex) => {
   return (
     openSubmenu.value === key ||
     (isAnySubmenuRouteActive.value &&
-      menuGroups[groupIndex].items[itemIndex].subItems?.some((subItem) =>
+      menuGroups.value[groupIndex].items[itemIndex].subItems?.some((subItem) =>
         isActive(subItem.path)
       ))
   );
