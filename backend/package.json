@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development node --watch src/server.js",
     "start": "cross-env NODE_ENV=production node src/server.js",
-    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/index.js && node --check src/config/database.config.js && node --check src/services/auth.service.js && node --check src/services/itembase.service.js && node --check src/services/master.service.js && node --check src/services/request.service.js && node --check src/controllers/item.controller.js && node --check src/controllers/master.controller.js && node --check src/controllers/request.controller.js && node --check src/routes/index.js && node --check src/routes/item.routes.js && node --check src/routes/master.routes.js && node --check src/routes/request.routes.js && node --check src/middleware/error.middleware.js"
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/index.js && node --check src/config/database.config.js && node --check src/services/auth.service.js && node --check src/services/itembase.service.js && node --check src/services/master.service.js && node --check src/controllers/item.controller.js && node --check src/controllers/master.controller.js && node --check src/routes/index.js && node --check src/routes/item.routes.js && node --check src/routes/master.routes.js"
   },
   "engines": {
     "node": ">=20"

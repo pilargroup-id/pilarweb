@@ -1,0 +1,10 @@
+const express=require('express');
+const config=require('../config');
+const FinanceController=require('../controllers/finance.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/requests',FinanceController.index);
+router.get('/requests/:requestId',FinanceController.show);
+router.post('/requests/:requestId/review',FinanceController.review);
+module.exports=router;

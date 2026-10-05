@@ -1,60 +1,104 @@
 # Pilarweb Business Workflow
 
-## Core Design Principle
+## Core Principles
 
-Request Purpose and Workflow are separate configuration objects. A purpose may change workflow for future requests without changing historical requests.
+1. Itembase is the source of truth for item master data. Pilarweb stores transaction snapshots only.
+2. Request Purpose is separate from Workflow. New requests can use a new mapping without changing historical transactions.
+3. Workflow and approval requirements are snapshotted at submit time.
+4. Staff below the configured requester block level may request. Assistant Manager/Manager rules are data-driven in `approval_rules`, not hardcoded by department.
+5. Finance decision is per item and may reduce approved quantity.
+6. Warehouse never overwrites requested or Finance-approved quantity; actual quantity is a separate fact.
+7. Shortage can be `BACKORDER_REMAINDER` or `CLOSE_SHORT`.
+8. NetSuite Inventory Transfer is a mandatory gate before handover. Multiple IT records are supported.
+9. Return obligation is based on actual issued quantity.
+10. Financial closing uses actual issue and explicit `stock_returned_qty`, not requested quantity or condition-label assumptions.
+11. Historical/audit records are append-oriented. Closed Finance periods are immutable.
 
-## Workflow A - Non-Returnable
-
-```text
-Requester
--> Department Approval
--> Finance Review
--> Warehouse Accept
--> Print / Pick
--> Input Actual Qty
--> Resolve Shortage
--> NetSuite Inventory Transfer to LOAN
--> Record IT No.
--> Handover
--> Complete
--> Eligible Financial Closing Data
-```
-
-## Workflow B - Returnable
+## Non-Returnable Flow
 
 ```text
-Requester
--> Department Approval
--> Finance Review
+DRAFT
+-> Submit
+-> PENDING_DEPARTMENT_APPROVAL
+-> Department Approve
+-> PENDING_FINANCE_REVIEW
+-> Finance Approve / Reject per Item
+-> READY_FOR_WAREHOUSE
 -> Warehouse Accept
--> Print / Pick
--> Input Actual Qty
--> Resolve Shortage
--> NetSuite Inventory Transfer to LOAN
--> Record IT No.
--> Handover
--> Return Pending
--> Partial/Full Return
--> Warehouse Inspection
--> Complete
--> Eligible Financial Closing Data
+-> PICKING
+-> Actual Qty + Shortage Resolution
+-> PENDING_INVENTORY_TRANSFER
+-> NetSuite Source Warehouse -> LOAN
+-> Record IT No. / Coverage
+-> READY_FOR_HANDOVER
+-> HANDED_OVER
+-> Requester Receipt
+-> COMPLETED
+-> Eligible for Financial Closing movement calculation
 ```
 
-## Approval
+## Returnable Flow
 
-`approval_rules` is the configurable master. No source-code special case should say "Product Department always uses Assistant Manager". Product can be configured that way today and changed later without deployment.
+```text
+DRAFT
+-> Department Approval
+-> Finance Review
+-> Warehouse Fulfillment
+-> Inventory Transfer to LOAN
+-> Handover / Receipt
+-> RETURN_PENDING
+-> Return Submitted
+-> Warehouse Receive
+-> Warehouse Inspect
+-> PARTIALLY_RETURNED (when balance remains)
+-> COMPLETED (when resolved)
+```
 
-Assistant Manager and higher levels are approver-only for this request process and may not create requests. The exact numeric Assistant Manager job-level mapping must be loaded from confirmed PilarGroup data before production rules are seeded.
+## Partial Fulfillment
 
-## Shortage
+Example:
 
-Original request quantities are immutable historical intent. Warehouse records actual quantity separately. Remaining quantity can either stay open as backorder or be closed short with a reason.
+```text
+Finance Approved: 10
+Actual Picked: 7
+Shortage: 3
+```
+
+`BACKORDER_REMAINDER`: 7 can be transferred/handed over, request becomes `PARTIALLY_FULFILLED`, and Warehouse can create another fulfillment for the remaining 3.
+
+`CLOSE_SHORT`: the shortage is considered resolved and no future fulfillment is expected for that quantity.
 
 ## Inventory Transfer
 
-Inventory Transfer is a mandatory operational gate before handover. NetSuite remains the system of record for the IT number. Pilarweb records the reference and item coverage to prevent Warehouse from forgetting the transfer step.
+Example NetSuite reference:
 
-## Financial Closing
+```text
+IT2604868
+```
 
-Closing date is dynamic. Default is day 7. Periods should be explicit records so Finance can see OPEN/CLOSING/CLOSED state and later produce an Inventory Adjustment batch from actual issued quantities.
+Pilarweb stores it as a required string. It does not generate or increment the NetSuite number.
+
+IT coverage is line-based. Sum of transferred quantity for a fulfillment line must equal its actual quantity before handover.
+
+## Return Inspection and Finance
+
+`condition_code` describes Warehouse inspection (`GOOD`, `DAMAGED`, `MISSING`, `OTHER`). Financial stock impact is not inferred from this label.
+
+Warehouse explicitly records `stock_returned_qty`. This lets Finance calculate:
+
+```text
+period adjustment = issued quantity - stock_returned_qty
+```
+
+without guessing whether a damaged/missing line physically returned to inventory.
+
+
+## Edit, Revert, and Per-Item Cancellation
+
+Requester editing is allowed while the request is `DRAFT`, while it is still `PENDING_DEPARTMENT_APPROVAL`, and after a manager sends it back as `REVERTED_TO_REQUESTER`.
+
+A department approver may revert an already approved request back to the requester only while Finance has not submitted a decision. Once Finance has processed the request, department approval cannot be reverted.
+
+Cancellation is item-level, not form-level. Each `request_items` row has its own `ACTIVE` / `CANCELED` state and cancel audit fields. If every item is canceled, the request header becomes `CANCELED` automatically.
+
+Requester may cancel items while the request is `DRAFT`, `PENDING_DEPARTMENT_APPROVAL`, or `REVERTED_TO_REQUESTER`. Department approvers may cancel individual items during department approval and, after approval, while Finance is still pending. Finance may also mark individual items `CANCELED` during review.

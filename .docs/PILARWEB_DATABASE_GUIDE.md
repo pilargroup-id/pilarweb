@@ -2,21 +2,15 @@
 
 ## SQL Location Rule
 
-Every SQL file is under:
+All SQL belongs under:
 
 ```text
 backend/database/
 ```
 
-Required naming style uses ordered numeric prefixes:
+Ordered numeric prefixes are mandatory.
 
-```text
-001_<name>.sql
-002_<name>.sql
-003_<name>.sql
-```
-
-## Structure
+## Current Structure
 
 ```text
 backend/database/
@@ -28,7 +22,9 @@ backend/database/
 │   ├── 005_warehouse_fulfillment.sql
 │   ├── 006_returns.sql
 │   ├── 007_financial_closing.sql
-│   └── 008_activity_audit.sql
+│   ├── 008_activity_audit.sql
+│   ├── 009_transaction_api_support.sql
+│   └── 010_request_edit_revert_item_cancel.sql
 ├── schema/
 │   └── pilarweb-schema.sql
 └── seeds/
@@ -37,32 +33,55 @@ backend/database/
     ├── 003_warehouse_locations.sql
     ├── 004_financial_closing_settings.sql
     ├── 005_approval_rules_placeholder.sql
-    ├── 006_request_purpose_workflow_assignments.sql
-    └── 007_request_purpose_workflow_assignments_non_returnable.sql
+    └── 006_module_access_rules_placeholder.sql
 ```
 
-## Fresh Install Order
+## Existing Database Upgrade
 
-Option A - consolidated schema:
+If migrations `001`-`008` were already applied, run only:
 
-```bash
-mysql -u root -p < backend/database/schema/pilarweb-schema.sql
-mysql -u root -p pilarweb < backend/database/seeds/001_request_purposes.sql
-mysql -u root -p pilarweb < backend/database/seeds/002_workflow_definitions.sql
-mysql -u root -p pilarweb < backend/database/seeds/003_warehouse_locations.sql
-mysql -u root -p pilarweb < backend/database/seeds/004_financial_closing_settings.sql
-mysql -u root -p pilarweb < backend/database/seeds/006_request_purpose_workflow_assignments.sql
-mysql -u root -p pilarweb < backend/database/seeds/007_request_purpose_workflow_assignments_non_returnable.sql
+```text
+backend/database/migrations/009_transaction_api_support.sql
 ```
 
-`005_approval_rules_placeholder.sql` contains documentation only and intentionally inserts no guessed job-level values.
+`009` adds transaction API support fields, approval snapshots, module access rules, return stock quantity, and closing-batch columns.
 
-`006_request_purpose_workflow_assignments.sql` seeds only the one purpose -> workflow mapping given as a worked example in the frontend integration doc (`PRODUCT_SAMPLE -> RETURNABLE v1`).
+## Fresh Install
 
-`007_request_purpose_workflow_assignments_non_returnable.sql` maps the remaining four purposes (TikTok Shipment, YouTube Shipment, Internal Use, Marketing Request) to `NON_RETURNABLE v1` as a reasonable default, not a fixed rule. Business can repoint any purpose to a different workflow later (deactivate the old `request_purpose_workflows` row, insert a new one) without touching old requests, which keep their original workflow snapshot (docs section 7). Every purpose now has an active mapping, so `WORKFLOW_NOT_CONFIGURED` should no longer occur unless a new purpose is added without one.
+Use the consolidated schema:
 
-Option B - migrations in numeric order, then seeds in numeric order.
+```text
+backend/database/schema/pilarweb-schema.sql
+```
 
-## No Foreign Keys
+Then run seeds in numeric order.
 
-Pilarweb uses snapshot-style transaction storage and intentionally avoids database FK constraints to central PilarGroup or Itembase data. IDs are retained for traceability and display snapshots are stored on transaction rows where historical accuracy matters.
+The placeholder seeds do not guess organization-specific values.
+
+## Required Business Configuration Before Submit/Operational Actions
+
+Before request submit is usable, configure:
+
+1. `approval_rules` for each relevant department (or a deliberate global fallback).
+2. `request_purpose_workflows` for each Request Purpose.
+
+Before Finance/Warehouse/Admin APIs are usable, configure `module_access_rules`.
+
+Supported module codes:
+
+```text
+ADMIN
+FINANCE
+WAREHOUSE
+```
+
+The first `ADMIN` rule must be inserted directly with a confirmed PilarGroup user UUID. Example template is in `006_module_access_rules_placeholder.sql`.
+
+## Snapshot / No-FK Principle
+
+Pilarweb deliberately avoids foreign-key constraints to PilarGroup and Itembase. External IDs are retained for traceability, while user/item/department/company names and business facts are snapshotted on transactions.
+
+
+## Migration 010
+
+`010_request_edit_revert_item_cancel.sql` adds request revert audit fields, per-item cancellation state/audit fields, approval revert audit fields, and renames the original request-purpose master values without changing their existing IDs.

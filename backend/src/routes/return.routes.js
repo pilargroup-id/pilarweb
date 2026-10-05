@@ -1,0 +1,12 @@
+const express=require('express');
+const config=require('../config');
+const ReturnController=require('../controllers/return.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/',ReturnController.index);
+router.post('/',ReturnController.create);
+router.get('/:id',ReturnController.show);
+router.post('/:id/receive',ReturnController.receive);
+router.post('/:id/inspect',ReturnController.inspect);
+module.exports=router;
