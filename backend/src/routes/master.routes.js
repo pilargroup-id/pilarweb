@@ -27,5 +27,8 @@ router.put('/approval-rules/:id', requireAdmin, MasterController.updateApprovalR
 router.put('/financial-closing', requireAdmin, MasterController.updateFinancialClosing);
 router.post('/module-access-rules', requireAdmin, MasterController.createModuleAccessRule);
 router.put('/module-access-rules/:id', requireAdmin, MasterController.updateModuleAccessRule);
+router.post('/request-purposes', requireAdmin, MasterController.createRequestPurpose);
+router.put('/request-purposes/:id', requireAdmin, MasterController.updateRequestPurpose);
+router.delete('/request-purposes/:id', requireAdmin, MasterController.deleteRequestPurpose);
 
 module.exports = router;

@@ -147,6 +147,31 @@ export function getRequestPurposes(): Promise<ApiResponse<RequestPurpose[]>> {
   return request('/api/master/request-purposes')
 }
 
+export interface RequestPurposePayload {
+  code: string
+  name: string
+  description?: string | null
+  sort_order?: number
+  is_active?: boolean | number
+}
+
+export function createRequestPurpose(
+  payload: RequestPurposePayload,
+): Promise<ApiResponse<RequestPurpose>> {
+  return request('/api/master/request-purposes', { method: 'POST', body: payload })
+}
+
+export function updateRequestPurpose(
+  id: string | number,
+  payload: RequestPurposePayload,
+): Promise<ApiResponse<RequestPurpose>> {
+  return request(`/api/master/request-purposes/${id}`, { method: 'PUT', body: payload })
+}
+
+export function deleteRequestPurpose(id: string | number): Promise<ApiResponse<null>> {
+  return request(`/api/master/request-purposes/${id}`, { method: 'DELETE' })
+}
+
 export function getWorkflows(): Promise<ApiResponse<WorkflowDefinition[]>> {
   return request('/api/master/workflows')
 }
@@ -155,12 +180,42 @@ export function getPurposeWorkflows(): Promise<ApiResponse<PurposeWorkflowAssign
   return request('/api/master/purpose-workflows')
 }
 
+export interface AssignPurposeWorkflowPayload {
+  request_purpose_id: string | number
+  workflow_definition_id: string | number
+}
+
+export function assignPurposeWorkflow(
+  payload: AssignPurposeWorkflowPayload,
+): Promise<ApiResponse<{ id: number | string }>> {
+  return request('/api/master/purpose-workflows', { method: 'POST', body: payload })
+}
+
 export function getApprovalRules(
   departmentId?: string | number,
 ): Promise<ApiResponse<ApprovalRule[]>> {
   return request('/api/master/approval-rules', {
     params: departmentId !== undefined ? { department_id: departmentId } : undefined,
   })
+}
+
+export interface ApprovalRulePayload {
+  code: string
+  name: string
+  department_id?: number | null
+  department_name?: string | null
+  requester_block_min_job_level_value?: number | null
+  approver_min_job_level_value: number
+  approver_job_level_name?: string | null
+  allow_higher_job_level?: boolean | number
+  priority?: number
+  is_active?: boolean | number
+}
+
+export function createApprovalRule(
+  payload: ApprovalRulePayload,
+): Promise<ApiResponse<ApprovalRule>> {
+  return request('/api/master/approval-rules', { method: 'POST', body: payload })
 }
 
 export function getWarehouseLocations(): Promise<ApiResponse<WarehouseLocation[]>> {
@@ -215,4 +270,201 @@ export function getMyRequests(
 
 export function getRequestById(id: string): Promise<ApiResponse<PilarwebRequest>> {
   return request(`/api/requests/${id}`)
+}
+
+export function submitRequest(id: string): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${id}/submit`, { method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// Department Approval (section 8)
+// ---------------------------------------------------------------------------
+
+export interface ApprovalQueueItem extends AnyRecord {
+  id: number | string
+  request_id: string
+  request_number: string
+  requester_name?: string
+  department_name?: string
+  request_purpose_name?: string
+  submitted_at?: string
+  request_status: string
+}
+
+export function getApprovals(
+  params: { page?: number; limit?: number; search?: string } = {},
+): Promise<PaginatedResponse<ApprovalQueueItem[]>> {
+  return request('/api/approvals', { params })
+}
+
+export function getApprovalById(id: number | string): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/approvals/${id}`)
+}
+
+export function approveApproval(
+  id: number | string,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/approvals/${id}/approve`, { method: 'POST', body: payload })
+}
+
+export function rejectApproval(
+  id: number | string,
+  payload: { reason: string },
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/approvals/${id}/reject`, { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Finance Review (section 9)
+// ---------------------------------------------------------------------------
+
+export interface FinanceQueueItem extends AnyRecord {
+  finance_review_id: number | string
+  finance_review_status: string
+  request_id: string
+  request_number: string
+  request_status: string
+}
+
+export function getFinanceRequests(
+  params: { page?: number; limit?: number; search?: string } = {},
+): Promise<PaginatedResponse<FinanceQueueItem[]>> {
+  return request('/api/finance/requests', { params })
+}
+
+export function getFinanceRequestById(requestId: string): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/finance/requests/${requestId}`)
+}
+
+export interface FinanceReviewItemDecision {
+  request_item_id: number | string
+  decision: 'APPROVED' | 'REJECTED' | 'CANCELED'
+  approved_qty?: number
+  note?: string | null
+}
+
+export interface FinanceReviewPayload {
+  note?: string | null
+  items: FinanceReviewItemDecision[]
+}
+
+export function submitFinanceReview(
+  requestId: string,
+  payload: FinanceReviewPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/finance/requests/${requestId}/review`, { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Warehouse Queue and Fulfillment (section 10)
+// ---------------------------------------------------------------------------
+
+export interface WarehouseQueueItem extends AnyRecord {
+  id: string
+  request_number: string
+  status: string
+}
+
+export function getWarehouseQueue(
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<PaginatedResponse<WarehouseQueueItem[]>> {
+  return request('/api/warehouse/requests', { params })
+}
+
+export function getWarehouseRequestDetail(requestId: string): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/requests/${requestId}`)
+}
+
+export function acceptWarehouseRequest(requestId: string): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/requests/${requestId}/accept`, { method: 'POST' })
+}
+
+export function printFulfillment(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/print`, { method: 'POST' })
+}
+
+export interface UpdateFulfillmentItemPayload {
+  actual_qty: number
+  shortage_reason_code?: string | null
+  remainder_disposition?: string | null
+  shortage_note?: string | null
+}
+
+export function updateFulfillmentItem(
+  fulfillmentId: string | number,
+  fulfillmentItemId: string | number,
+  payload: UpdateFulfillmentItemPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/items/${fulfillmentItemId}`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+export function confirmFulfillmentPicking(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/confirm-picking`, { method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// NetSuite Inventory Transfer (section 11)
+// ---------------------------------------------------------------------------
+
+export interface InventoryTransferItemPayload {
+  fulfillment_item_id: string | number
+  transferred_qty: number
+}
+
+export interface InventoryTransferPayload {
+  inventory_transfer_number: string
+  source_warehouse_code: string
+  transfer_date: string
+  note?: string | null
+  items: InventoryTransferItemPayload[]
+}
+
+export function createInventoryTransfer(
+  fulfillmentId: string | number,
+  payload: InventoryTransferPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/inventory-transfers`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export interface UpdateInventoryTransferPayload {
+  inventory_transfer_number?: string
+  source_warehouse_code?: string
+  transfer_date?: string
+  note?: string | null
+}
+
+export function updateInventoryTransfer(
+  transferId: string | number,
+  payload: UpdateInventoryTransferPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/inventory-transfers/${transferId}`, { method: 'PUT', body: payload })
+}
+
+export function deleteInventoryTransfer(transferId: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/inventory-transfers/${transferId}`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------------------------------------
+// Handover (section 12)
+// ---------------------------------------------------------------------------
+
+export function handoverFulfillment(
+  fulfillmentId: string | number,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/handover`, { method: 'POST', body: payload })
+}
+
+export function receiveHandover(
+  handoverId: string | number,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/handovers/${handoverId}/receive`, { method: 'POST', body: payload })
 }

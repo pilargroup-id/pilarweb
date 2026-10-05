@@ -49,51 +49,11 @@ const router = createRouter({
       },
     },
     {
-      path: '/master/categories',
-      name: 'Asset Categories',
-      component: () => import('../components/pages/master/AssetCategoriesPage.vue'),
+      path: '/request/:id',
+      name: 'Request Detail',
+      component: () => import('../components/pages/request/RequestDetailPage.vue'),
       meta: {
-        title: 'Asset Categories',
-      },
-    },
-    {
-      path: '/master/brands',
-      name: 'Brands',
-      component: () => import('../components/pages/master/BrandsPage.vue'),
-      meta: {
-        title: 'Brands',
-      },
-    },
-    {
-      path: '/master/locations',
-      name: 'Locations',
-      component: () => import('../components/pages/master/LocationsPage.vue'),
-      meta: {
-        title: 'Locations',
-      },
-    },
-    {
-      path: '/master/uoms',
-      name: 'Units of Measure',
-      component: () => import('../components/pages/master/UomsPage.vue'),
-      meta: {
-        title: 'Units of Measure',
-      },
-    },
-    {
-      path: '/master/numbering',
-      name: 'Numbering',
-      component: () => import('../components/pages/master/NumberingPage.vue'),
-      meta: {
-        title: 'Numbering',
-      },
-    },
-    {
-      path: '/depreciation/policies',
-      name: 'Depreciation Policies',
-      component: () => import('../components/pages/depreciation/DepreciationPoliciesPage.vue'),
-      meta: {
-        title: 'Depreciation Policies',
+        title: 'Request Detail',
       },
     },
     {
@@ -105,6 +65,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/finance-review',
+      name: 'Finance Review',
+      component: () => import('../components/pages/financial/FinanceReviewPage.vue'),
+      meta: {
+        title: 'Finance Review',
+      },
+    },
+    {
       path: '/financial-closing',
       name: 'Financial Closing',
       component: () => import('../components/pages/financial/FinancialClosingPage.vue'),
@@ -113,19 +81,19 @@ const router = createRouter({
       },
     },
     {
-      path: '/data/import',
-      name: 'Import',
-      component: () => import('../components/pages/data/ImportPage.vue'),
+      path: '/warehouse/requests',
+      name: 'Warehouse Request Queue',
+      component: () => import('../components/pages/werehouse/RequestQueuePage.vue'),
       meta: {
-        title: 'Import',
+        title: 'Warehouse Request Queue',
       },
     },
     {
-      path: '/data/export',
-      name: 'Export',
-      component: () => import('../components/pages/data/ExportPage.vue'),
+      path: '/warehouse/fulfillments',
+      name: 'Warehouse Fulfillment Picking',
+      component: () => import('../components/pages/werehouse/FullfilmentPage.vue'),
       meta: {
-        title: 'Export & Reports',
+        title: 'Fulfillment / Picking',
       },
     },
     {
@@ -137,27 +105,19 @@ const router = createRouter({
       },
     },
     {
-      path: '/permissions/list',
-      name: 'Permission List',
-      component: () => import('../components/pages/permissions/PermissionListPage.vue'),
+      path: '/data/RequestPurpose',
+      name: 'Request Purpose',
+      component: () => import('../components/pages/master/RequestPurpose.vue'),
       meta: {
-        title: 'Permission List',
+        title: 'Request Purpose',
       },
     },
     {
-      path: '/permissions/assignments',
-      name: 'Permission Assignments',
-      component: () => import('../components/pages/permissions/PermissionAssignments.vue'),
+      path: '/data/ApprovalRules',
+      name: 'Approval Rules',
+      component: () => import('../components/pages/master/ApprovalRulesPage.vue'),
       meta: {
-        title: 'Permission Assignments',
-      },
-    },
-    {
-      path: '/chat',
-      name: 'AI Assistant',
-      component: () => import('../components/pages/chat/ChatRoomPage.vue'),
-      meta: {
-        title: 'AI Assistant',
+        title: 'Approval Rules',
       },
     },
     {

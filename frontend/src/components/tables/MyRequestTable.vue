@@ -3,8 +3,15 @@
     <Alert
       v-if="createdNotice"
       variant="success"
-      title="Request submitted"
-      :message="`Request ${createdNotice} was created and is now pending department approval.`"
+      title="Request created"
+      :message="`Request ${createdNotice} was saved as a draft. Click Submit for Approval when it's ready.`"
+    />
+
+    <Alert
+      v-if="submitError"
+      variant="error"
+      title="Submit failed"
+      :message="submitError"
     />
 
     <BaseTable>
@@ -39,20 +46,21 @@
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Return Due Date</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Action</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading requests...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!requests.length">
-        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">You haven't submitted any requests yet.</p>
           <button
             @click="isNewRequestOpen = true"
@@ -88,6 +96,25 @@
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
         </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <div class="flex items-center gap-2">
+            <router-link
+              :to="`/request/${item.id}`"
+              class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            >
+              View
+            </router-link>
+            <button
+              v-if="isSubmittable(item.status)"
+              @click="handleSubmitRequest(item)"
+              :disabled="submittingId === item.id"
+              type="button"
+              class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              {{ submittingId === item.id ? 'Submitting...' : 'Submit for Approval' }}
+            </button>
+          </div>
+        </td>
       </tr>
 
       <template #pagination>
@@ -114,7 +141,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getMyRequests } from '@/service/api'
+import { getMyRequests, submitRequest } from '@/service/api'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
@@ -130,10 +157,15 @@ const isNewRequestOpen = ref(false)
 const requests = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
+const submitError = ref('')
+const submittingId = ref('')
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
+
+const SUBMITTABLE_STATUSES = new Set(['DRAFT', 'REVERTED_TO_REQUESTER'])
 
 const STATUS_BADGE_COLOR = {
   DRAFT: 'light',
+  REVERTED_TO_REQUESTER: 'warning',
   PENDING_DEPARTMENT_APPROVAL: 'warning',
   PENDING_FINANCE_REVIEW: 'warning',
   READY_FOR_WAREHOUSE: 'info',
@@ -151,6 +183,21 @@ const STATUS_BADGE_COLOR = {
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
+
+const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
+
+async function handleSubmitRequest(item) {
+  submitError.value = ''
+  submittingId.value = item.id
+  try {
+    await submitRequest(item.id)
+    await fetchRequests(meta.page)
+  } catch (err) {
+    submitError.value = err?.message || `Failed to submit request ${item.request_number}.`
+  } finally {
+    submittingId.value = ''
+  }
+}
 
 const formatStatusLabel = (status) => {
   if (!status) return '-'

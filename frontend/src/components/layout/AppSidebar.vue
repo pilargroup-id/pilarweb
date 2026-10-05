@@ -252,38 +252,15 @@ const menuGroups = [
           { name: "New Request", path: "/request/new", pro: false },
         ],
       },
-      // {
-      //   icon: SettingsIcon,
-      //   name: "Permissions",
-      //   subItems: [
-      //     { name: "Permission List", path: "/permissions/list", pro: false },
-      //     {
-      //       name: "Permission Assignments",
-      //       path: "/permissions/assignments",
-      //       pro: false,
-      //     },
-      //   ],
-      // },
-      // {
-      //   icon: FolderIcon,
-      //   name: "Master",
-      //   subItems: [
-      //     { name: "Asset Categories", path: "/master/categories", pro: false },
-      //     { name: "Brands", path: "/master/brands", pro: false },
-      //     { name: "Locations", path: "/master/locations", pro: false },
-      //     { name: "Units of Measure", path: "/master/uoms", pro: false },
-      //     { name: "Numbering", path: "/master/numbering", pro: false },
-      //   ],
-      // },
-      // {
-      //   icon: PieChartIcon,
-      //   name: "Depreciation",
-      //   path: "/depreciation/policies",
-      // },
-       {
+      {
         icon: PieChartIcon,
         name: "Approvals",
         path: "/approvals",
+      },
+       {
+        icon: PieChartIcon,
+        name: "Finance Review",
+        path: "/finance-review",
       },
       {
         icon: PieChartIcon,
@@ -292,12 +269,20 @@ const menuGroups = [
       },
       {
         icon: TableIcon,
-        name: "Werehouse",
+        name: "Warehouse",
         subItems: [
-          { name: "Request Queue", path: "/data/import", pro: false },
-          { name: "Fullfilment / Picking", path: "/data/export", pro: false },
-          { name: "Returns", path: "/data/export", pro: false },
+          { name: "Request Queue", path: "/warehouse/requests", pro: false },
+          { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
+          { name: "Returns", path: "/returns", pro: false },
           { name: "WH Locations", path: "/data/WHLocations", pro: false },
+        ],
+      },
+            {
+        icon: TableIcon,
+        name: "Master",
+        subItems: [
+          { name: "Request Purpose", path: "/data/RequestPurpose", pro: false },
+          { name: "Approval Rules", path: "/data/ApprovalRules", pro: false }
         ],
       },
     ],
