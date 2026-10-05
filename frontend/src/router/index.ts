@@ -33,6 +33,22 @@ const router = createRouter({
       },
     },
     {
+      path: '/request/my',
+      name: 'My Request',
+      component: () => import('../components/pages/request/MyRequest.vue'),
+      meta: {
+        title: 'My Request',
+      },
+    },
+    {
+      path: '/request/new',
+      name: 'New Request',
+      component: () => import('../components/pages/request/NewRequest.vue'),
+      meta: {
+        title: 'New Request',
+      },
+    },
+    {
       path: '/master/categories',
       name: 'Asset Categories',
       component: () => import('../components/pages/master/AssetCategoriesPage.vue'),
@@ -81,6 +97,22 @@ const router = createRouter({
       },
     },
     {
+      path: '/approvals',
+      name: 'Approvals',
+      component: () => import('../components/pages/approval/ApprovalsPage.vue'),
+      meta: {
+        title: 'Approvals',
+      },
+    },
+    {
+      path: '/financial-closing',
+      name: 'Financial Closing',
+      component: () => import('../components/pages/financial/FinancialClosingPage.vue'),
+      meta: {
+        title: 'Financial Closing',
+      },
+    },
+    {
       path: '/data/import',
       name: 'Import',
       component: () => import('../components/pages/data/ImportPage.vue'),
@@ -94,6 +126,14 @@ const router = createRouter({
       component: () => import('../components/pages/data/ExportPage.vue'),
       meta: {
         title: 'Export & Reports',
+      },
+    },
+    {
+      path: '/data/WHLocations',
+      name: 'WH Locations',
+      component: () => import('../components/pages/werehouse/WHLocations.vue'),
+      meta: {
+        title: 'Warehouse Locations',
       },
     },
     {

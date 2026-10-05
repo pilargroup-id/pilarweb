@@ -30,6 +30,7 @@ function errorHandler(err, req, res, next) {
   if (err?.statusCode && err.statusCode >= 400 && err.statusCode < 600) {
     return R.error(res, err.message || 'Request failed', err.statusCode, {
       code: err.code || 'REQUEST_FAILED',
+      ...(err.errors ? { details: err.errors } : null),
     });
   }
 

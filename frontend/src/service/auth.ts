@@ -1,13 +1,7 @@
 import { reactive, readonly } from 'vue'
 
 const TOKEN_KEY = 'auth_token'
-
-const TEMPLATE_USER: AuthUser = {
-  id: 'u-001',
-  name: 'Template User',
-  username: 'template.user',
-  email: 'template@example.com',
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export interface AuthUser {
   id: string | number
@@ -46,10 +40,34 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+interface AuthMeResponse {
+  success: boolean
+  message: string
+  data: AuthUser
+}
+
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  const token = getToken()
+
   state.isLoading = true
   try {
-    state.user = TEMPLATE_USER
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    if (token) headers.Authorization = `Bearer ${token}`
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, { headers })
+
+    if (response.status === 401) {
+      clearToken()
+      state.user = null
+      return null
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch current user (${response.status})`)
+    }
+
+    const result: AuthMeResponse = await response.json()
+    state.user = result.data
     return state.user
   } finally {
     state.isLoading = false
