@@ -137,16 +137,41 @@ async function decide(user, approvalId, decision, payload = {}) {
     if (normalizedDecision === 'REJECTED') {
       await connection.query("UPDATE requests SET status = 'REJECTED', completed_at = NOW() WHERE id = ?", [approval.request_id]);
     } else {
-      const [reviewResult] = await connection.query(`
-        INSERT INTO finance_reviews (request_id, status)
-        VALUES (?, 'PENDING')
-      `, [approval.request_id]);
-      const reviewId = reviewResult.insertId;
+      const [activeRows] = await connection.query(
+        "SELECT COUNT(*) AS total FROM request_items WHERE request_id = ? AND status = 'ACTIVE'",
+        [approval.request_id]
+      );
+      if (Number(activeRows[0]?.total || 0) === 0) {
+        throw createError('No active request items remain for approval', 409, 'NO_ACTIVE_REQUEST_ITEMS');
+      }
+
+      const [existingReviews] = await connection.query(
+        'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
+        [approval.request_id]
+      );
+      let reviewId;
+      if (existingReviews[0]) {
+        reviewId = existingReviews[0].id;
+        await connection.query(`
+          UPDATE finance_reviews
+          SET status = 'PENDING', reviewer_user_id = NULL, reviewer_internal_id = NULL,
+              reviewer_name = NULL, note = NULL, reviewed_at = NULL
+          WHERE id = ?
+        `, [reviewId]);
+        await connection.query('DELETE FROM finance_review_items WHERE finance_review_id = ?', [reviewId]);
+      } else {
+        const [reviewResult] = await connection.query(`
+          INSERT INTO finance_reviews (request_id, status)
+          VALUES (?, 'PENDING')
+        `, [approval.request_id]);
+        reviewId = reviewResult.insertId;
+      }
+
       await connection.query(`
         INSERT INTO finance_review_items (finance_review_id, request_item_id, decision)
         SELECT ?, id, 'PENDING'
         FROM request_items
-        WHERE request_id = ?
+        WHERE request_id = ? AND status = 'ACTIVE'
       `, [reviewId, approval.request_id]);
       await connection.query("UPDATE requests SET status = 'PENDING_FINANCE_REVIEW' WHERE id = ?", [approval.request_id]);
     }
@@ -174,8 +199,143 @@ async function decide(user, approvalId, decision, payload = {}) {
   } finally { connection.release(); }
 }
 
+async function revert(user, approvalId, payload = {}) {
+  const reason = optionalText(payload.reason ?? payload.note, 5000);
+  if (!reason) throw createError('Revert reason is required', 422, 'REVERT_REASON_REQUIRED');
+
+  const db = requireDatabase();
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query(`
+      SELECT ra.*, r.status AS request_status, r.requester_user_id
+      FROM request_approvals ra
+      INNER JOIN requests r ON r.id = ra.request_id
+      WHERE ra.id = ?
+      LIMIT 1
+      FOR UPDATE
+    `, [Number(approvalId)]);
+    const approval = rows[0];
+    if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
+    if (approval.status !== 'APPROVED' || approval.request_status !== 'PENDING_FINANCE_REVIEW') {
+      throw createError('Only an approved request waiting for Finance can be reverted', 409, 'APPROVAL_REVERT_NOT_ALLOWED');
+    }
+    if (!AccessService.canApproveWithSnapshot(user, approval)) {
+      throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
+    }
+
+    const [financeRows] = await connection.query(
+      'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
+      [approval.request_id]
+    );
+    const finance = financeRows[0];
+    if (!finance || finance.status !== 'PENDING') {
+      throw createError('Finance has already processed this request; it can no longer be reverted', 409, 'FINANCE_ALREADY_PROCESSED');
+    }
+
+    const actor = UserUtil.snapshot(user);
+    await connection.query(`
+      UPDATE request_approvals
+      SET status = 'REVERTED', reverted_at = NOW(), reverted_by_user_id = ?,
+          reverted_by_name = ?, revert_reason = ?
+      WHERE id = ?
+    `, [actor.user_id, actor.name, reason, Number(approvalId)]);
+    await connection.query(
+      "UPDATE finance_reviews SET status = 'REVERTED' WHERE id = ?",
+      [finance.id]
+    );
+    await connection.query(
+      "UPDATE finance_review_items SET decision = 'REVERTED', approved_qty = NULL WHERE finance_review_id = ?",
+      [finance.id]
+    );
+    await connection.query(`
+      UPDATE requests
+      SET status = 'REVERTED_TO_REQUESTER', reverted_at = NOW(), reverted_by_user_id = ?,
+          reverted_by_name = ?, revert_reason = ?
+      WHERE id = ?
+    `, [actor.user_id, actor.name, reason, approval.request_id]);
+
+    await ActivityService.log(connection, {
+      request_id: approval.request_id,
+      entity_type: 'APPROVAL',
+      entity_id: approval.id,
+      action_code: 'DEPARTMENT_APPROVAL_REVERTED',
+      actor_user_id: actor.user_id,
+      actor_name: actor.name,
+      before: { approval_status: 'APPROVED', request_status: approval.request_status },
+      after: { approval_status: 'REVERTED', request_status: 'REVERTED_TO_REQUESTER', reason },
+    });
+
+    await connection.commit();
+    return RequestService.getById(approval.request_id, user);
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally { connection.release(); }
+}
+
+async function cancelItem(user, approvalId, itemId, payload = {}) {
+  const reason = optionalText(payload.reason ?? payload.note, 5000);
+  if (!reason) throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
+
+  const db = requireDatabase();
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query(`
+      SELECT ra.*, r.status AS request_status, r.requester_user_id
+      FROM request_approvals ra
+      INNER JOIN requests r ON r.id = ra.request_id
+      WHERE ra.id = ?
+      LIMIT 1
+      FOR UPDATE
+    `, [Number(approvalId)]);
+    const approval = rows[0];
+    if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
+    if (!['PENDING', 'APPROVED'].includes(approval.status)) {
+      throw createError('Approval can no longer cancel request items', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
+    }
+    if (!AccessService.canApproveWithSnapshot(user, approval)) {
+      throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
+    }
+    if (approval.status === 'PENDING' && approval.request_status !== 'PENDING_DEPARTMENT_APPROVAL') {
+      throw createError('Request is not waiting for department approval', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
+    }
+    if (approval.status === 'APPROVED') {
+      if (approval.request_status !== 'PENDING_FINANCE_REVIEW') {
+        throw createError('Approved request is no longer waiting for Finance', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
+      }
+      const [financeRows] = await connection.query(
+        'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
+        [approval.request_id]
+      );
+      if (!financeRows[0] || financeRows[0].status !== 'PENDING') {
+        throw createError('Finance has already processed this request item', 409, 'FINANCE_ALREADY_PROCESSED');
+      }
+    }
+
+    const [requestRows] = await connection.query('SELECT * FROM requests WHERE id = ? LIMIT 1', [approval.request_id]);
+    await RequestService.cancelItemWithConnection(
+      connection,
+      requestRows[0],
+      itemId,
+      user,
+      'DEPARTMENT_APPROVAL',
+      reason
+    );
+
+    await connection.commit();
+    return RequestService.getById(approval.request_id, user);
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally { connection.release(); }
+}
+
 module.exports = {
   listQueue,
   getById,
   decide,
+  revert,
+  cancelItem,
 };

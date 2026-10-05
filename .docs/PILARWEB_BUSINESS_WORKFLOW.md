@@ -91,3 +91,14 @@ period adjustment = issued quantity - stock_returned_qty
 ```
 
 without guessing whether a damaged/missing line physically returned to inventory.
+
+
+## Edit, Revert, and Per-Item Cancellation
+
+Requester editing is allowed while the request is `DRAFT`, while it is still `PENDING_DEPARTMENT_APPROVAL`, and after a manager sends it back as `REVERTED_TO_REQUESTER`.
+
+A department approver may revert an already approved request back to the requester only while Finance has not submitted a decision. Once Finance has processed the request, department approval cannot be reverted.
+
+Cancellation is item-level, not form-level. Each `request_items` row has its own `ACTIVE` / `CANCELED` state and cancel audit fields. If every item is canceled, the request header becomes `CANCELED` automatically.
+
+Requester may cancel items while the request is `DRAFT`, `PENDING_DEPARTMENT_APPROVAL`, or `REVERTED_TO_REQUESTER`. Department approvers may cancel individual items during department approval and, after approval, while Finance is still pending. Finance may also mark individual items `CANCELED` during review.

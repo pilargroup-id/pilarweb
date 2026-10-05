@@ -95,7 +95,7 @@ async function accept(user, requestId) {
 
     const approved = await approvedQtyByRequestItem(connection, requestId);
     const resolved = await resolvedQtyByRequestItem(connection, requestId);
-    const [requestItems] = await connection.query('SELECT * FROM request_items WHERE request_id = ? ORDER BY id ASC', [requestId]);
+    const [requestItems] = await connection.query("SELECT * FROM request_items WHERE request_id = ? AND status = 'ACTIVE' ORDER BY id ASC", [requestId]);
     const remainingItems = requestItems
       .map((item) => {
         const approvedQty = approved.get(Number(item.id)) || 0;

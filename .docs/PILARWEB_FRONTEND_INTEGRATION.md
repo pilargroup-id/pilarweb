@@ -110,11 +110,11 @@ Initial purposes:
 
 | Code | Label |
 |---|---|
-| `TIKTOK_SHIPMENT` | TikTok Shipment |
-| `YOUTUBE_SHIPMENT` | YouTube Shipment |
+| `TIKTOK_AFFILIATE` | TikTok Affiliate |
+| `YOUTUBE_AFFILIATE` | YouTube Affiliate |
+| `EXTERNAL_DELIVERY` | External Delivery |
 | `INTERNAL_USE` | Internal Use |
-| `MARKETING_REQUEST` | Marketing Request |
-| `PRODUCT_SAMPLE` | Product Sample |
+| `LOAN` | Loan |
 
 Request Purpose and Workflow are separate. The active mapping is stored in `request_purpose_workflows`. A purpose can be moved from Returnable to Non-Returnable (or vice versa) for future requests without changing old transactions.
 
@@ -226,11 +226,13 @@ PUT /api/requests/:id/items/:itemId
 }
 ```
 
-### Remove Item
+### Remove Item (Draft Only)
 
 ```http
 DELETE /api/requests/:id/items/:itemId
 ```
+
+Physical removal is only allowed while the request is still `DRAFT`. After submission, keep the row for audit history and use the item-cancel endpoint instead.
 
 ### Submit
 
@@ -242,11 +244,13 @@ Submit validates: request owner, requester eligibility, at least one item, reaso
 
 ### Cancel
 
-```http
-DELETE /api/requests/:id
-```
+Whole-form cancellation is not exposed as an action. Cancellation is performed per request item. When the last active item is canceled, backend automatically changes the request header status to `CANCELED`.
 
-This is a business cancel (soft close), not a destructive database delete. Requester can cancel only while `DRAFT` or `PENDING_DEPARTMENT_APPROVAL`.
+Requester item cancellation:
+
+```http
+POST /api/requests/:id/items/:itemId/cancel
+```
 
 ### Activity and Comments
 
@@ -770,13 +774,14 @@ FINANCE
 WAREHOUSE
 ```
 
-The backend intentionally does not guess organization IDs. The first ADMIN rule must be inserted directly into the database using a confirmed user UUID; after that, admin endpoints can maintain configuration.
+The seed now includes the confirmed PilarGroup mappings for Finance (department 7), Warehouse GOTO (department 5), Warehouse Gosave (department 6), and the initial user-specific ADMIN bootstrap rule. Admin endpoints can maintain these rules afterward.
 
 ## 16. Request Status Reference
 
 ```text
 DRAFT
 PENDING_DEPARTMENT_APPROVAL
+REVERTED_TO_REQUESTER
 PENDING_FINANCE_REVIEW
 READY_FOR_WAREHOUSE
 PICKING
@@ -811,3 +816,82 @@ Settings
 ```
 
 Visibility should use `/api/auth/capabilities`. Hiding a menu is not authorization.
+
+
+## 22. Edit / Revert / Cancel Contract
+
+### Requester edit
+
+Requester may edit request header and active item rows while request status is:
+
+```text
+DRAFT
+PENDING_DEPARTMENT_APPROVAL
+REVERTED_TO_REQUESTER
+```
+
+A submitted item should not be physically deleted after submission. Use item cancellation instead so history remains auditable.
+
+### Requester item cancellation
+
+```http
+POST /api/requests/:requestId/items/:itemId/cancel
+```
+
+Payload:
+
+```json
+{ "reason": "Item is no longer needed" }
+```
+
+Requester may use this while the request is `DRAFT`, `PENDING_DEPARTMENT_APPROVAL`, or `REVERTED_TO_REQUESTER`.
+
+### Department approver item cancellation
+
+```http
+POST /api/approvals/:approvalId/items/:itemId/cancel
+```
+
+Payload:
+
+```json
+{ "reason": "This item is not allowed for this request" }
+```
+
+Cancellation is per item. Remaining active items continue in the same request. If no active item remains, request status becomes `CANCELED`.
+
+### Department approval revert
+
+```http
+POST /api/approvals/:approvalId/revert
+```
+
+Payload:
+
+```json
+{ "reason": "Please revise quantity and justification" }
+```
+
+Resulting request status:
+
+```text
+REVERTED_TO_REQUESTER
+```
+
+Requester can edit and submit again. Revert is blocked after Finance has submitted a decision.
+
+### Finance item decision
+
+Finance review item `decision` accepts:
+
+```text
+APPROVED
+REJECTED
+CANCELED
+```
+
+`CANCELED` requires a note/reason. A canceled item is excluded from Warehouse fulfillment.
+
+### Important status rule
+
+`EDIT` is an action/capability, not a transaction status. The request status remains the current workflow state while edits are allowed. `CANCELED` is used at request level only when all request items have been canceled.

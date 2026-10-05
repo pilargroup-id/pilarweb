@@ -47,6 +47,16 @@ async function removeItem(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+async function cancelItem(req, res, next) {
+  try {
+    return R.ok(
+      res,
+      await RequestService.cancelItem(req.user, req.params.id, req.params.itemId, req.body),
+      'Request item canceled'
+    );
+  } catch (err) { return next(err); }
+}
+
 async function submit(req, res, next) {
   try {
     return R.ok(res, await RequestService.submit(req.user, req.params.id), 'Request submitted');
@@ -131,6 +141,7 @@ module.exports = {
   addItem,
   updateItem,
   removeItem,
+  cancelItem,
   submit,
   cancel,
   activities,

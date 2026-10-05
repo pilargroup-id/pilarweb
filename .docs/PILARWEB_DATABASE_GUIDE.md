@@ -23,7 +23,8 @@ backend/database/
 │   ├── 006_returns.sql
 │   ├── 007_financial_closing.sql
 │   ├── 008_activity_audit.sql
-│   └── 009_transaction_api_support.sql
+│   ├── 009_transaction_api_support.sql
+│   └── 010_request_edit_revert_item_cancel.sql
 ├── schema/
 │   └── pilarweb-schema.sql
 └── seeds/
@@ -79,3 +80,8 @@ The first `ADMIN` rule must be inserted directly with a confirmed PilarGroup use
 ## Snapshot / No-FK Principle
 
 Pilarweb deliberately avoids foreign-key constraints to PilarGroup and Itembase. External IDs are retained for traceability, while user/item/department/company names and business facts are snapshotted on transactions.
+
+
+## Migration 010
+
+`010_request_edit_revert_item_cancel.sql` adds request revert audit fields, per-item cancellation state/audit fields, approval revert audit fields, and renames the original request-purpose master values without changing their existing IDs.

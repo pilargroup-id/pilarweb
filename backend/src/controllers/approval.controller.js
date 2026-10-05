@@ -19,4 +19,12 @@ async function reject(req, res, next) {
   try { return R.ok(res, await ApprovalService.decide(req.user, req.params.id, 'REJECTED', req.body), 'Request rejected'); }
   catch (err) { return next(err); }
 }
-module.exports = { index, show, approve, reject };
+async function revert(req, res, next) {
+  try { return R.ok(res, await ApprovalService.revert(req.user, req.params.id, req.body), 'Request reverted to requester'); }
+  catch (err) { return next(err); }
+}
+async function cancelItem(req, res, next) {
+  try { return R.ok(res, await ApprovalService.cancelItem(req.user, req.params.id, req.params.itemId, req.body), 'Request item canceled'); }
+  catch (err) { return next(err); }
+}
+module.exports = { index, show, approve, reject, revert, cancelItem };

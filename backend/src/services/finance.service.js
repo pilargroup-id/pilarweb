@@ -73,7 +73,7 @@ async function review(user, requestId, payload = {}) {
 
     const decisions = Array.isArray(payload.items) ? payload.items : [];
     const [itemRows] = await connection.query(`
-      SELECT fri.id AS finance_review_item_id, fri.request_item_id, ri.requested_qty
+      SELECT fri.id AS finance_review_item_id, fri.request_item_id, fri.decision AS current_decision, ri.requested_qty, ri.status AS request_item_status
       FROM finance_review_items fri
       INNER JOIN request_items ri ON ri.id = fri.request_item_id
       WHERE fri.finance_review_id = ?
@@ -83,24 +83,51 @@ async function review(user, requestId, payload = {}) {
 
     const byRequestItemId = new Map(decisions.map((row) => [Number(row.request_item_id), row]));
     let totalApproved = 0;
+    let canceledCount = 0;
+    let rejectedCount = 0;
+    const actor = UserUtil.snapshot(user);
+
     for (const row of itemRows) {
+      if (row.request_item_status === 'CANCELED' || row.current_decision === 'CANCELED') {
+        canceledCount += 1;
+        await connection.query(`
+          UPDATE finance_review_items
+          SET decision = 'CANCELED', approved_qty = 0
+          WHERE id = ?
+        `, [row.finance_review_item_id]);
+        continue;
+      }
+
       const input = byRequestItemId.get(Number(row.request_item_id));
       if (!input) {
         throw createError(`Decision is required for request item ${row.request_item_id}`, 422, 'FINANCE_DECISION_REQUIRED');
       }
       const decision = String(input.decision || '').trim().toUpperCase();
-      if (!['APPROVED', 'REJECTED'].includes(decision)) {
-        throw createError('Finance item decision must be APPROVED or REJECTED', 422, 'FINANCE_DECISION_INVALID');
+      if (!['APPROVED', 'REJECTED', 'CANCELED'].includes(decision)) {
+        throw createError('Finance item decision must be APPROVED, REJECTED, or CANCELED', 422, 'FINANCE_DECISION_INVALID');
       }
+
       let approvedQty = 0;
+      const note = optionalText(input.note ?? input.reason, 500);
       if (decision === 'APPROVED') {
         approvedQty = nonNegativeNumber(input.approved_qty, 'approved_qty');
         if (approvedQty <= 0 || approvedQty > Number(row.requested_qty)) {
           throw createError('approved_qty must be greater than 0 and not exceed requested_qty', 422, 'FINANCE_APPROVED_QTY_INVALID');
         }
         totalApproved += approvedQty;
+      } else if (decision === 'CANCELED') {
+        if (!note) throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
+        canceledCount += 1;
+        await connection.query(`
+          UPDATE request_items
+          SET status = 'CANCELED', canceled_at = NOW(), canceled_by_user_id = ?,
+              canceled_by_name = ?, canceled_by_stage = 'FINANCE', cancel_reason = ?
+          WHERE id = ? AND status = 'ACTIVE'
+        `, [actor.user_id, actor.name, note, row.request_item_id]);
+      } else {
+        rejectedCount += 1;
       }
-      const note = optionalText(input.note, 500);
+
       await connection.query(`
         UPDATE finance_review_items
         SET decision = ?, approved_qty = ?, note = ?
@@ -108,8 +135,10 @@ async function review(user, requestId, payload = {}) {
       `, [decision, decision === 'APPROVED' ? approvedQty : 0, note, row.finance_review_item_id]);
     }
 
-    const actor = UserUtil.snapshot(user);
-    const overall = totalApproved > 0 ? 'APPROVED' : 'REJECTED';
+    let overall;
+    if (totalApproved > 0) overall = 'APPROVED';
+    else if (rejectedCount > 0) overall = 'REJECTED';
+    else overall = 'CANCELED';
     const note = optionalText(payload.note, 5000);
     await connection.query(`
       UPDATE finance_reviews
@@ -117,20 +146,24 @@ async function review(user, requestId, payload = {}) {
       WHERE id = ?
     `, [overall, actor.user_id, actor.internal_id, actor.name, note, reviewRow.id]);
 
-    const requestStatus = overall === 'APPROVED' ? 'READY_FOR_WAREHOUSE' : 'REJECTED';
+    const requestStatus = overall === 'APPROVED' ? 'READY_FOR_WAREHOUSE' : overall;
     await connection.query(`
-      UPDATE requests SET status = ?, completed_at = CASE WHEN ? = 'REJECTED' THEN NOW() ELSE completed_at END
+      UPDATE requests
+      SET
+        status = ?,
+        completed_at = CASE WHEN ? IN ('REJECTED', 'CANCELED') THEN NOW() ELSE completed_at END,
+        canceled_at = CASE WHEN ? = 'CANCELED' THEN NOW() ELSE canceled_at END
       WHERE id = ?
-    `, [requestStatus, requestStatus, requestId]);
+    `, [requestStatus, requestStatus, requestStatus, requestId]);
 
     await ActivityService.log(connection, {
       request_id: requestId,
       entity_type: 'FINANCE_REVIEW',
       entity_id: reviewRow.id,
-      action_code: overall === 'APPROVED' ? 'FINANCE_REVIEW_APPROVED' : 'FINANCE_REVIEW_REJECTED',
+      action_code: overall === 'APPROVED' ? 'FINANCE_REVIEW_APPROVED' : (overall === 'CANCELED' ? 'FINANCE_REVIEW_CANCELED' : 'FINANCE_REVIEW_REJECTED'),
       actor_user_id: actor.user_id,
       actor_name: actor.name,
-      after: { status: overall, request_status: requestStatus, total_approved_qty: totalApproved, note },
+      after: { status: overall, request_status: requestStatus, total_approved_qty: totalApproved, canceled_items: canceledCount, rejected_items: rejectedCount, note },
     });
 
     await connection.commit();

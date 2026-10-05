@@ -12,7 +12,9 @@ const {
   normalizeDate,
 } = require('../utils/business.util');
 
-const EDITABLE_STATUSES = new Set(['DRAFT']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER']);
+const SUBMITTABLE_STATUSES = new Set(['DRAFT', 'REVERTED_TO_REQUESTER']);
+const REQUESTER_CANCELLABLE_ITEM_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER']);
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'REJECTED', 'CANCELED']);
 
 async function nextNumber(connection, sequenceKey, periodKey, prefix, digits = 5) {
@@ -151,7 +153,7 @@ async function insertItem(connection, requestId, payload) {
 
   const [duplicateRows] = await connection.query(`
     SELECT id FROM request_items
-    WHERE request_id = ? AND itembase_item_id = ?
+    WHERE request_id = ? AND itembase_item_id = ? AND status = 'ACTIVE'
     LIMIT 1
   `, [requestId, snapshot.itembase_item_id]);
   if (duplicateRows[0]) {
@@ -298,20 +300,46 @@ async function update(user, requestId, payload = {}) {
       ? normalizeDate(payload.return_due_date, 'return_due_date', false)
       : request.return_due_date;
 
+    let workflowPatch = null;
+    const targetPurposeId = purpose?.id ?? request.request_purpose_id;
+    if (request.status !== 'DRAFT' && purpose) {
+      workflowPatch = await getActiveWorkflowAssignment(connection, targetPurposeId);
+    }
+
+    const effectiveRequiresReturn = workflowPatch
+      ? Number(workflowPatch.requires_return)
+      : Number(request.requires_return || 0);
+    if (request.status !== 'DRAFT' && effectiveRequiresReturn === 1 && !returnDueDate) {
+      throw createError('Return due date is required for returnable requests', 422, 'RETURN_DUE_DATE_REQUIRED');
+    }
+    const effectiveReturnDueDate = request.status === 'DRAFT'
+      ? returnDueDate
+      : (effectiveRequiresReturn === 1 ? returnDueDate : null);
+
     await connection.query(`
       UPDATE requests
       SET
         request_purpose_id = ?,
         request_purpose_code = ?,
         request_purpose_name = ?,
+        workflow_definition_id = COALESCE(?, workflow_definition_id),
+        workflow_code = COALESCE(?, workflow_code),
+        workflow_name = COALESCE(?, workflow_name),
+        workflow_version = COALESCE(?, workflow_version),
+        requires_return = COALESCE(?, requires_return),
         return_due_date = ?,
         reason = ?
       WHERE id = ?
     `, [
-      purpose?.id ?? request.request_purpose_id,
+      targetPurposeId,
       purpose?.code ?? request.request_purpose_code,
       purpose?.name ?? request.request_purpose_name,
-      returnDueDate,
+      workflowPatch?.workflow_definition_id ?? null,
+      workflowPatch?.workflow_code ?? null,
+      workflowPatch?.workflow_name ?? null,
+      workflowPatch?.workflow_version ?? null,
+      workflowPatch?.requires_return ?? null,
+      effectiveReturnDueDate,
       reason,
       requestId,
     ]);
@@ -326,7 +354,7 @@ async function update(user, requestId, payload = {}) {
       before: request,
       after: {
         request_purpose_id: purpose?.id ?? request.request_purpose_id,
-        return_due_date: returnDueDate,
+        return_due_date: effectiveReturnDueDate,
         reason,
       },
     });
@@ -382,6 +410,9 @@ async function updateItem(user, requestId, itemId, payload) {
       [Number(itemId), requestId]
     );
     if (!rows[0]) throw createError('Request item not found', 404, 'REQUEST_ITEM_NOT_FOUND');
+    if (rows[0].status !== 'ACTIVE') {
+      throw createError('Canceled request items cannot be edited', 409, 'REQUEST_ITEM_NOT_ACTIVE');
+    }
 
     const qty = payload.requested_qty !== undefined
       ? positiveNumber(payload.requested_qty, 'requested_qty')
@@ -419,12 +450,17 @@ async function removeItem(user, requestId, itemId) {
     await connection.beginTransaction();
     const request = await lockRequest(connection, requestId);
     assertOwner(user, request);
-    assertEditable(request);
+    if (request.status !== 'DRAFT') {
+      throw createError('Submitted items must be canceled instead of deleted', 409, 'REQUEST_ITEM_DELETE_NOT_ALLOWED');
+    }
     const [rows] = await connection.query(
       'SELECT * FROM request_items WHERE id = ? AND request_id = ? LIMIT 1 FOR UPDATE',
       [Number(itemId), requestId]
     );
     if (!rows[0]) throw createError('Request item not found', 404, 'REQUEST_ITEM_NOT_FOUND');
+    if (rows[0].status !== 'ACTIVE') {
+      throw createError('Canceled request items cannot be deleted', 409, 'REQUEST_ITEM_NOT_ACTIVE');
+    }
     await connection.query('DELETE FROM request_items WHERE id = ?', [Number(itemId)]);
     await ActivityService.log(connection, {
       request_id: requestId,
@@ -452,11 +488,11 @@ async function submit(user, requestId) {
     await connection.beginTransaction();
     const request = await lockRequest(connection, requestId);
     assertOwner(user, request);
-    assertEditable(request);
+    assertSubmittable(request);
 
     const { rule } = await assertRequesterCanCreate(connection, user);
     const [itemRows] = await connection.query(
-      'SELECT id FROM request_items WHERE request_id = ? LIMIT 1',
+      "SELECT id FROM request_items WHERE request_id = ? AND status = 'ACTIVE' LIMIT 1",
       [requestId]
     );
     if (!itemRows.length) throw createError('At least one request item is required', 422, 'REQUEST_ITEMS_REQUIRED');
@@ -538,38 +574,106 @@ async function submit(user, requestId) {
   }
 }
 
-async function cancel(user, requestId) {
+async function cancelItemWithConnection(connection, request, itemId, user, stage, reason) {
+  const cancelReason = optionalText(reason, 5000);
+  if (!cancelReason) {
+    throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
+  }
+
+  const [rows] = await connection.query(
+    'SELECT * FROM request_items WHERE id = ? AND request_id = ? LIMIT 1 FOR UPDATE',
+    [Number(itemId), request.id]
+  );
+  const item = rows[0];
+  if (!item) throw createError('Request item not found', 404, 'REQUEST_ITEM_NOT_FOUND');
+  if (item.status !== 'ACTIVE') {
+    throw createError('Request item is already canceled', 409, 'REQUEST_ITEM_ALREADY_CANCELED');
+  }
+
+  const actor = UserUtil.snapshot(user);
+  await connection.query(`
+    UPDATE request_items
+    SET
+      status = 'CANCELED',
+      canceled_at = NOW(),
+      canceled_by_user_id = ?,
+      canceled_by_name = ?,
+      canceled_by_stage = ?,
+      cancel_reason = ?
+    WHERE id = ?
+  `, [actor.user_id, actor.name, stage, cancelReason, Number(itemId)]);
+
+  const [financeRows] = await connection.query(
+    'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1',
+    [request.id]
+  );
+  const financeReview = financeRows[0];
+  if (financeReview && financeReview.status === 'PENDING') {
+    await connection.query(`
+      UPDATE finance_review_items
+      SET decision = 'CANCELED', approved_qty = 0, note = ?
+      WHERE finance_review_id = ? AND request_item_id = ?
+    `, [cancelReason, financeReview.id, Number(itemId)]);
+  }
+
+  const [countRows] = await connection.query(
+    "SELECT COUNT(*) AS total FROM request_items WHERE request_id = ? AND status = 'ACTIVE'",
+    [request.id]
+  );
+  const activeItemCount = Number(countRows[0]?.total || 0);
+
+  if (activeItemCount === 0) {
+    await connection.query(
+      "UPDATE requests SET status = 'CANCELED', canceled_at = NOW(), completed_at = NOW() WHERE id = ?",
+      [request.id]
+    );
+    await connection.query(
+      "UPDATE request_approvals SET status = 'CANCELED', decided_at = COALESCE(decided_at, NOW()) WHERE request_id = ? AND status = 'PENDING'",
+      [request.id]
+    );
+    await connection.query(
+      "UPDATE finance_reviews SET status = 'CANCELED' WHERE request_id = ? AND status IN ('PENDING', 'REVERTED')",
+      [request.id]
+    );
+  }
+
+  await ActivityService.log(connection, {
+    request_id: request.id,
+    entity_type: 'REQUEST_ITEM',
+    entity_id: item.id,
+    action_code: 'REQUEST_ITEM_CANCELED',
+    actor_user_id: actor.user_id,
+    actor_name: actor.name,
+    before: { status: item.status },
+    after: {
+      status: 'CANCELED',
+      canceled_by_stage: stage,
+      cancel_reason: cancelReason,
+      request_status: activeItemCount === 0 ? 'CANCELED' : request.status,
+    },
+  });
+
+  return { item_id: Number(item.id), active_item_count: activeItemCount };
+}
+
+async function cancelItem(user, requestId, itemId, payload = {}) {
   const db = requireDatabase();
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
     const request = await lockRequest(connection, requestId);
     assertOwner(user, request);
-    if (TERMINAL_STATUSES.has(request.status)) {
-      throw createError('Request is already closed', 409, 'REQUEST_ALREADY_CLOSED');
+    if (!REQUESTER_CANCELLABLE_ITEM_STATUSES.has(request.status)) {
+      throw createError('Requester can no longer cancel items in this request', 409, 'REQUEST_ITEM_CANCEL_NOT_ALLOWED');
     }
-    const cancellable = ['DRAFT', 'PENDING_DEPARTMENT_APPROVAL'];
-    if (!cancellable.includes(request.status)) {
-      throw createError('Request can no longer be canceled by requester', 409, 'REQUEST_CANCEL_NOT_ALLOWED');
-    }
-    await connection.query(
-      "UPDATE requests SET status = 'CANCELED', canceled_at = NOW() WHERE id = ?",
-      [requestId]
+    await cancelItemWithConnection(
+      connection,
+      request,
+      itemId,
+      user,
+      'REQUESTER',
+      payload.reason ?? payload.note
     );
-    await connection.query(
-      "UPDATE request_approvals SET status = 'CANCELED', decided_at = NOW() WHERE request_id = ? AND status = 'PENDING'",
-      [requestId]
-    );
-    await ActivityService.log(connection, {
-      request_id: requestId,
-      entity_type: 'REQUEST',
-      entity_id: requestId,
-      action_code: 'REQUEST_CANCELED',
-      actor_user_id: user.id,
-      actor_name: user.name,
-      before: { status: request.status },
-      after: { status: 'CANCELED' },
-    });
     await connection.commit();
     return getById(requestId, user);
   } catch (err) {
@@ -578,6 +682,14 @@ async function cancel(user, requestId) {
   } finally {
     connection.release();
   }
+}
+
+async function cancel(user, requestId) {
+  throw createError(
+    'Whole-request cancellation is disabled. Cancel request items individually.',
+    409,
+    'REQUEST_CANCEL_PER_ITEM_REQUIRED'
+  );
 }
 
 async function listMine(user, query = {}) {
@@ -740,7 +852,17 @@ function assertOwner(user, request) {
 
 function assertEditable(request) {
   if (!EDITABLE_STATUSES.has(request.status)) {
-    throw createError('Only draft requests can be edited', 409, 'REQUEST_NOT_EDITABLE');
+    throw createError(
+      'Request can only be edited before department approval or after it is reverted to the requester',
+      409,
+      'REQUEST_NOT_EDITABLE'
+    );
+  }
+}
+
+function assertSubmittable(request) {
+  if (!SUBMITTABLE_STATUSES.has(request.status)) {
+    throw createError('Request is not waiting for submission', 409, 'REQUEST_NOT_SUBMITTABLE');
   }
 }
 
@@ -750,6 +872,8 @@ module.exports = {
   addItem,
   updateItem,
   removeItem,
+  cancelItem,
+  cancelItemWithConnection,
   submit,
   cancel,
   listMine,
