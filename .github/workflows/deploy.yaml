@@ -40,7 +40,7 @@ jobs:
       - name: Install & build frontend
         working-directory: frontend
         run: |
-          echo "VITE_API_BASE_URL=/api" > .env.production
+          echo "VITE_API_BASE_URL=" > .env.production
           npm install
           npm run build
 
