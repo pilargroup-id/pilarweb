@@ -174,8 +174,15 @@ async function decide(user, approvalId, decision, payload = {}) {
       }
 
       await connection.query(`
-        INSERT INTO finance_review_items (finance_review_id, request_item_id, decision)
-        SELECT ?, id, 'PENDING'
+        INSERT INTO finance_review_items (
+          finance_review_id,
+          request_item_id,
+          requested_qty_snapshot,
+          decision,
+          approved_qty,
+          rejected_qty
+        )
+        SELECT ?, id, requested_qty, 'PENDING', NULL, 0
         FROM request_items
         WHERE request_id = ? AND status = 'ACTIVE'
       `, [reviewId, approval.request_id]);

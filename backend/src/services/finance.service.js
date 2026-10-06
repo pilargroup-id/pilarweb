@@ -73,7 +73,12 @@ async function review(user, requestId, payload = {}) {
 
     const decisions = Array.isArray(payload.items) ? payload.items : [];
     const [itemRows] = await connection.query(`
-      SELECT fri.id AS finance_review_item_id, fri.request_item_id, fri.decision AS current_decision, ri.requested_qty, ri.status AS request_item_status
+      SELECT
+        fri.id AS finance_review_item_id,
+        fri.request_item_id,
+        fri.decision AS current_decision,
+        COALESCE(fri.requested_qty_snapshot, ri.requested_qty) AS requested_qty,
+        ri.status AS request_item_status
       FROM finance_review_items fri
       INNER JOIN request_items ri ON ri.id = fri.request_item_id
       WHERE fri.finance_review_id = ?
@@ -83,6 +88,7 @@ async function review(user, requestId, payload = {}) {
 
     const byRequestItemId = new Map(decisions.map((row) => [Number(row.request_item_id), row]));
     let totalApproved = 0;
+    let totalRejected = 0;
     let canceledCount = 0;
     let rejectedCount = 0;
     const actor = UserUtil.snapshot(user);
@@ -92,7 +98,7 @@ async function review(user, requestId, payload = {}) {
         canceledCount += 1;
         await connection.query(`
           UPDATE finance_review_items
-          SET decision = 'CANCELED', approved_qty = 0
+          SET decision = 'CANCELED', approved_qty = 0, rejected_qty = 0
           WHERE id = ?
         `, [row.finance_review_item_id]);
         continue;
@@ -107,14 +113,19 @@ async function review(user, requestId, payload = {}) {
         throw createError('Finance item decision must be APPROVED, REJECTED, or CANCELED', 422, 'FINANCE_DECISION_INVALID');
       }
 
+      const requestedQty = Number(row.requested_qty || 0);
       let approvedQty = 0;
+      let rejectedQty = 0;
       const note = optionalText(input.note ?? input.reason, 500);
+
       if (decision === 'APPROVED') {
         approvedQty = nonNegativeNumber(input.approved_qty, 'approved_qty');
-        if (approvedQty <= 0 || approvedQty > Number(row.requested_qty)) {
+        if (approvedQty <= 0 || approvedQty > requestedQty) {
           throw createError('approved_qty must be greater than 0 and not exceed requested_qty', 422, 'FINANCE_APPROVED_QTY_INVALID');
         }
+        rejectedQty = Math.max(0, requestedQty - approvedQty);
         totalApproved += approvedQty;
+        totalRejected += rejectedQty;
       } else if (decision === 'CANCELED') {
         if (!note) throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
         canceledCount += 1;
@@ -125,14 +136,23 @@ async function review(user, requestId, payload = {}) {
           WHERE id = ? AND status = 'ACTIVE'
         `, [actor.user_id, actor.name, note, row.request_item_id]);
       } else {
+        rejectedQty = requestedQty;
+        totalRejected += rejectedQty;
         rejectedCount += 1;
       }
 
       await connection.query(`
         UPDATE finance_review_items
-        SET decision = ?, approved_qty = ?, note = ?
+        SET requested_qty_snapshot = ?, decision = ?, approved_qty = ?, rejected_qty = ?, note = ?
         WHERE id = ?
-      `, [decision, decision === 'APPROVED' ? approvedQty : 0, note, row.finance_review_item_id]);
+      `, [
+        requestedQty,
+        decision,
+        decision === 'APPROVED' ? approvedQty : 0,
+        rejectedQty,
+        note,
+        row.finance_review_item_id,
+      ]);
     }
 
     let overall;
@@ -163,7 +183,15 @@ async function review(user, requestId, payload = {}) {
       action_code: overall === 'APPROVED' ? 'FINANCE_REVIEW_APPROVED' : (overall === 'CANCELED' ? 'FINANCE_REVIEW_CANCELED' : 'FINANCE_REVIEW_REJECTED'),
       actor_user_id: actor.user_id,
       actor_name: actor.name,
-      after: { status: overall, request_status: requestStatus, total_approved_qty: totalApproved, canceled_items: canceledCount, rejected_items: rejectedCount, note },
+      after: {
+        status: overall,
+        request_status: requestStatus,
+        total_approved_qty: totalApproved,
+        total_rejected_qty: totalRejected,
+        canceled_items: canceledCount,
+        rejected_items: rejectedCount,
+        note,
+      },
     });
 
     await connection.commit();

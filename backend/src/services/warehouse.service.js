@@ -12,7 +12,7 @@ const {
   normalizeDate,
 } = require('../utils/business.util');
 
-const SHORTAGE_REASONS = new Set(['OUT_OF_STOCK', 'DAMAGED', 'NOT_FOUND', 'INSUFFICIENT_STOCK', 'OTHER']);
+const SHORTAGE_REASONS = new Set(['STOCK_SHORTAGE', 'DAMAGED', 'NOT_FOUND', 'OTHER']);
 const REMAINDER_DISPOSITIONS = new Set(['NONE', 'BACKORDER_REMAINDER', 'CLOSE_SHORT']);
 
 async function listQueue(user, query = {}) {
@@ -44,6 +44,103 @@ async function listQueue(user, query = {}) {
   `, [...params, limit, offset]);
   const total = Number(countRows[0]?.total || 0);
   return { data: rows, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+}
+
+async function listHandovers(user, query = {}) {
+  await AccessService.requireModuleAccess(user, 'WAREHOUSE');
+  const db = requireDatabase();
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 20, 100);
+  const offset = (page - 1) * limit;
+  const params = [];
+  let where = 'WHERE 1 = 1';
+
+  if (query.status) {
+    const status = String(query.status).trim().toUpperCase();
+    if (!['PENDING', 'HANDED_OVER', 'RECEIVED'].includes(status)) {
+      throw createError('Invalid handover status', 422, 'HANDOVER_STATUS_INVALID');
+    }
+    where += ' AND wh.status = ?';
+    params.push(status);
+  }
+
+  if (query.search) {
+    const search = `%${String(query.search).trim()}%`;
+    where += ` AND (
+      r.request_number LIKE ?
+      OR r.requester_name LIKE ?
+      OR r.department_name LIKE ?
+      OR wf.fulfillment_number LIKE ?
+      OR wh.handed_over_by_name LIKE ?
+      OR wh.received_by_name LIKE ?
+    )`;
+    params.push(search, search, search, search, search, search);
+  }
+
+  const [countRows] = await db.query(`
+    SELECT COUNT(*) AS total
+    FROM warehouse_handovers wh
+    INNER JOIN warehouse_fulfillments wf ON wf.id = wh.fulfillment_id
+    INNER JOIN requests r ON r.id = wh.request_id
+    ${where}
+  `, params);
+
+  const [rows] = await db.query(`
+    SELECT
+      wh.id AS handover_id,
+      wh.status AS handover_status,
+      wh.handed_over_by_user_id,
+      wh.handed_over_by_name,
+      wh.handed_over_at,
+      wh.received_by_user_id,
+      wh.received_by_name,
+      wh.received_at,
+      wh.note,
+      wh.created_at,
+      wh.updated_at,
+      r.id AS request_id,
+      r.request_number,
+      r.request_purpose_id,
+      r.request_purpose_code,
+      r.request_purpose_name,
+      r.requester_user_id,
+      r.requester_name,
+      r.department_id,
+      r.department_name,
+      r.requires_return,
+      r.return_due_date,
+      r.status AS request_status,
+      wf.id AS fulfillment_id,
+      wf.fulfillment_number,
+      wf.status AS fulfillment_status,
+      (
+        SELECT COUNT(*)
+        FROM warehouse_fulfillment_items wfi
+        WHERE wfi.fulfillment_id = wf.id
+      ) AS item_count,
+      (
+        SELECT COALESCE(SUM(wfi.actual_qty), 0)
+        FROM warehouse_fulfillment_items wfi
+        WHERE wfi.fulfillment_id = wf.id
+      ) AS total_actual_qty
+    FROM warehouse_handovers wh
+    INNER JOIN warehouse_fulfillments wf ON wf.id = wh.fulfillment_id
+    INNER JOIN requests r ON r.id = wh.request_id
+    ${where}
+    ORDER BY COALESCE(wh.handed_over_at, wh.created_at) DESC, wh.id DESC
+    LIMIT ? OFFSET ?
+  `, [...params, limit, offset]);
+
+  const total = Number(countRows[0]?.total || 0);
+  return {
+    data: rows,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
 }
 
 async function show(user, requestId) {
@@ -673,6 +770,7 @@ async function lockFulfillment(connection, fulfillmentId) {
 
 module.exports = {
   listQueue,
+  listHandovers,
   show,
   accept,
   recordPrint,
