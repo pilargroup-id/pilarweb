@@ -1,0 +1,15 @@
+const express=require('express');
+const config=require('../config');
+const ClosingController=require('../controllers/closing.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/periods',ClosingController.periods);
+router.post('/periods',ClosingController.createPeriod);
+router.get('/periods/:id',ClosingController.showPeriod);
+router.post('/periods/:id/start-closing',ClosingController.startClosing);
+router.post('/periods/:id/generate-batch',ClosingController.generateBatch);
+router.post('/periods/:id/close',ClosingController.closePeriod);
+router.get('/batches/:id',ClosingController.showBatch);
+router.post('/batches/:id/post',ClosingController.postBatch);
+module.exports=router;
