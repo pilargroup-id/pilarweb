@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { setToken } from '@/service/auth'
 
 const APP_TITLE = 'Pilarweb'
 
@@ -164,5 +165,15 @@ export default router
 
 router.beforeEach((to, from, next) => {
   document.title = `${String(to.meta.title || 'Page')} | ${APP_TITLE}`
+
+  const tokenParam = to.query.token
+  if (typeof tokenParam === 'string' && tokenParam) {
+    setToken(tokenParam)
+    const query = { ...to.query }
+    delete query.token
+    next({ path: to.path, query, hash: to.hash, replace: true })
+    return
+  }
+
   next()
 })
