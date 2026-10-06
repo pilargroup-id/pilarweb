@@ -45,8 +45,20 @@ import LayoutDashboardIcon from "./LayoutDashboardIcon.vue";
 import UserGroupIcon from "./UserGroupIcon.vue";
 import BellIcon from "./BellIcon.vue";
 import BarChartIcon from "./BarChartIcon.vue";
+import EyeIcon from "./EyeIcon.vue";
+import PencilIcon from "./PencilIcon.vue";
+import CloseIcon from "./CloseIcon.vue";
+import UndoIcon from "./UndoIcon.vue";
+import PrinterIcon from "./PrinterIcon.vue";
+import SaveIcon from "./SaveIcon.vue";
 
 export {
+  EyeIcon,
+  PencilIcon,
+  CloseIcon,
+  UndoIcon,
+  PrinterIcon,
+  SaveIcon,
   BellIcon,
   BarChartIcon,
   LayoutDashboardIcon,

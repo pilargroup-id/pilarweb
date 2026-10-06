@@ -104,11 +104,7 @@
                       </div>
                       <div>
                         <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Transfer Date</label>
-                        <input
-                          v-model="editForm.transfer_date"
-                          type="date"
-                          class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
-                        />
+                        <DateField v-model="editForm.transfer_date" />
                       </div>
                       <div>
                         <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Note</label>
@@ -203,11 +199,7 @@
                 </div>
                 <div>
                   <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Transfer Date</label>
-                  <input
-                    v-model="newTransfer.transfer_date"
-                    type="date"
-                    class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
-                  />
+                  <DateField v-model="newTransfer.transfer_date" />
                 </div>
                 <div>
                   <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Note</label>
@@ -299,6 +291,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import SelectField from '@/components/forms/FormElements/SelectField.vue'
+import DateField from '@/components/forms/FormElements/DateField.vue'
 import { TrashIcon, CheckIcon } from '@/icons'
 import {
   getWarehouseRequestDetail,

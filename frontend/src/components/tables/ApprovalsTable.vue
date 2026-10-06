@@ -49,19 +49,43 @@
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <div class="flex items-center gap-2">
-            <button
-              @click="openDecision(item, 'approve')"
-              type="button"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-success-300 bg-white px-3 py-2 text-theme-sm font-medium text-success-600 shadow-theme-xs hover:bg-success-50 dark:border-success-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            <router-link
+              :to="`/request/${item.request_id}`"
+              title="Detail"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
             >
-              Approve
-            </button>
+              <EyeIcon class="h-4 w-4" />
+              Detail
+            </router-link>
+            <template v-if="item.request_status === 'PENDING_DEPARTMENT_APPROVAL'">
+              <button
+                @click="openDecision(item, 'approve')"
+                type="button"
+                title="Approve"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-success-300 bg-white px-3 py-2 text-theme-sm font-medium text-success-600 shadow-theme-xs hover:bg-success-50 dark:border-success-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+              >
+                <CheckIcon class="h-4 w-4" />
+                Approve
+              </button>
+              <button
+                @click="openDecision(item, 'reject')"
+                type="button"
+                title="Reject"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+              >
+                <CloseIcon class="h-4 w-4" />
+                Reject
+              </button>
+            </template>
             <button
-              @click="openDecision(item, 'reject')"
+              v-else
+              @click="openDecision(item, 'revert')"
               type="button"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+              title="Revert"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warning-300 bg-white px-3 py-2 text-theme-sm font-medium text-warning-600 shadow-theme-xs hover:bg-warning-50 dark:border-warning-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
             >
-              Reject
+              <UndoIcon class="h-4 w-4" />
+              Revert
             </button>
           </div>
         </td>
@@ -118,7 +142,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogApprovalDecision from '@/components/dialog/DialogApprovalDecision.vue'
-import { RefreshIcon } from '@/icons'
+import { RefreshIcon, EyeIcon, CheckIcon, CloseIcon, UndoIcon } from '@/icons'
 
 const approvals = ref([])
 const isLoading = ref(false)
@@ -141,6 +165,7 @@ function handleDecided() {
 
 const STATUS_BADGE_COLOR = {
   PENDING_DEPARTMENT_APPROVAL: 'warning',
+  PENDING_FINANCE_REVIEW: 'info',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'

@@ -203,10 +203,26 @@ async function create(user, payload = {}) {
 
   try {
     await connection.beginTransaction();
-    const { snapshot } = await assertRequesterCanCreate(connection, user);
+    const { snapshot, rule } = await assertRequesterCanCreate(connection, user);
     const purpose = await getPurpose(connection, payload.request_purpose_id);
+
     const reason = optionalText(payload.reason, 5000);
+    if (!reason) {
+      throw createError('Reason is required before submit', 422, 'REQUEST_REASON_REQUIRED');
+    }
+
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (!items.length) {
+      throw createError('At least one request item is required', 422, 'REQUEST_ITEMS_REQUIRED');
+    }
+
+    const workflow = await getActiveWorkflowAssignment(connection, purpose.id);
+    const requiresReturn = Number(workflow.requires_return) === 1;
     const returnDueDate = normalizeDate(payload.return_due_date, 'return_due_date', false);
+    if (requiresReturn && !returnDueDate) {
+      throw createError('Return due date is required for returnable requests', 422, 'RETURN_DUE_DATE_REQUIRED');
+    }
+
     const now = new Date();
     const periodKey = String(now.getFullYear()).slice(-2);
     const requestNumber = await nextNumber(connection, 'REQUEST', periodKey, 'PWR', 5);
@@ -235,15 +251,21 @@ async function create(user, payload = {}) {
         department_name,
         company_id,
         company_name,
-        reason
-      ) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 0, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        reason,
+        submitted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_DEPARTMENT_APPROVAL', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       requestNumber,
       purpose.id,
       purpose.code,
       purpose.name,
-      returnDueDate,
+      workflow.workflow_definition_id,
+      workflow.workflow_code,
+      workflow.workflow_name,
+      workflow.workflow_version,
+      requiresReturn ? 1 : 0,
+      requiresReturn ? returnDueDate : null,
       snapshot.user_id,
       snapshot.internal_id,
       snapshot.name,
@@ -256,19 +278,45 @@ async function create(user, payload = {}) {
       reason,
     ]);
 
-    const items = Array.isArray(payload.items) ? payload.items : [];
     for (const item of items) {
       await insertItem(connection, id, item);
     }
+
+    await connection.query(`
+      INSERT INTO request_approvals (
+        request_id,
+        approval_rule_id,
+        approval_order,
+        status,
+        department_id,
+        department_name,
+        required_job_level_value,
+        required_job_level_name,
+        allow_higher_job_level
+      ) VALUES (?, ?, 1, 'PENDING', ?, ?, ?, ?, ?)
+    `, [
+      id,
+      rule.id,
+      snapshot.department_id,
+      snapshot.department_name,
+      rule.approver_min_job_level_value,
+      rule.approver_job_level_name,
+      rule.allow_higher_job_level,
+    ]);
 
     await ActivityService.log(connection, {
       request_id: id,
       entity_type: 'REQUEST',
       entity_id: id,
-      action_code: 'REQUEST_CREATED',
+      action_code: 'REQUEST_SUBMITTED',
       actor_user_id: snapshot.user_id,
       actor_name: snapshot.name,
-      after: { request_number: requestNumber, status: 'DRAFT' },
+      after: {
+        request_number: requestNumber,
+        status: 'PENDING_DEPARTMENT_APPROVAL',
+        workflow_code: workflow.workflow_code,
+        workflow_version: workflow.workflow_version,
+      },
     });
 
     await connection.commit();

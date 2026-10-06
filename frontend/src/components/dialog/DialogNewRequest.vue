@@ -20,8 +20,10 @@
             </svg>
           </button>
 
-          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">New Request</h4>
-          <p class="pr-12 text-sm text-white/70">Fields marked with * are required.</p>
+          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">{{ isEditMode ? 'Edit Request' : 'New Request' }}</h4>
+          <p class="pr-12 text-sm text-white/70">
+            {{ isEditMode ? request.request_number : 'Fields marked with * are required.' }}
+          </p>
         </div>
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
@@ -105,6 +107,7 @@
                     :index="index"
                     :can-remove="items.length > 1"
                     :show-errors="submitAttempted"
+                    :locked="!!row.recordId"
                     @update:model-value="updateRow(index, $event)"
                     @remove="removeRow(index)"
                   />
@@ -150,7 +153,7 @@
                 :disabled="isSubmitting"
                 class="flex justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {{ isSubmitting ? "Submitting..." : "Submit Request" }}
+                {{ isSubmitting ? "Saving..." : (isEditMode ? "Save Changes" : "Submit Request") }}
               </button>
             </div>
           </form>
@@ -170,16 +173,30 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import RequestItemRow from '@/components/tables/Request/RequestItemRow.vue'
 import { PlusIcon } from '@/icons'
-import { getMasterBootstrap, createRequest } from '@/service/api'
+import {
+  getMasterBootstrap,
+  createRequest,
+  updateRequest,
+  addRequestItem,
+  updateRequestItem,
+  removeRequestItem,
+  cancelRequestItem,
+} from '@/service/api'
 
 const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false,
   },
+  request: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['close', 'created'])
+const emit = defineEmits(['close', 'created', 'updated'])
+
+const isEditMode = computed(() => !!props.request)
 
 const isLoadingMaster = ref(false)
 const masterError = ref('')
@@ -196,10 +213,12 @@ const form = reactive({
 let rowKeySeed = 0
 function createEmptyRow() {
   rowKeySeed += 1
-  return { key: rowKeySeed, item_id: '', item_code: '', item_name: '', item_uom: '', qty: '', notes: '' }
+  return { key: rowKeySeed, recordId: null, item_id: '', item_code: '', item_name: '', item_uom: '', qty: '', notes: '' }
 }
 
 const items = ref([createEmptyRow()])
+const removedItemIds = ref([])
+let originalItemsById = new Map()
 
 function addRow() {
   items.value.push(createEmptyRow())
@@ -207,7 +226,8 @@ function addRow() {
 
 function removeRow(index) {
   if (items.value.length <= 1) return
-  items.value.splice(index, 1)
+  const [removed] = items.value.splice(index, 1)
+  if (removed?.recordId) removedItemIds.value.push(removed.recordId)
 }
 
 function updateRow(index, value) {
@@ -259,9 +279,23 @@ function validate() {
   if (!form.request_purpose_id) errors.push('Request Purpose is required.')
   if (!form.reason.trim()) errors.push('Reason is required.')
   if (requiresReturn.value && !form.return_due_date) errors.push('Return Due Date is required for this workflow.')
+
+  const firstRowIndexByItemId = new Map()
   items.value.forEach((row, index) => {
     if (!row.item_id) errors.push(`Item ${index + 1}: select an item from Itembase.`)
     if (!(Number(row.qty) > 0)) errors.push(`Item ${index + 1}: requested qty must be greater than 0.`)
+
+    if (row.item_id) {
+      const key = String(row.item_id)
+      if (firstRowIndexByItemId.has(key)) {
+        const firstIndex = firstRowIndexByItemId.get(key)
+        errors.push(
+          `Item ${index + 1}: "${row.item_name}" is already added as item ${firstIndex + 1}. Update the quantity there instead of adding it again.`
+        )
+      } else {
+        firstRowIndexByItemId.set(key, index)
+      }
+    }
   })
   return errors
 }
@@ -280,10 +314,40 @@ function buildPayload() {
 }
 
 function resetForm() {
-  form.request_purpose_id = ''
-  form.reason = ''
-  form.return_due_date = ''
-  items.value = [createEmptyRow()]
+  removedItemIds.value = []
+  originalItemsById = new Map()
+
+  if (props.request) {
+    form.request_purpose_id = props.request.request_purpose_id ?? ''
+    form.reason = props.request.reason ?? ''
+    form.return_due_date = props.request.return_due_date
+      ? String(props.request.return_due_date).slice(0, 10)
+      : ''
+
+    const activeItems = (props.request.items ?? []).filter((it) => it.status === 'ACTIVE')
+    items.value = activeItems.length
+      ? activeItems.map((it) => {
+          rowKeySeed += 1
+          originalItemsById.set(it.id, { requested_qty: Number(it.requested_qty), notes: it.notes || '' })
+          return {
+            key: rowKeySeed,
+            recordId: it.id,
+            item_id: it.itembase_item_id,
+            item_code: it.item_code,
+            item_name: it.item_name,
+            item_uom: it.uom_code,
+            qty: it.requested_qty,
+            notes: it.notes || '',
+          }
+        })
+      : [createEmptyRow()]
+  } else {
+    form.request_purpose_id = ''
+    form.reason = ''
+    form.return_due_date = ''
+    items.value = [createEmptyRow()]
+  }
+
   submitAttempted.value = false
   validationErrors.value = []
   submitNotice.value = null
@@ -318,6 +382,56 @@ function close() {
   emit('close')
 }
 
+async function submitEdit() {
+  const requestId = props.request.id
+
+  await updateRequest(requestId, {
+    request_purpose_id: form.request_purpose_id,
+    reason: form.reason.trim(),
+    ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
+  })
+
+  if (removedItemIds.value.length) {
+    let cancelReason = ''
+    if (props.request.status !== 'DRAFT') {
+      cancelReason = window.prompt('Please provide a reason for removing item(s) from this request:') || ''
+      if (!cancelReason.trim()) {
+        throw new Error('A reason is required to remove items from a submitted request.')
+      }
+    }
+    for (const itemId of removedItemIds.value) {
+      if (props.request.status === 'DRAFT') {
+        await removeRequestItem(requestId, itemId)
+      } else {
+        await cancelRequestItem(requestId, itemId, { reason: cancelReason.trim() })
+      }
+    }
+  }
+
+  for (const row of items.value) {
+    if (!row.recordId) continue
+    const original = originalItemsById.get(row.recordId)
+    if (!original) continue
+    const qtyChanged = Number(row.qty) !== original.requested_qty
+    const notesChanged = (row.notes || '').trim() !== (original.notes || '')
+    if (qtyChanged || notesChanged) {
+      await updateRequestItem(requestId, row.recordId, {
+        requested_qty: Number(row.qty),
+        notes: row.notes?.trim() || null,
+      })
+    }
+  }
+
+  for (const row of items.value) {
+    if (row.recordId) continue
+    await addRequestItem(requestId, {
+      itembase_item_id: row.item_id,
+      requested_qty: Number(row.qty),
+      ...(row.notes?.trim() ? { notes: row.notes.trim() } : {}),
+    })
+  }
+}
+
 async function handleSubmit() {
   submitAttempted.value = true
   const errors = validate()
@@ -327,15 +441,20 @@ async function handleSubmit() {
 
   isSubmitting.value = true
   try {
-    const res = await createRequest(buildPayload())
-    emit('created', res?.data)
+    if (isEditMode.value) {
+      await submitEdit()
+      emit('updated')
+    } else {
+      const res = await createRequest(buildPayload())
+      emit('created', res?.data)
+    }
     close()
   } catch (err) {
     validationErrors.value = err?.data?.errors?.details ?? []
     submitNotice.value = {
       variant: 'error',
-      title: 'Request not created',
-      message: err?.message || 'Failed to create request.',
+      title: isEditMode.value ? 'Request not updated' : 'Request not created',
+      message: err?.message || `Failed to ${isEditMode.value ? 'update' : 'create'} request.`,
     }
   } finally {
     isSubmitting.value = false

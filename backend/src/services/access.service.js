@@ -43,7 +43,15 @@ function matchesRule(user, rule) {
   return true;
 }
 
+const IT_DEPARTMENT_ID = 8;
+
+function isItDepartment(user) {
+  const department = UserUtil.primaryDepartment(user);
+  return Boolean(department) && Number(department.id) === IT_DEPARTMENT_ID;
+}
+
 async function hasModuleAccess(user, moduleCode, connection = null) {
+  if (isItDepartment(user)) return true;
   const rules = await findModuleRules(moduleCode, connection);
   return rules.some((rule) => matchesRule(user, rule));
 }

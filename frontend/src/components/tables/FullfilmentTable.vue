@@ -53,8 +53,10 @@
           <button
             @click="openPickingDialog(item)"
             type="button"
+            title="Process"
             class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
           >
+            <PencilIcon class="h-4 w-4" />
             Process
           </button>
         </td>
@@ -110,7 +112,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogFulfillmentPicking from '@/components/dialog/DialogFulfillmentPicking.vue'
-import { RefreshIcon } from '@/icons'
+import { RefreshIcon, PencilIcon } from '@/icons'
 
 const emit = defineEmits(['changed'])
 

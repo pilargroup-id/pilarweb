@@ -4,10 +4,10 @@
       <div
         class="relative flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-3xl bg-white shadow-theme-lg dark:bg-gray-900"
       >
-        <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-5 dark:border-gray-800">
+        <div class="sidebar-gradient-bg relative flex items-center justify-between gap-3 rounded-t-3xl px-6 py-5">
           <div>
-            <h4 class="text-lg font-semibold text-gray-800 dark:text-white/90">Log Aktivitas</h4>
-            <p class="text-theme-xs text-gray-500 dark:text-gray-400">Riwayat aktivitas pada sistem</p>
+            <h4 class="text-lg font-semibold text-white">Log Aktivitas</h4>
+            <p class="text-theme-xs text-white/70">Riwayat aktivitas pada sistem</p>
           </div>
           <div class="flex items-center gap-1.5">
             <button
@@ -15,14 +15,14 @@
               :disabled="activeState.loading"
               type="button"
               title="Refresh"
-              class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+              class="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshIcon class="h-4 w-4" :class="{ 'animate-spin': activeState.loading }" />
             </button>
             <button
               @click="close"
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+              class="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white"
             >
               <svg class="fill-current" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path

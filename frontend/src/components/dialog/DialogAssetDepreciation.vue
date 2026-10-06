@@ -5,12 +5,12 @@
         class="relative flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-3xl bg-white shadow-theme-lg dark:bg-gray-900"
       >
         <!-- Header -->
-        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-5 dark:border-gray-800">
+        <div class="sidebar-gradient-bg relative flex items-start justify-between gap-3 rounded-t-3xl px-6 py-5">
           <div class="min-w-0">
-            <h4 class="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
+            <h4 class="truncate text-lg font-semibold text-white">
               Depreciation &middot; {{ props.asset?.asset_name || '-' }}
             </h4>
-            <p class="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-0.5 text-theme-xs text-white/70">
               {{ props.asset?.asset_number || '-' }}
             </p>
           </div>
@@ -20,14 +20,14 @@
               :disabled="isLoading"
               type="button"
               title="Refresh"
-              class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+              class="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshIcon class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
             </button>
             <button
               @click="close"
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+              class="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white"
             >
               <svg class="fill-current" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path

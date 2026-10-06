@@ -222,6 +222,26 @@ export function getWarehouseLocations(): Promise<ApiResponse<WarehouseLocation[]
   return request('/api/master/warehouse-locations')
 }
 
+export interface WarehouseLocationPayload {
+  code: string
+  name: string
+  is_loan_warehouse?: boolean | number
+  is_active?: boolean | number
+}
+
+export function createWarehouseLocation(
+  payload: WarehouseLocationPayload,
+): Promise<ApiResponse<WarehouseLocation>> {
+  return request('/api/master/warehouse-locations', { method: 'POST', body: payload })
+}
+
+export function updateWarehouseLocation(
+  id: string | number,
+  payload: WarehouseLocationPayload,
+): Promise<ApiResponse<WarehouseLocation>> {
+  return request(`/api/master/warehouse-locations/${id}`, { method: 'PUT', body: payload })
+}
+
 export function getFinancialClosing(): Promise<ApiResponse<FinancialClosing>> {
   return request('/api/master/financial-closing')
 }
@@ -276,6 +296,54 @@ export function submitRequest(id: string): Promise<ApiResponse<PilarwebRequest>>
   return request(`/api/requests/${id}/submit`, { method: 'POST' })
 }
 
+export interface UpdateRequestPayload {
+  request_purpose_id?: string | number
+  reason?: string
+  return_due_date?: string | null
+}
+
+export function updateRequest(
+  id: string,
+  payload: UpdateRequestPayload,
+): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${id}`, { method: 'PUT', body: payload })
+}
+
+export function cancelRequestItem(
+  requestId: string,
+  itemId: string | number,
+  payload: { reason: string },
+): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${requestId}/items/${itemId}/cancel`, { method: 'POST', body: payload })
+}
+
+export function addRequestItem(
+  requestId: string,
+  payload: CreateRequestItemPayload,
+): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${requestId}/items`, { method: 'POST', body: payload })
+}
+
+export interface UpdateRequestItemPayload {
+  requested_qty?: number
+  notes?: string | null
+}
+
+export function updateRequestItem(
+  requestId: string,
+  itemId: string | number,
+  payload: UpdateRequestItemPayload,
+): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${requestId}/items/${itemId}`, { method: 'PUT', body: payload })
+}
+
+export function removeRequestItem(
+  requestId: string,
+  itemId: string | number,
+): Promise<ApiResponse<PilarwebRequest>> {
+  return request(`/api/requests/${requestId}/items/${itemId}`, { method: 'DELETE' })
+}
+
 // ---------------------------------------------------------------------------
 // Department Approval (section 8)
 // ---------------------------------------------------------------------------
@@ -313,6 +381,13 @@ export function rejectApproval(
   payload: { reason: string },
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/approvals/${id}/reject`, { method: 'POST', body: payload })
+}
+
+export function revertApproval(
+  id: number | string,
+  payload: { reason: string },
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/approvals/${id}/revert`, { method: 'POST', body: payload })
 }
 
 // ---------------------------------------------------------------------------

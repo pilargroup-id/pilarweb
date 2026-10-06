@@ -16,12 +16,16 @@ async function listQueue(user, query = {}) {
   const offset = (page - 1) * limit;
   const params = [department.id, level, level];
   let where = `
-    WHERE ra.status = 'PENDING'
-      AND ra.department_id = ?
+    WHERE ra.department_id = ?
       AND (
         (ra.allow_higher_job_level = 1 AND ? >= ra.required_job_level_value)
         OR
         (ra.allow_higher_job_level = 0 AND ? = ra.required_job_level_value)
+      )
+      AND (
+        (ra.status = 'PENDING' AND r.status = 'PENDING_DEPARTMENT_APPROVAL')
+        OR
+        (ra.status = 'APPROVED' AND r.status = 'PENDING_FINANCE_REVIEW' AND fr.status = 'PENDING')
       )
   `;
   if (query.search) {
@@ -34,6 +38,7 @@ async function listQueue(user, query = {}) {
     SELECT COUNT(*) AS total
     FROM request_approvals ra
     INNER JOIN requests r ON r.id = ra.request_id
+    LEFT JOIN finance_reviews fr ON fr.request_id = r.id
     ${where}
   `, params);
   const [rows] = await db.query(`
@@ -50,6 +55,7 @@ async function listQueue(user, query = {}) {
       r.status AS request_status
     FROM request_approvals ra
     INNER JOIN requests r ON r.id = ra.request_id
+    LEFT JOIN finance_reviews fr ON fr.request_id = r.id
     ${where}
     ORDER BY r.submitted_at ASC, ra.id ASC
     LIMIT ? OFFSET ?
@@ -236,8 +242,10 @@ async function revert(user, approvalId, payload = {}) {
     const actor = UserUtil.snapshot(user);
     await connection.query(`
       UPDATE request_approvals
-      SET status = 'REVERTED', reverted_at = NOW(), reverted_by_user_id = ?,
-          reverted_by_name = ?, revert_reason = ?
+      SET status = 'PENDING', approver_user_id = NULL, approver_internal_id = NULL,
+          approver_name = NULL, approver_job_level_value = NULL, approver_job_level_name = NULL,
+          note = NULL, decided_at = NULL,
+          reverted_at = NOW(), reverted_by_user_id = ?, reverted_by_name = ?, revert_reason = ?
       WHERE id = ?
     `, [actor.user_id, actor.name, reason, Number(approvalId)]);
     await connection.query(
@@ -250,7 +258,7 @@ async function revert(user, approvalId, payload = {}) {
     );
     await connection.query(`
       UPDATE requests
-      SET status = 'REVERTED_TO_REQUESTER', reverted_at = NOW(), reverted_by_user_id = ?,
+      SET status = 'PENDING_DEPARTMENT_APPROVAL', reverted_at = NOW(), reverted_by_user_id = ?,
           reverted_by_name = ?, revert_reason = ?
       WHERE id = ?
     `, [actor.user_id, actor.name, reason, approval.request_id]);
@@ -263,7 +271,7 @@ async function revert(user, approvalId, payload = {}) {
       actor_user_id: actor.user_id,
       actor_name: actor.name,
       before: { approval_status: 'APPROVED', request_status: approval.request_status },
-      after: { approval_status: 'REVERTED', request_status: 'REVERTED_TO_REQUESTER', reason },
+      after: { approval_status: 'PENDING', request_status: 'PENDING_DEPARTMENT_APPROVAL', reason },
     });
 
     await connection.commit();

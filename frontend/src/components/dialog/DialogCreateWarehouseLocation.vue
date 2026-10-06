@@ -21,7 +21,7 @@
           </button>
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">
-            {{ isEditMode ? 'Edit Unit of Measure' : 'Create Unit of Measure' }}
+            {{ isEditMode ? 'Edit Warehouse Location' : 'Create Warehouse Location' }}
           </h4>
           <p class="pr-12 text-sm text-white/70">
             Fields marked with * are required.
@@ -31,14 +31,15 @@
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
         <form class="flex flex-col gap-4" @submit.prevent="submit">
           <div>
-            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Code *</label>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Code</label>
             <input
-              v-model="form.code"
+              :value="form.code"
               type="text"
-              placeholder="e.g. PCS"
-              required
-              class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              placeholder="Generated from name"
+              disabled
+              class="dark:bg-dark-900 h-11 w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm uppercase text-gray-500 shadow-theme-xs placeholder:text-gray-400 placeholder:normal-case dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400 dark:placeholder:text-white/30"
             />
+            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">Auto-generated from name.</p>
           </div>
 
           <div>
@@ -46,10 +47,18 @@
             <input
               v-model="form.name"
               type="text"
-              placeholder="e.g. Pieces"
+              placeholder="e.g. GOTO Warehouse"
               required
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
+          </div>
+
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Loan Warehouse</label>
+            <ToggleSwitch v-model="form.is_loan_warehouse" on-label="Yes" off-label="No" />
+            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
+              Loan warehouses are excluded from Inventory Transfer source options.
+            </p>
           </div>
 
           <div>
@@ -88,14 +97,14 @@
 import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import ToggleSwitch from '@/components/forms/FormElements/ToggleSwitch.vue'
-import { createMasterData, updateMasterData } from '@/service/templateApi'
+import { createWarehouseLocation, updateWarehouseLocation } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false,
   },
-  uom: {
+  location: {
     type: Object,
     default: null,
   },
@@ -103,26 +112,47 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'created', 'updated'])
 
-const isEditMode = computed(() => !!props.uom)
+const isEditMode = computed(() => !!props.location)
 
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
+function slugifyCode(value) {
+  const base = (value || '')
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+  return base
+}
+
 const form = reactive({
   code: '',
   name: '',
+  is_loan_warehouse: false,
   is_active: true,
 })
 
-function populateForm(uom) {
-  form.code = uom.code || ''
-  form.name = uom.name || ''
-  form.is_active = uom.is_active === undefined ? true : !!uom.is_active
+watch(
+  () => form.name,
+  (name) => {
+    if (!isEditMode.value) form.code = slugifyCode(name)
+  }
+)
+
+function populateForm(location) {
+  form.code = location.code || ''
+  form.name = location.name || ''
+  form.is_loan_warehouse = !!location.is_loan_warehouse
+  form.is_active = location.is_active === undefined ? true : !!location.is_active
 }
 
 function resetForm() {
   form.code = ''
   form.name = ''
+  form.is_loan_warehouse = false
   form.is_active = true
   errorMessage.value = ''
 }
@@ -130,7 +160,7 @@ function resetForm() {
 watch(
   () => props.isOpen,
   (open) => {
-    if (open && isEditMode.value) populateForm(props.uom)
+    if (open && isEditMode.value) populateForm(props.location)
     else if (!open) resetForm()
   }
 )
@@ -141,33 +171,30 @@ function close() {
 
 async function submit() {
   errorMessage.value = ''
-  if (!form.code.trim()) {
-    errorMessage.value = 'Code is required.'
-    return
-  }
   if (!form.name.trim()) {
     errorMessage.value = 'Name is required.'
     return
   }
 
   const payload = {
-    code: form.code.trim().toUpperCase(),
+    code: form.code.trim() || `WH-${Date.now().toString(36).toUpperCase()}`,
     name: form.name.trim(),
+    is_loan_warehouse: form.is_loan_warehouse,
     is_active: form.is_active,
   }
 
   isSubmitting.value = true
   try {
     if (isEditMode.value) {
-      const data = await updateMasterData('uoms', props.uom.id, payload)
-      emit('updated', data?.data)
+      const res = await updateWarehouseLocation(props.location.id, payload)
+      emit('updated', res?.data)
     } else {
-      const data = await createMasterData('uoms', payload)
-      emit('created', data?.data)
+      const res = await createWarehouseLocation(payload)
+      emit('created', res?.data)
     }
     close()
   } catch (err) {
-    errorMessage.value = err?.response?.data?.message || `Failed to ${isEditMode.value ? 'update' : 'create'} unit of measure.`
+    errorMessage.value = err?.message || `Failed to ${isEditMode.value ? 'update' : 'create'} warehouse location.`
   } finally {
     isSubmitting.value = false
   }

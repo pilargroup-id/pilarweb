@@ -17,10 +17,12 @@
             <RefreshIcon :class="['h-4 w-4', { 'animate-spin': isLoading }]" />
             Refresh
           </button>
+          <ButtonCreateWarehouseLocation @created="fetchWarehouseLocations" />
         </div>
       </template>
 
       <template #head>
+        <TableHeadCell>Actions</TableHeadCell>
         <TableHeadCell>Code</TableHeadCell>
         <TableHeadCell>Name</TableHeadCell>
         <TableHeadCell>Type</TableHeadCell>
@@ -28,21 +30,24 @@
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="4" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading warehouse locations...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="4" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!locations.length">
-        <td colspan="4" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="5" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No warehouse locations found.</p>
         </td>
       </tr>
       <tr v-else v-for="location in locations" :key="location.id" class="border-t border-gray-100 dark:border-gray-800">
+        <td class="px-5 py-4 sm:px-6">
+          <ButtonUpdateWarehouseLocation :location="location" @updated="fetchWarehouseLocations" />
+        </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
             {{ location.code }}
@@ -72,6 +77,8 @@ import { getWarehouseLocations } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
+import ButtonCreateWarehouseLocation from '@/components/buttons/create/ButtonCreateWarehouseLocation.vue'
+import ButtonUpdateWarehouseLocation from '@/components/buttons/update/ButtonUpdateWarehouseLocation.vue'
 import { RefreshIcon } from '@/icons'
 
 const locations = ref([])

@@ -110,24 +110,27 @@
                 @click="handlePrint"
                 type="button"
                 :disabled="isPrinting || !fulfillment"
-                class="flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
               >
+                <PrinterIcon class="h-4 w-4" />
                 {{ isPrinting ? 'Printing...' : 'Print' }}
               </button>
               <button
                 @click="handleSave"
                 type="button"
                 :disabled="isSaving || !fulfillment"
-                class="flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
               >
+                <SaveIcon class="h-4 w-4" />
                 {{ isSaving ? 'Saving...' : 'Save Progress' }}
               </button>
               <button
                 @click="handleConfirm"
                 type="button"
                 :disabled="isConfirming || isSaving || !fulfillment"
-                class="flex justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
+                <CheckIcon class="h-4 w-4" />
                 {{ isConfirming ? 'Confirming...' : 'Confirm Picking' }}
               </button>
             </div>
@@ -136,12 +139,30 @@
       </div>
     </template>
   </Modal>
+
+  <Teleport to="body">
+    <FFPrintPicking
+      :request-number="queueItem?.request_number"
+      :fulfillment-number="fulfillment?.fulfillment_number"
+      :company-name="queueItem?.company_name"
+      :requester-name="queueItem?.requester_name"
+      :department-name="queueItem?.department_name"
+      :request-purpose-name="queueItem?.request_purpose_name"
+      :accepted-by-name="fulfillment?.accepted_by_name"
+      :accepted-at="fulfillment?.accepted_at"
+      :status="fulfillment?.status"
+      :printed-at="printedAt"
+      :rows="printRows"
+    />
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import SelectField from '@/components/forms/FormElements/SelectField.vue'
+import FFPrintPicking from '@/components/layout/print/FFPrintPicking.vue'
+import { PrinterIcon, SaveIcon, CheckIcon } from '@/icons'
 import {
   getWarehouseRequestDetail,
   printFulfillment,
@@ -184,6 +205,28 @@ const errorMessage = ref('')
 const infoMessage = ref('')
 const fulfillment = ref(null)
 const rows = ref([])
+const printedAt = ref(null)
+
+const printRows = computed(() =>
+  rows.value.map((row) => {
+    const shortage = shortageQty(row)
+    return {
+      id: row.id,
+      item_name: row.item_name,
+      item_code: row.item_code,
+      max_qty: row.max_qty,
+      actual_qty: row.actual_qty,
+      shortage_qty: shortage,
+      shortage_reason_label: shortage > 0
+        ? SHORTAGE_REASONS.find((opt) => opt.value === row.shortage_reason_code)?.label || '-'
+        : '-',
+      remainder_label: shortage > 0
+        ? REMAINDER_OPTIONS.find((opt) => opt.value === row.remainder_disposition)?.label || '-'
+        : '-',
+      shortage_note: row.shortage_note || '',
+    }
+  })
+)
 
 watch(
   () => props.isOpen,
@@ -301,6 +344,12 @@ async function handlePrint() {
   isPrinting.value = true
   try {
     await printFulfillment(fulfillment.value.id)
+    printedAt.value = new Date()
+    await nextTick()
+    const originalTitle = document.title
+    document.title = ' '
+    window.print()
+    document.title = originalTitle
     infoMessage.value = 'Print event recorded.'
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to record print event.'

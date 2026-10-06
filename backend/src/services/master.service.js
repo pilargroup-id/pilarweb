@@ -385,6 +385,43 @@ async function saveRequestPurpose(user, purposeId, payload = {}) {
   } finally { connection.release(); }
 }
 
+async function saveWarehouseLocation(user, locationId, payload = {}) {
+  const AccessService = require('./access.service');
+  const { createError } = require('../utils/business.util');
+  const db = requireDatabase();
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await AccessService.requireModuleAccess(user, 'ADMIN', connection);
+    const code = String(payload.code || '').trim().toUpperCase();
+    const name = String(payload.name || '').trim();
+    if (!code || !name) throw createError('code and name are required', 422, 'VALIDATION_ERROR');
+    const isLoanWarehouse = Number(payload.is_loan_warehouse) ? 1 : 0;
+    const isActive = payload.is_active === undefined ? 1 : (Number(payload.is_active) ? 1 : 0);
+    const params = [code, name, isLoanWarehouse, isActive];
+    if (locationId) {
+      const [exists] = await connection.query('SELECT id FROM warehouse_locations WHERE id = ? LIMIT 1', [Number(locationId)]);
+      if (!exists[0]) throw createError('Warehouse location not found', 404, 'WAREHOUSE_LOCATION_NOT_FOUND');
+      await connection.query(`
+        UPDATE warehouse_locations
+        SET code=?, name=?, is_loan_warehouse=?, is_active=?
+        WHERE id=?
+      `, [...params, Number(locationId)]);
+      await connection.commit();
+      return { id: Number(locationId) };
+    }
+    const [result] = await connection.query(`
+      INSERT INTO warehouse_locations (code, name, is_loan_warehouse, is_active)
+      VALUES (?, ?, ?, ?)
+    `, params);
+    await connection.commit();
+    return { id: result.insertId };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally { connection.release(); }
+}
+
 async function deleteRequestPurpose(user, purposeId) {
   const AccessService = require('./access.service');
   const { createError } = require('../utils/business.util');
@@ -412,4 +449,5 @@ Object.assign(module.exports, {
   saveModuleAccessRule,
   saveRequestPurpose,
   deleteRequestPurpose,
+  saveWarehouseLocation,
 });

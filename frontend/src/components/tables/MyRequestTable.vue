@@ -4,7 +4,7 @@
       v-if="createdNotice"
       variant="success"
       title="Request created"
-      :message="`Request ${createdNotice} was saved as a draft. Click Submit for Approval when it's ready.`"
+      :message="`Request ${createdNotice} was submitted for Department Approval.`"
     />
 
     <Alert
@@ -41,26 +41,27 @@
       </template>
 
       <template #head>
+        <TableHeadCell>Action</TableHeadCell>
         <TableHeadCell>Request No</TableHeadCell>
+        <TableHeadCell>Workflow</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Return Due Date</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
-        <TableHeadCell>Action</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading requests...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!requests.length">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">You haven't submitted any requests yet.</p>
           <button
             @click="isNewRequestOpen = true"
@@ -78,9 +79,57 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <div class="flex items-center gap-2">
+            <router-link
+              :to="`/request/${item.id}`"
+              title="View"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            >
+              <EyeIcon class="h-4 w-4" />
+              View
+            </router-link>
+            <button
+              v-if="isEditable(item.status)"
+              @click="handleEditRequest(item)"
+              :disabled="editingId === item.id"
+              type="button"
+              title="Edit"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-light-300 bg-white px-3 py-2 text-theme-sm font-medium text-blue-light-600 shadow-theme-xs hover:bg-blue-light-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-light-800 dark:bg-gray-800 dark:text-blue-light-400 dark:hover:bg-white/[0.03]"
+            >
+              <PencilIcon class="h-4 w-4" />
+              {{ editingId === item.id ? 'Loading...' : 'Edit' }}
+            </button>
+            <button
+              v-if="isSubmittable(item.status)"
+              @click="handleSubmitRequest(item)"
+              :disabled="submittingId === item.id"
+              type="button"
+              title="Submit for Approval"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              <SendIcon class="h-4 w-4" />
+              {{ submittingId === item.id ? 'Submitting...' : 'Submit for Approval' }}
+            </button>
+            <button
+              v-if="isCancellable(item.status)"
+              @click="handleCancelRequest(item)"
+              :disabled="cancelingId === item.id"
+              type="button"
+              title="Cancel"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              <TrashIcon class="h-4 w-4" />
+              {{ cancelingId === item.id ? 'Canceling...' : 'Cancel' }}
+            </button>
+          </div>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
             {{ item.request_number }}
           </span>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.workflow_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
@@ -95,25 +144,6 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <div class="flex items-center gap-2">
-            <router-link
-              :to="`/request/${item.id}`"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-            >
-              View
-            </router-link>
-            <button
-              v-if="isSubmittable(item.status)"
-              @click="handleSubmitRequest(item)"
-              :disabled="submittingId === item.id"
-              type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-            >
-              {{ submittingId === item.id ? 'Submitting...' : 'Submit for Approval' }}
-            </button>
-          </div>
         </td>
       </tr>
 
@@ -135,33 +165,46 @@
       @close="isNewRequestOpen = false"
       @created="handleRequestCreated"
     />
+
+    <DialogNewRequest
+      :is-open="isEditRequestOpen"
+      :request="editingRequest"
+      @close="isEditRequestOpen = false"
+      @updated="handleRequestUpdated"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getMyRequests, submitRequest } from '@/service/api'
+import { getMyRequests, submitRequest, cancelRequestItem, getRequestById } from '@/service/api'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogNewRequest from '@/components/dialog/DialogNewRequest.vue'
-import { PlusIcon, RefreshIcon } from '@/icons'
+import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon } from '@/icons'
 
 const route = useRoute()
 const createdNotice = ref(typeof route.query.created === 'string' ? route.query.created : '')
 const isNewRequestOpen = ref(false)
+const isEditRequestOpen = ref(false)
+const editingRequest = ref(null)
 
 const requests = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const submitError = ref('')
 const submittingId = ref('')
+const cancelingId = ref('')
+const editingId = ref('')
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
 const SUBMITTABLE_STATUSES = new Set(['DRAFT', 'REVERTED_TO_REQUESTER'])
+const EDITABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER'])
+const CANCELLABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER'])
 
 const STATUS_BADGE_COLOR = {
   DRAFT: 'light',
@@ -185,6 +228,51 @@ const STATUS_BADGE_COLOR = {
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 
 const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
+const isEditable = (status) => EDITABLE_STATUSES.has(status)
+const isCancellable = (status) => CANCELLABLE_STATUSES.has(status)
+
+async function handleEditRequest(item) {
+  submitError.value = ''
+  editingId.value = item.id
+  try {
+    const detail = await getRequestById(item.id)
+    editingRequest.value = detail?.data ?? item
+    isEditRequestOpen.value = true
+  } catch (err) {
+    submitError.value = err?.message || `Failed to load request ${item.request_number}.`
+  } finally {
+    editingId.value = ''
+  }
+}
+
+function handleRequestUpdated() {
+  isEditRequestOpen.value = false
+  fetchRequests(meta.page)
+}
+
+async function handleCancelRequest(item) {
+  const reason = window.prompt(`Cancel request ${item.request_number}?\nPlease provide a reason:`)
+  if (reason === null) return
+  if (!reason.trim()) {
+    window.alert('A reason is required to cancel this request.')
+    return
+  }
+
+  submitError.value = ''
+  cancelingId.value = item.id
+  try {
+    const detail = await getRequestById(item.id)
+    const activeItems = (detail?.data?.items ?? []).filter((requestItem) => requestItem.status === 'ACTIVE')
+    for (const requestItem of activeItems) {
+      await cancelRequestItem(item.id, requestItem.id, { reason: reason.trim() })
+    }
+    await fetchRequests(meta.page)
+  } catch (err) {
+    submitError.value = err?.message || `Failed to cancel request ${item.request_number}.`
+  } finally {
+    cancelingId.value = ''
+  }
+}
 
 async function handleSubmitRequest(item) {
   submitError.value = ''

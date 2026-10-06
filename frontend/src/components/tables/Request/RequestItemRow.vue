@@ -5,7 +5,13 @@
     </td>
 
     <td class="px-5 py-4 sm:px-6">
-      <div ref="containerRef" class="relative min-w-[320px]">
+      <div v-if="locked" class="min-w-[320px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-800 dark:bg-white/[0.02]">
+        <span class="block truncate text-sm font-medium text-gray-800 dark:text-white/90">
+          {{ modelValue.item_name || '-' }}
+        </span>
+        <span class="block truncate text-xs text-gray-500 dark:text-gray-400">{{ modelValue.item_code }}</span>
+      </div>
+      <div v-else ref="containerRef" class="relative min-w-[320px]">
         <div class="relative">
           <input
             v-model="searchQuery"
@@ -130,6 +136,10 @@ const props = defineProps({
     default: true,
   },
   showErrors: {
+    type: Boolean,
+    default: false,
+  },
+  locked: {
     type: Boolean,
     default: false,
   },

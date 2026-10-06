@@ -40,15 +40,36 @@
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
               <thead class="bg-gray-50 dark:bg-white/[0.02]">
                 <tr>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
-                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Decision</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty</th>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Reject Qty</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                 <tr v-for="row in rows" :key="row.request_item_id">
+                  <td class="px-4 py-3 align-top">
+                    <Badge v-if="row.is_canceled" color="light" size="sm">Canceled</Badge>
+                    <div v-else class="flex items-center gap-1.5">
+                      <button
+                        v-for="opt in DECISION_OPTIONS"
+                        :key="opt.value"
+                        type="button"
+                        :title="opt.label"
+                        @click="row.decision = opt.value"
+                        :class="[
+                          'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+                          row.decision === opt.value
+                            ? opt.activeClass
+                            : 'border-gray-200 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-500 dark:hover:bg-white/5',
+                        ]"
+                      >
+                        <component :is="opt.icon" class="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
                   <td class="px-4 py-3 align-top">
                     <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
                       {{ row.item_name }}
@@ -61,18 +82,11 @@
                     {{ row.requested_qty }}
                   </td>
                   <template v-if="row.is_canceled">
-                    <td colspan="3" class="px-4 py-3 align-top">
-                      <Badge color="light" size="sm">Already Canceled</Badge>
+                    <td colspan="3" class="px-4 py-3 align-top text-theme-sm text-gray-400 dark:text-gray-500">
+                      &mdash;
                     </td>
                   </template>
                   <template v-else>
-                    <td class="px-4 py-3 align-top">
-                      <SelectField v-model="row.decision">
-                        <option v-for="opt in DECISION_OPTIONS" :key="opt.value" :value="opt.value">
-                          {{ opt.label }}
-                        </option>
-                      </SelectField>
-                    </td>
                     <td class="px-4 py-3 align-top">
                       <input
                         v-model.number="row.approved_qty"
@@ -85,17 +99,29 @@
                       />
                     </td>
                     <td class="px-4 py-3 align-top">
+                      <span
+                        :class="[
+                          'text-theme-sm font-medium',
+                          rejectQtyFor(row) > 0
+                            ? 'text-error-600 dark:text-error-500'
+                            : 'text-gray-400 dark:text-gray-500',
+                        ]"
+                      >
+                        {{ rejectQtyFor(row) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 align-top">
                       <input
                         v-model="row.note"
                         type="text"
-                        :placeholder="row.decision === 'CANCELED' ? 'Cancel reason *' : 'Optional note'"
+                        placeholder="Optional note"
                         class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                       />
                     </td>
                   </template>
                 </tr>
                 <tr v-if="!rows.length">
-                  <td colspan="5" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                  <td colspan="6" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                     No items on this request.
                   </td>
                 </tr>
@@ -146,13 +172,24 @@
 import { ref, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
-import SelectField from '@/components/forms/FormElements/SelectField.vue'
+import { CheckIcon, CloseIcon } from '@/icons'
 import { getFinanceRequestById, submitFinanceReview } from '@/service/api'
 
 const DECISION_OPTIONS = [
-  { value: 'APPROVED', label: 'Approved' },
-  { value: 'REJECTED', label: 'Rejected' },
-  { value: 'CANCELED', label: 'Canceled' },
+  {
+    value: 'APPROVED',
+    label: 'Approve',
+    icon: CheckIcon,
+    activeClass:
+      'border-success-300 bg-success-50 text-success-600 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-500',
+  },
+  {
+    value: 'REJECTED',
+    label: 'Reject',
+    icon: CloseIcon,
+    activeClass:
+      'border-error-300 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-500',
+  },
 ]
 
 const props = defineProps({
@@ -176,6 +213,12 @@ const note = ref('')
 const rows = ref([])
 
 const activeRows = computed(() => rows.value.filter((row) => !row.is_canceled))
+
+function rejectQtyFor(row) {
+  if (row.decision === 'REJECTED') return row.requested_qty
+  const approved = Number(row.approved_qty) || 0
+  return Math.max(row.requested_qty - approved, 0)
+}
 
 watch(
   () => props.isOpen,
@@ -237,9 +280,6 @@ async function submit() {
         errorMessage.value = `Approved qty for "${row.item_name}" must be greater than 0 and not exceed requested qty.`
         return
       }
-    } else if (row.decision === 'CANCELED' && !row.note.trim()) {
-      errorMessage.value = `Cancel reason is required for "${row.item_name}".`
-      return
     }
   }
 

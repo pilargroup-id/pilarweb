@@ -30,5 +30,7 @@ router.put('/module-access-rules/:id', requireAdmin, MasterController.updateModu
 router.post('/request-purposes', requireAdmin, MasterController.createRequestPurpose);
 router.put('/request-purposes/:id', requireAdmin, MasterController.updateRequestPurpose);
 router.delete('/request-purposes/:id', requireAdmin, MasterController.deleteRequestPurpose);
+router.post('/warehouse-locations', requireAdmin, MasterController.createWarehouseLocation);
+router.put('/warehouse-locations/:id', requireAdmin, MasterController.updateWarehouseLocation);
 
 module.exports = router;

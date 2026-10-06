@@ -275,7 +275,6 @@ const rawMenuGroups = [
           { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
           { name: "Returns", path: "/returns", pro: false },
-          { name: "WH Locations", path: "/data/WHLocations", pro: false },
         ],
       },
             {
@@ -283,7 +282,8 @@ const rawMenuGroups = [
         name: "Master",
         subItems: [
           { name: "Request Purpose", path: "/data/RequestPurpose", pro: false },
-          { name: "Approval Rules", path: "/data/ApprovalRules", pro: false }
+          { name: "Approval Rules", path: "/data/ApprovalRules", pro: false },
+          { name: "WH Locations", path: "/data/WHLocations", pro: false }
         ],
       },
     ],
