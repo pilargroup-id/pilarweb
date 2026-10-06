@@ -14,10 +14,9 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err?.statusCode && err.statusCode >= 400 && err.statusCode < 600) {
-    const errors = err.errors && typeof err.errors === 'object'
-      ? { code: err.code || 'REQUEST_FAILED', ...err.errors }
-      : { code: err.code || 'REQUEST_FAILED' };
-    return R.error(res, err.message || 'Request failed', err.statusCode, errors);
+    return R.error(res, err.message || 'Request failed', err.statusCode, {
+      code: err.code || 'REQUEST_FAILED',
+    });
   }
 
   console.error(err);

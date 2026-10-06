@@ -347,10 +347,69 @@ async function saveModuleAccessRule(user, ruleId, payload = {}) {
   } finally { connection.release(); }
 }
 
+async function saveRequestPurpose(user, purposeId, payload = {}) {
+  const AccessService = require('./access.service');
+  const { createError, optionalText } = require('../utils/business.util');
+  const db = requireDatabase();
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await AccessService.requireModuleAccess(user, 'ADMIN', connection);
+    const code = String(payload.code || '').trim().toUpperCase();
+    const name = String(payload.name || '').trim();
+    if (!code || !name) throw createError('code and name are required', 422, 'VALIDATION_ERROR');
+    const description = optionalText(payload.description, 500);
+    const sortOrder = Number.isFinite(Number(payload.sort_order)) ? Number(payload.sort_order) : 0;
+    const isActive = payload.is_active === undefined ? 1 : (Number(payload.is_active) ? 1 : 0);
+    const params = [code, name, description, sortOrder, isActive];
+    if (purposeId) {
+      const [exists] = await connection.query('SELECT id FROM master_request_purposes WHERE id = ? LIMIT 1', [Number(purposeId)]);
+      if (!exists[0]) throw createError('Request purpose not found', 404, 'REQUEST_PURPOSE_NOT_FOUND');
+      await connection.query(`
+        UPDATE master_request_purposes
+        SET code=?, name=?, description=?, sort_order=?, is_active=?
+        WHERE id=?
+      `, [...params, Number(purposeId)]);
+      await connection.commit();
+      return { id: Number(purposeId) };
+    }
+    const [result] = await connection.query(`
+      INSERT INTO master_request_purposes (code, name, description, sort_order, is_active)
+      VALUES (?, ?, ?, ?, ?)
+    `, params);
+    await connection.commit();
+    return { id: result.insertId };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally { connection.release(); }
+}
+
+async function deleteRequestPurpose(user, purposeId) {
+  const AccessService = require('./access.service');
+  const { createError } = require('../utils/business.util');
+  const db = requireDatabase();
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await AccessService.requireModuleAccess(user, 'ADMIN', connection);
+    const [exists] = await connection.query('SELECT id FROM master_request_purposes WHERE id = ? LIMIT 1', [Number(purposeId)]);
+    if (!exists[0]) throw createError('Request purpose not found', 404, 'REQUEST_PURPOSE_NOT_FOUND');
+    await connection.query('UPDATE master_request_purposes SET is_active = 0 WHERE id = ?', [Number(purposeId)]);
+    await connection.commit();
+    return { id: Number(purposeId) };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally { connection.release(); }
+}
+
 Object.assign(module.exports, {
   getModuleAccessRules,
   assignPurposeWorkflow,
   saveApprovalRule,
   updateFinancialClosing,
   saveModuleAccessRule,
+  saveRequestPurpose,
+  deleteRequestPurpose,
 });
