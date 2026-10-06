@@ -78,7 +78,25 @@ jobs:
             "
 
       # -------------------------
-      # 8. Upload frontend dist
+      # 8. Run DB migrations
+      # -------------------------
+      - name: Run DB migrations on VM
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
+              set -e
+              cd /var/www/pilarweb/backend
+              set -a
+              . ./.env
+              set +a
+              for f in database/migrations/*.sql; do
+                echo \"Applying \$f\"
+                mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
+              done
+            "
+
+      # -------------------------
+      # 9. Upload frontend dist
       # -------------------------
       - name: Upload frontend build
         run: |
@@ -87,7 +105,7 @@ jobs:
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:/var/www/pilarweb/frontend/dist/
 
       # -------------------------
-      # 9. Install backend & restart PM2
+      # 10. Install backend & restart PM2
       # -------------------------
       - name: Restart backend on VM
         run: |
