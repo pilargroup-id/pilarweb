@@ -42,11 +42,11 @@
                   <tr>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actual Qty</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actual Qty <span class="text-error-500">*</span></th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Shortage</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Reason</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Remainder</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Reason <span class="text-error-500">*</span></th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Remainder <span class="text-error-500">*</span></th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note <span class="text-error-500">*</span></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -64,9 +64,11 @@
                       <input
                         v-model.number="row.actual_qty"
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
                         :max="row.max_qty"
+                        @keydown="blockDecimalKey"
+                        @input="sanitizeActualQty(row)"
                         class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                       />
                     </td>
@@ -251,6 +253,20 @@ function shortageQty(row) {
   return Math.max(0, Number(row.max_qty || 0) - Number(row.actual_qty || 0))
 }
 
+function blockDecimalKey(event) {
+  if (event.key === '.' || event.key === ',') {
+    event.preventDefault()
+  }
+}
+
+function sanitizeActualQty(row) {
+  let value = Math.trunc(Number(row.actual_qty) || 0)
+  const max = Number(row.max_qty || 0)
+  if (value > max) value = max
+  if (value < 0) value = 0
+  row.actual_qty = value
+}
+
 async function loadDetail(requestId) {
   reset()
   isLoading.value = true
@@ -292,12 +308,16 @@ function validateRows() {
     if (Number.isNaN(actual) || actual < 0) {
       return `Actual qty for "${row.item_name}" must be 0 or greater.`
     }
-    if (actual > Number(row.max_qty) + 0.0001) {
+    if (!Number.isInteger(actual)) {
+      return `Actual qty for "${row.item_name}" must be a whole number (no decimals).`
+    }
+    if (actual > Number(row.max_qty)) {
       return `Actual qty for "${row.item_name}" cannot exceed the approved quantity (${row.max_qty}).`
     }
     if (shortageQty(row) > 0) {
       if (!row.shortage_reason_code) return `Shortage reason is required for "${row.item_name}".`
       if (!row.remainder_disposition) return `Remainder disposition is required for "${row.item_name}".`
+      if (!row.shortage_note?.trim()) return `Note is required for "${row.item_name}".`
     }
   }
   return ''

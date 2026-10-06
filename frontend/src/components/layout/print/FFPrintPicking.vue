@@ -71,7 +71,7 @@
             <span class="pp-item-code">{{ row.item_code }}</span>
           </td>
           <td class="pp-col-qty">{{ formatQty(row.max_qty) }}</td>
-          <td class="pp-col-qty">{{ formatQty(row.actual_qty) }}</td>
+          <td class="pp-col-qty"></td>
           <td class="pp-col-qty">{{ formatQty(row.shortage_qty) }}</td>
           <td>{{ row.shortage_reason_label || '-' }}</td>
           <td>{{ row.remainder_label || '-' }}</td>

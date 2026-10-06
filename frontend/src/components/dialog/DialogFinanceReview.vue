@@ -90,8 +90,9 @@
                     <td class="px-4 py-3 align-top">
                       <input
                         v-model.number="row.approved_qty"
+                        @input="sanitizeApprovedQty(row)"
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
                         :max="row.requested_qty"
                         :disabled="row.decision !== 'APPROVED'"
@@ -214,6 +215,13 @@ const rows = ref([])
 
 const activeRows = computed(() => rows.value.filter((row) => !row.is_canceled))
 
+function sanitizeApprovedQty(row) {
+  let value = Math.trunc(Number(row.approved_qty) || 0)
+  if (value < 0) value = 0
+  if (value > row.requested_qty) value = Math.trunc(row.requested_qty)
+  row.approved_qty = value
+}
+
 function rejectQtyFor(row) {
   if (row.decision === 'REJECTED') return row.requested_qty
   const approved = Number(row.approved_qty) || 0
@@ -276,8 +284,13 @@ async function submit() {
 
   for (const row of activeRows.value) {
     if (row.decision === 'APPROVED') {
-      if (!row.approved_qty || row.approved_qty <= 0 || row.approved_qty > row.requested_qty) {
-        errorMessage.value = `Approved qty for "${row.item_name}" must be greater than 0 and not exceed requested qty.`
+      if (
+        !row.approved_qty ||
+        row.approved_qty <= 0 ||
+        !Number.isInteger(row.approved_qty) ||
+        row.approved_qty > row.requested_qty
+      ) {
+        errorMessage.value = `Approved qty for "${row.item_name}" must be a whole number greater than 0 and not exceed requested qty.`
         return
       }
     }

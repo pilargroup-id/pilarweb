@@ -31,17 +31,22 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
         <form class="flex flex-col gap-4" @submit.prevent="submit">
-          <div>
+          <p v-if="!config.showNote" class="text-sm text-gray-600 dark:text-gray-300">
+            {{ config.confirmMessage }}
+          </p>
+          <div v-else>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-              {{ config.label }}
+              {{ config.label }} <span v-if="config.required" class="text-error-500">*</span>
             </label>
             <textarea
               v-model="note"
               rows="3"
               :placeholder="config.placeholder"
               :required="config.required"
-              class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              class="dark:bg-dark-900 w-full rounded-lg border px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              :class="hasNoteError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
             ></textarea>
+            <p v-if="hasNoteError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">Reason is required.</p>
           </div>
 
           <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">
@@ -99,24 +104,26 @@ const emit = defineEmits(['close', 'decided'])
 const MODE_CONFIG = {
   approve: {
     title: 'Approve Request',
-    label: 'Note',
-    placeholder: 'Optional note',
+    confirmMessage: 'Are you sure you want to approve this request?',
+    showNote: false,
     required: false,
     submitLabel: 'Approve',
-    submitClass: 'bg-success-500 hover:bg-success-600',
+    submitClass: 'bg-brand-500 hover:bg-brand-600',
   },
   reject: {
     title: 'Reject Request',
-    label: 'Reason *',
+    label: 'Reason',
     placeholder: 'Explain why this request does not meet department requirements',
+    showNote: true,
     required: true,
     submitLabel: 'Reject',
     submitClass: 'bg-error-500 hover:bg-error-600',
   },
   revert: {
     title: 'Revert Approval',
-    label: 'Reason *',
+    label: 'Reason',
     placeholder: 'Explain why this approval is being reverted',
+    showNote: true,
     required: true,
     submitLabel: 'Revert',
     submitClass: 'bg-warning-500 hover:bg-warning-600',
@@ -128,6 +135,7 @@ const config = computed(() => MODE_CONFIG[props.mode] || MODE_CONFIG.approve)
 const note = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const hasNoteError = ref(false)
 
 watch(
   () => props.isOpen,
@@ -135,6 +143,7 @@ watch(
     if (open) {
       note.value = ''
       errorMessage.value = ''
+      hasNoteError.value = false
     }
   }
 )
@@ -146,10 +155,11 @@ function close() {
 async function submit() {
   if (!props.approval) return
   if (config.value.required && !note.value.trim()) {
-    errorMessage.value = 'Reason is required.'
+    hasNoteError.value = true
     return
   }
 
+  hasNoteError.value = false
   errorMessage.value = ''
   isSubmitting.value = true
   try {

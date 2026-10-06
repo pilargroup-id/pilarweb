@@ -113,13 +113,12 @@
             <button
               v-if="isCancellable(item.status)"
               @click="handleCancelRequest(item)"
-              :disabled="cancelingId === item.id"
               type="button"
               title="Cancel"
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
             >
               <TrashIcon class="h-4 w-4" />
-              {{ cancelingId === item.id ? 'Canceling...' : 'Cancel' }}
+              Cancel
             </button>
           </div>
         </td>
@@ -172,19 +171,27 @@
       @close="isEditRequestOpen = false"
       @updated="handleRequestUpdated"
     />
+
+    <DialogCancelRequest
+      :is-open="isCancelRequestOpen"
+      :request="cancelingRequest"
+      @close="isCancelRequestOpen = false"
+      @canceled="handleRequestCanceled"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getMyRequests, submitRequest, cancelRequestItem, getRequestById } from '@/service/api'
+import { getMyRequests, submitRequest, getRequestById } from '@/service/api'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogNewRequest from '@/components/dialog/DialogNewRequest.vue'
+import DialogCancelRequest from '@/components/dialog/DialogCancelRequest.vue'
 import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon } from '@/icons'
 
 const route = useRoute()
@@ -192,13 +199,14 @@ const createdNotice = ref(typeof route.query.created === 'string' ? route.query.
 const isNewRequestOpen = ref(false)
 const isEditRequestOpen = ref(false)
 const editingRequest = ref(null)
+const isCancelRequestOpen = ref(false)
+const cancelingRequest = ref(null)
 
 const requests = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const submitError = ref('')
 const submittingId = ref('')
-const cancelingId = ref('')
 const editingId = ref('')
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
@@ -250,28 +258,15 @@ function handleRequestUpdated() {
   fetchRequests(meta.page)
 }
 
-async function handleCancelRequest(item) {
-  const reason = window.prompt(`Cancel request ${item.request_number}?\nPlease provide a reason:`)
-  if (reason === null) return
-  if (!reason.trim()) {
-    window.alert('A reason is required to cancel this request.')
-    return
-  }
-
+function handleCancelRequest(item) {
   submitError.value = ''
-  cancelingId.value = item.id
-  try {
-    const detail = await getRequestById(item.id)
-    const activeItems = (detail?.data?.items ?? []).filter((requestItem) => requestItem.status === 'ACTIVE')
-    for (const requestItem of activeItems) {
-      await cancelRequestItem(item.id, requestItem.id, { reason: reason.trim() })
-    }
-    await fetchRequests(meta.page)
-  } catch (err) {
-    submitError.value = err?.message || `Failed to cancel request ${item.request_number}.`
-  } finally {
-    cancelingId.value = ''
-  }
+  cancelingRequest.value = item
+  isCancelRequestOpen.value = true
+}
+
+function handleRequestCanceled() {
+  isCancelRequestOpen.value = false
+  fetchRequests(meta.page)
 }
 
 async function handleSubmitRequest(item) {

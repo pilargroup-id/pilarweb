@@ -37,7 +37,18 @@
           </div>
           <div v-else class="flex flex-col gap-6">
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
-            <p v-if="infoMessage" class="text-sm text-success-600 dark:text-success-500">{{ infoMessage }}</p>
+            <div v-if="infoMessage" class="flex items-center gap-3">
+              <p class="text-sm text-success-600 dark:text-success-500">{{ infoMessage }}</p>
+              <button
+                v-if="lastCreatedTransfer"
+                @click="handlePrintDO"
+                type="button"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-theme-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+              >
+                <PrinterIcon class="h-3.5 w-3.5" />
+                Print DO
+              </button>
+            </div>
 
             <!-- Coverage per fulfillment item -->
             <div>
@@ -89,7 +100,7 @@
                   <div v-if="editingTransferId === transfer.id" class="flex flex-col gap-3">
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">IT Number</label>
+                        <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">IWT Number</label>
                         <input
                           v-model="editForm.inventory_transfer_number"
                           type="text"
@@ -97,8 +108,8 @@
                         />
                       </div>
                       <div>
-                        <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Source Warehouse</label>
-                        <SelectField v-model="editForm.source_warehouse_code" placeholder="Select source warehouse">
+                        <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Destination Warehouse</label>
+                        <SelectField v-model="editForm.source_warehouse_code" placeholder="Select destination warehouse">
                           <option v-for="opt in sourceOptions" :key="opt.code" :value="opt.code">{{ opt.code }} &middot; {{ opt.name }}</option>
                         </SelectField>
                       </div>
@@ -183,17 +194,17 @@
               <h5 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Add Inventory Transfer</h5>
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">IT Number</label>
+                  <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">IWT Number</label>
                   <input
                     v-model="newTransfer.inventory_transfer_number"
                     type="text"
-                    placeholder="e.g. IT2604868"
+                    placeholder="e.g. IWT2604868"
                     class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                   />
                 </div>
                 <div>
-                  <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Source Warehouse</label>
-                  <SelectField v-model="newTransfer.source_warehouse_code" placeholder="Select source warehouse">
+                  <label class="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Destination Warehouse</label>
+                  <SelectField v-model="newTransfer.source_warehouse_code" placeholder="Select destination warehouse">
                     <option v-for="opt in sourceOptions" :key="opt.code" :value="opt.code">{{ opt.code }} &middot; {{ opt.name }}</option>
                   </SelectField>
                 </div>
@@ -235,7 +246,8 @@
                           step="0.01"
                           min="0"
                           :max="row.remaining"
-                          class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                          disabled
+                          class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                         />
                       </td>
                     </tr>
@@ -243,7 +255,16 @@
                 </table>
               </div>
 
-              <div class="mt-4 flex justify-end">
+              <div class="mt-4 flex items-center justify-end gap-2">
+                <button
+                  v-if="lastCreatedTransfer"
+                  @click="handlePrintDO"
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                >
+                  <PrinterIcon class="h-4 w-4" />
+                  Print DO
+                </button>
                 <button
                   @click="submitTransfer"
                   type="button"
@@ -284,15 +305,34 @@
       </div>
     </template>
   </Modal>
+
+  <Teleport to="body">
+    <FFPrintDO
+      :request-number="queueItem?.request_number"
+      :transfer-number="lastCreatedTransfer?.inventory_transfer_number"
+      :company-name="queueItem?.company_name"
+      :requester-name="queueItem?.requester_name"
+      :department-name="queueItem?.department_name"
+      :source-warehouse-code="lastCreatedTransfer?.source_warehouse_code"
+      :source-warehouse-name="lastCreatedTransfer?.source_warehouse_name"
+      :destination-warehouse-code="lastCreatedTransfer?.destination_warehouse_code"
+      :destination-warehouse-name="lastCreatedTransfer?.destination_warehouse_name"
+      :transfer-date="lastCreatedTransfer?.transfer_date"
+      :note="lastCreatedTransfer?.note"
+      :printed-at="printDoPrintedAt"
+      :rows="printDoRows"
+    />
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import SelectField from '@/components/forms/FormElements/SelectField.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
-import { TrashIcon, CheckIcon } from '@/icons'
+import FFPrintDO from '@/components/layout/print/FFPrintDO.vue'
+import { TrashIcon, CheckIcon, PrinterIcon } from '@/icons'
 import {
   getWarehouseRequestDetail,
   getWarehouseLocations,
@@ -327,6 +367,9 @@ const isSavingEdit = ref(false)
 const isDeletingId = ref('')
 const isHandingOver = ref(false)
 const handoverNote = ref('')
+
+const lastCreatedTransfer = ref(null)
+const printDoPrintedAt = ref(null)
 
 const editingTransferId = ref(null)
 const editForm = reactive({
@@ -373,6 +416,17 @@ const coverageRows = computed(() => {
 
 const pendingItems = computed(() => coverageRows.value.filter((row) => row.remaining > 0.0001))
 
+const printDoRows = computed(() => {
+  if (!lastCreatedTransfer.value) return []
+  const itemsById = new Map((fulfillment.value?.items || []).map((item) => [Number(item.id), item]))
+  return (lastCreatedTransfer.value.items || []).map((ti) => ({
+    id: ti.id,
+    item_code: ti.item_code,
+    item_name: itemsById.get(Number(ti.fulfillment_item_id))?.item_name || '',
+    qty: ti.transferred_qty,
+  }))
+})
+
 watch(
   () => props.isOpen,
   (open) => {
@@ -400,6 +454,7 @@ function reset() {
   loadError.value = ''
   handoverNote.value = ''
   editingTransferId.value = null
+  lastCreatedTransfer.value = null
   resetNewTransferForm()
 }
 
@@ -497,6 +552,8 @@ async function submitTransfer() {
     resetNewTransferForm()
     infoMessage.value = 'Inventory Transfer recorded.'
     await loadDetail(props.queueItem.id)
+    lastCreatedTransfer.value = (fulfillment.value?.inventory_transfers || [])
+      .find((t) => t.inventory_transfer_number?.toUpperCase() === itNumber.toUpperCase()) || null
     emit('updated')
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to record Inventory Transfer.'
@@ -554,6 +611,16 @@ async function handleDelete(transfer) {
   } finally {
     isDeletingId.value = ''
   }
+}
+
+async function handlePrintDO() {
+  if (!lastCreatedTransfer.value) return
+  printDoPrintedAt.value = new Date()
+  await nextTick()
+  const originalTitle = document.title
+  document.title = ' '
+  window.print()
+  document.title = originalTitle
 }
 
 async function handleHandover() {
