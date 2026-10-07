@@ -144,6 +144,7 @@
 
   <Teleport to="body">
     <FFPrintPicking
+      :active="isPrinting"
       :request-number="queueItem?.request_number"
       :fulfillment-number="fulfillment?.fulfillment_number"
       :company-name="queueItem?.company_name"

@@ -308,6 +308,7 @@
 
   <Teleport to="body">
     <FFPrintDO
+      :active="isPrintingDO"
       :request-number="queueItem?.request_number"
       :transfer-number="lastCreatedTransfer?.inventory_transfer_number"
       :company-name="queueItem?.company_name"
@@ -370,6 +371,7 @@ const handoverNote = ref('')
 
 const lastCreatedTransfer = ref(null)
 const printDoPrintedAt = ref(null)
+const isPrintingDO = ref(false)
 
 const editingTransferId = ref(null)
 const editForm = reactive({
@@ -616,11 +618,13 @@ async function handleDelete(transfer) {
 async function handlePrintDO() {
   if (!lastCreatedTransfer.value) return
   printDoPrintedAt.value = new Date()
+  isPrintingDO.value = true
   await nextTick()
   const originalTitle = document.title
   document.title = ' '
   window.print()
   document.title = originalTitle
+  isPrintingDO.value = false
 }
 
 async function handleHandover() {

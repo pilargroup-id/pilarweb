@@ -25,21 +25,22 @@
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Reject Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading finance queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests pending Finance review.</p>
         </td>
       </tr>
@@ -55,6 +56,7 @@
             type="button"
             class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
           >
+            <FileCheckIcon class="h-4 w-4" />
             Review
           </button>
         </td>
@@ -74,6 +76,9 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p :class="rejectQtyClass(item.total_rejected_qty)">{{ formatQty(item.total_rejected_qty) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.request_status)" size="sm">{{ formatStatusLabel(item.request_status) }}</Badge>
@@ -110,7 +115,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogFinanceReview from '@/components/dialog/DialogFinanceReview.vue'
-import { RefreshIcon } from '@/icons'
+import { RefreshIcon, FileCheckIcon } from '@/icons'
 
 const queue = ref([])
 const isLoading = ref(false)
@@ -148,6 +153,19 @@ const formatDate = (value) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
+}
+
+const formatQty = (value) => {
+  const num = Number(value ?? 0)
+  if (Number.isNaN(num)) return '-'
+  return num % 1 === 0 ? String(num) : num.toFixed(2)
+}
+
+const rejectQtyClass = (value) => {
+  const num = Number(value ?? 0)
+  return num > 0
+    ? 'text-theme-sm font-medium text-error-600 dark:text-error-500'
+    : 'text-theme-sm text-gray-400 dark:text-gray-500'
 }
 
 async function fetchQueue(page = 1) {

@@ -25,21 +25,22 @@
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Reject Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently being picked.</p>
         </td>
       </tr>
@@ -76,6 +77,9 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p :class="rejectQtyClass(item.total_rejected_qty)">{{ formatQty(item.total_rejected_qty) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
@@ -153,6 +157,19 @@ const formatDate = (value) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
+}
+
+const formatQty = (value) => {
+  const num = Number(value ?? 0)
+  if (Number.isNaN(num)) return '-'
+  return num % 1 === 0 ? String(num) : num.toFixed(2)
+}
+
+const rejectQtyClass = (value) => {
+  const num = Number(value ?? 0)
+  return num > 0
+    ? 'text-theme-sm font-medium text-error-600 dark:text-error-500'
+    : 'text-theme-sm text-gray-400 dark:text-gray-500'
 }
 
 // Section 10: Fulfillment/Picking only acts on fulfillments Warehouse has

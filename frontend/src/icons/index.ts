@@ -51,8 +51,10 @@ import CloseIcon from "./CloseIcon.vue";
 import UndoIcon from "./UndoIcon.vue";
 import PrinterIcon from "./PrinterIcon.vue";
 import SaveIcon from "./SaveIcon.vue";
+import FileCheckIcon from "./FileCheckIcon.vue";
 
 export {
+  FileCheckIcon,
   EyeIcon,
   PencilIcon,
   CloseIcon,

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="active" class="ff-print-do-root">
+  <div class="ff-print-do-root">
     <div v-for="copy in copies" :key="copy.label" class="pd-copy">
       <div class="pd-header">
         <div>
@@ -95,7 +95,6 @@
 import { computed } from 'vue'
 
 defineProps({
-  active: { type: Boolean, default: false },
   requestNumber: { type: String, default: '' },
   transferNumber: { type: String, default: '' },
   companyName: { type: String, default: '' },

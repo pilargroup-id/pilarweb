@@ -1,5 +1,5 @@
 <template>
-  <div class="ff-print-picking-root">
+  <div v-if="active" class="ff-print-picking-root">
     <div class="pp-header">
       <div>
         <h1 class="pp-title">Picking Slip</h1>
@@ -97,6 +97,7 @@
 import { computed } from 'vue'
 
 const props = defineProps({
+  active: { type: Boolean, default: false },
   requestNumber: { type: String, default: '' },
   fulfillmentNumber: { type: String, default: '' },
   companyName: { type: String, default: '' },

@@ -76,7 +76,7 @@ const router = createRouter({
     {
       path: '/financial-closing',
       name: 'Financial Closing',
-      component: () => import('../components/pages/financial/FinancialClosingPage.vue'),
+      component: () => import('../components/pages/financial/FinanceClosingPage.vue'),
       meta: {
         title: 'Financial Closing',
       },

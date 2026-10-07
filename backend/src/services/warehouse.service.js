@@ -36,7 +36,13 @@ async function listQueue(user, query = {}) {
   }
   const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM requests r ${where}`, params);
   const [rows] = await db.query(`
-    SELECT r.*
+    SELECT r.*,
+      (
+        SELECT COALESCE(SUM(fri.rejected_qty), 0)
+        FROM finance_reviews fr
+        INNER JOIN finance_review_items fri ON fri.finance_review_id = fr.id
+        WHERE fr.request_id = r.id
+      ) AS total_rejected_qty
     FROM requests r
     ${where}
     ORDER BY r.updated_at ASC, r.created_at ASC
@@ -122,7 +128,13 @@ async function listHandovers(user, query = {}) {
         SELECT COALESCE(SUM(wfi.actual_qty), 0)
         FROM warehouse_fulfillment_items wfi
         WHERE wfi.fulfillment_id = wf.id
-      ) AS total_actual_qty
+      ) AS total_actual_qty,
+      (
+        SELECT COALESCE(SUM(fri.rejected_qty), 0)
+        FROM finance_reviews fr
+        INNER JOIN finance_review_items fri ON fri.finance_review_id = fr.id
+        WHERE fr.request_id = r.id
+      ) AS total_rejected_qty
     FROM warehouse_handovers wh
     INNER JOIN warehouse_fulfillments wf ON wf.id = wh.fulfillment_id
     INNER JOIN requests r ON r.id = wh.request_id

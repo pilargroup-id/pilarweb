@@ -451,6 +451,21 @@ export function getWarehouseRequestDetail(requestId: string): Promise<ApiRespons
   return request(`/api/warehouse/requests/${requestId}`)
 }
 
+export interface HandoverRecord extends AnyRecord {
+  handover_id: number
+  handover_status: 'PENDING' | 'HANDED_OVER' | 'RECEIVED'
+  request_id: string
+  request_number: string
+  fulfillment_id: number
+  fulfillment_number: string
+}
+
+export function getWarehouseHandovers(
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<PaginatedResponse<HandoverRecord[]>> {
+  return request('/api/warehouse/handovers', { params })
+}
+
 export function acceptWarehouseRequest(requestId: string): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/warehouse/requests/${requestId}/accept`, { method: 'POST' })
 }
@@ -607,4 +622,99 @@ export function inspectReturn(
   payload: InspectReturnPayload,
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/returns/${id}/inspect`, { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Financial Closing — periods & Inventory Adjustment batches (section 17)
+// ---------------------------------------------------------------------------
+
+export interface FinancialPeriod extends AnyRecord {
+  id: number | string
+  period_key: string
+  period_start: string
+  period_end: string
+  closing_date: string
+  status: 'OPEN' | 'CLOSING' | 'CLOSED'
+}
+
+export interface InventoryAdjustmentBatchItem extends AnyRecord {
+  id: number | string
+  batch_id: number | string
+  request_id: string
+  request_number: string
+  request_item_id: number | string
+  item_code: string
+  item_name: string
+  actual_issued_qty: number | string
+  returned_qty: number | string
+  adjustment_qty: number | string
+  source_warehouse_code: string | null
+  loan_warehouse_code: string | null
+  inventory_transfer_number: string | null
+}
+
+export interface InventoryAdjustmentBatch extends AnyRecord {
+  id: number | string
+  financial_period_id: number | string
+  batch_number: string
+  status: 'DRAFT' | 'POSTED'
+  netsuite_reference: string | null
+  note: string | null
+  generated_at: string | null
+  posted_at: string | null
+  items?: InventoryAdjustmentBatchItem[]
+}
+
+export interface FinancialPeriodDetail extends FinancialPeriod {
+  batches: InventoryAdjustmentBatch[]
+}
+
+export function getFinancialClosingPeriods(
+  params: { page?: number; limit?: number; status?: string } = {},
+): Promise<PaginatedResponse<FinancialPeriod[]>> {
+  return request('/api/financial-closing/periods', { params })
+}
+
+export function createFinancialClosingPeriod(
+  payload: { period_key: string },
+): Promise<ApiResponse<FinancialPeriodDetail>> {
+  return request('/api/financial-closing/periods', { method: 'POST', body: payload })
+}
+
+export function getFinancialClosingPeriod(
+  id: string | number,
+): Promise<ApiResponse<FinancialPeriodDetail>> {
+  return request(`/api/financial-closing/periods/${id}`)
+}
+
+export function startFinancialClosingPeriod(
+  id: string | number,
+): Promise<ApiResponse<FinancialPeriodDetail>> {
+  return request(`/api/financial-closing/periods/${id}/start-closing`, { method: 'POST' })
+}
+
+export function generateInventoryAdjustmentBatch(
+  id: string | number,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<InventoryAdjustmentBatch>> {
+  return request(`/api/financial-closing/periods/${id}/generate-batch`, { method: 'POST', body: payload })
+}
+
+export function closeFinancialClosingPeriod(
+  id: string | number,
+): Promise<ApiResponse<FinancialPeriodDetail>> {
+  return request(`/api/financial-closing/periods/${id}/close`, { method: 'POST' })
+}
+
+export function getInventoryAdjustmentBatch(
+  id: string | number,
+): Promise<ApiResponse<InventoryAdjustmentBatch>> {
+  return request(`/api/financial-closing/batches/${id}`)
+}
+
+export function postInventoryAdjustmentBatch(
+  id: string | number,
+  payload: { netsuite_reference: string },
+): Promise<ApiResponse<InventoryAdjustmentBatch>> {
+  return request(`/api/financial-closing/batches/${id}/post`, { method: 'POST', body: payload })
 }

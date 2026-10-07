@@ -58,7 +58,7 @@
                         :key="opt.value"
                         type="button"
                         :title="opt.label"
-                        @click="row.decision = opt.value"
+                        @click="setDecision(row, opt.value)"
                         :class="[
                           'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
                           row.decision === opt.value
@@ -100,16 +100,21 @@
                       />
                     </td>
                     <td class="px-4 py-3 align-top">
-                      <span
+                      <input
+                        v-model.number="row.reject_qty"
+                        @input="sanitizeRejectQty(row)"
+                        type="number"
+                        step="1"
+                        min="0"
+                        :max="row.requested_qty"
+                        :disabled="row.decision !== 'APPROVED'"
                         :class="[
-                          'text-theme-sm font-medium',
-                          rejectQtyFor(row) > 0
-                            ? 'text-error-600 dark:text-error-500'
-                            : 'text-gray-400 dark:text-gray-500',
+                          'dark:bg-dark-900 w-24 rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs focus:outline-hidden focus:ring-3 disabled:cursor-not-allowed disabled:opacity-50',
+                          row.reject_qty > 0
+                            ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
+                            : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
                         ]"
-                      >
-                        {{ rejectQtyFor(row) }}
-                      </span>
+                      />
                     </td>
                     <td class="px-4 py-3 align-top">
                       <input
@@ -220,12 +225,26 @@ function sanitizeApprovedQty(row) {
   if (value < 0) value = 0
   if (value > row.requested_qty) value = Math.trunc(row.requested_qty)
   row.approved_qty = value
+  row.reject_qty = Math.trunc(row.requested_qty) - value
 }
 
-function rejectQtyFor(row) {
-  if (row.decision === 'REJECTED') return row.requested_qty
-  const approved = Number(row.approved_qty) || 0
-  return Math.max(row.requested_qty - approved, 0)
+function sanitizeRejectQty(row) {
+  let value = Math.trunc(Number(row.reject_qty) || 0)
+  if (value < 0) value = 0
+  if (value > row.requested_qty) value = Math.trunc(row.requested_qty)
+  row.reject_qty = value
+  row.approved_qty = Math.trunc(row.requested_qty) - value
+}
+
+function setDecision(row, decision) {
+  row.decision = decision
+  if (decision === 'APPROVED') {
+    row.approved_qty = Math.trunc(row.requested_qty)
+    row.reject_qty = 0
+  } else if (decision === 'REJECTED') {
+    row.approved_qty = 0
+    row.reject_qty = Math.trunc(row.requested_qty)
+  }
 }
 
 watch(
@@ -263,6 +282,7 @@ async function loadRequest(requestId) {
         requested_qty: Number(requestItem.requested_qty ?? 0),
         decision: 'APPROVED',
         approved_qty: Number(requestItem.requested_qty ?? 0),
+        reject_qty: 0,
         note: '',
         is_canceled: isCanceled,
       }

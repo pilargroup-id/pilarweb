@@ -1,5 +1,5 @@
 -- Pilarweb migration 011: Finance rejected qty and Warehouse shortage enum support
--- Target: MariaDB 10.11+
+-- Target: MySQL 8.0+ / MariaDB 10.11+
 -- GET /api/warehouse/handovers is a source-code endpoint and requires no additional handover table change.
 
 USE pilarweb;
@@ -7,9 +7,31 @@ USE pilarweb;
 -- -----------------------------------------------------------------------------
 -- Finance review quantity audit
 -- -----------------------------------------------------------------------------
-ALTER TABLE finance_review_items
-  ADD COLUMN IF NOT EXISTS requested_qty_snapshot DECIMAL(18,4) DEFAULT NULL AFTER request_item_id,
-  ADD COLUMN IF NOT EXISTS rejected_qty DECIMAL(18,4) NOT NULL DEFAULT 0 AFTER approved_qty;
+-- ADD COLUMN IF NOT EXISTS is MariaDB-only syntax; MySQL 8 rejects it outright,
+-- so each column is guarded with an information_schema check instead.
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finance_review_items'
+    AND COLUMN_NAME = 'requested_qty_snapshot'
+);
+SET @ddl := IF(@col_exists = 0,
+  'ALTER TABLE finance_review_items ADD COLUMN requested_qty_snapshot DECIMAL(18,4) DEFAULT NULL AFTER request_item_id',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'finance_review_items'
+    AND COLUMN_NAME = 'rejected_qty'
+);
+SET @ddl := IF(@col_exists = 0,
+  'ALTER TABLE finance_review_items ADD COLUMN rejected_qty DECIMAL(18,4) NOT NULL DEFAULT 0 AFTER approved_qty',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Backfill the historical requested quantity snapshot from the request item.
 UPDATE finance_review_items fri

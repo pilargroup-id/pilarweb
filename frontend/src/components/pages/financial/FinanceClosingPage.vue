@@ -3,7 +3,7 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard>
-        <FinancialClosingTable />
+        <FinanceClosingTable />
       </ComponentCard>
     </div>
   </AdminLayout>
@@ -14,7 +14,7 @@ import { ref } from "vue";
 import AdminLayout from "@/components/layout/AdminLayout.vue";
 import PageBreadcrumb from "@/components/common/PageBreadcrumb.vue";
 import ComponentCard from "@/components/common/ComponentCard.vue";
-import FinancialClosingTable from "@/components/tables/FinancialClosingTable.vue";
+import FinanceClosingTable from "@/components/tables/FinanceClosingTable.vue";
 
 const currentPageTitle = ref("Financial Closing");
 </script>

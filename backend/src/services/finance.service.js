@@ -35,7 +35,12 @@ async function listQueue(user, query = {}) {
       r.department_name,
       r.reason,
       r.submitted_at,
-      r.status AS request_status
+      r.status AS request_status,
+      (
+        SELECT COALESCE(SUM(fri.rejected_qty), 0)
+        FROM finance_review_items fri
+        WHERE fri.finance_review_id = fr.id
+      ) AS total_rejected_qty
     FROM finance_reviews fr
     INNER JOIN requests r ON r.id = fr.request_id
     ${where}
