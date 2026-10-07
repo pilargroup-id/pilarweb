@@ -303,6 +303,24 @@ export function getRequestById(id: string): Promise<ApiResponse<PilarwebRequest>
   return request(`/api/requests/${id}`)
 }
 
+export interface ActivityLogRecord extends AnyRecord {
+  id: number
+  module: string
+  action: string
+  status: 'SUCCESS' | 'FAILED'
+  user_name_snapshot: string | null
+  entity_type: string
+  entity_reference: string | null
+  entity_name_snapshot: string | null
+  created_at: string
+}
+
+export function getRecentActivity(
+  params: { page?: number; limit?: number } = {},
+): Promise<PaginatedResponse<ActivityLogRecord[]>> {
+  return request('/api/requests/activity/recent', { params })
+}
+
 export function submitRequest(id: string): Promise<ApiResponse<PilarwebRequest>> {
   return request(`/api/requests/${id}/submit`, { method: 'POST' })
 }

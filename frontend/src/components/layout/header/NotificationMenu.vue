@@ -58,22 +58,12 @@
         </button>
       </div>
 
-      <div v-if="isLoading" class="flex flex-1 items-center justify-center text-sm text-gray-400">
+      <div v-if="isLoading && !displayNotifications.length" class="flex flex-1 items-center justify-center text-sm text-gray-400">
         Memuat notifikasi...
       </div>
 
-      <div
-        v-else-if="errorMessage"
-        class="flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center"
-      >
-        <p class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
-        <button @click="fetchRecentActivity" class="text-sm font-medium text-brand-500 hover:underline">
-          Coba lagi
-        </button>
-      </div>
-
-      <ul v-else-if="notifications.length" class="flex flex-col flex-1 h-auto overflow-y-auto custom-scrollbar">
-        <li v-for="notification in notifications" :key="notification.id" @click="handleItemClick">
+      <ul v-else-if="displayNotifications.length" class="flex flex-col flex-1 h-auto overflow-y-auto custom-scrollbar">
+        <li v-for="notification in displayNotifications" :key="notification.id" @click="handleItemClick">
           <a
             class="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
             href="#"
@@ -108,6 +98,16 @@
         </li>
       </ul>
 
+      <div
+        v-else-if="errorMessage"
+        class="flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center"
+      >
+        <p class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
+        <button @click="fetchRecentActivity" class="text-sm font-medium text-brand-500 hover:underline">
+          Coba lagi
+        </button>
+      </div>
+
       <div v-else class="flex flex-1 items-center justify-center text-sm text-gray-400">
         Belum ada aktivitas.
       </div>
@@ -127,14 +127,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import DialogActivityLogs from '@/components/dialog/DialogActivityLogs.vue'
-import { getActivityLogs } from '@/service/templateApi'
+import { getRecentActivity } from '@/service/api'
 import { formatRelativeTime } from '@/utils/formatTime'
 import { actorName, describeActivity, initials } from '@/utils/activityLog'
+import { useNotificationCenter } from '@/composables/useNotificationCenter'
+
+const { liveNotifications, hasUnseen, markSeen, reconcileWithServer } = useNotificationCenter()
 
 const dropdownOpen = ref(false)
-const notifying = ref(true)
+const notifying = computed(() => hasUnseen.value)
 const dropdownRef = ref(null)
 const isLogDialogOpen = ref(false)
 
@@ -142,15 +145,18 @@ const notifications = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 
+const displayNotifications = computed(() => [...liveNotifications.value, ...notifications.value])
+
 async function fetchRecentActivity() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getActivityLogs({ page: 1, limit: 8 })
+    const res = await getRecentActivity({ page: 1, limit: 8 })
     notifications.value = res?.data ?? []
+    reconcileWithServer(notifications.value)
   } catch (err) {
     notifications.value = []
-    errorMessage.value = err?.response?.data?.message || 'Gagal memuat notifikasi.'
+    errorMessage.value = err?.message || 'Gagal memuat notifikasi.'
   } finally {
     isLoading.value = false
   }
@@ -158,8 +164,10 @@ async function fetchRecentActivity() {
 
 const toggleDropdown = () => {
   dropdownOpen.value = !dropdownOpen.value
-  notifying.value = false
-  if (dropdownOpen.value) fetchRecentActivity()
+  if (dropdownOpen.value) {
+    markSeen()
+    fetchRecentActivity()
+  }
 }
 
 const closeDropdown = () => {

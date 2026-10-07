@@ -72,7 +72,6 @@
         class="w-full items-center justify-between gap-4 border-t border-white/10 bg-white/5 px-5 py-4 lg:flex lg:w-auto lg:justify-end lg:gap-5 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-4"
       >
         <div class="flex items-center gap-2 2xsm:gap-3">
-          <ThemeToggler />
           <NotificationMenu />
         </div>
         <div class="hidden h-8 w-px bg-white/10 lg:block"></div>
@@ -85,7 +84,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useSidebar } from '@/composables/useSidebar'
-import ThemeToggler from '../common/ThemeToggler.vue'
 import SearchBar from './header/SearchBar.vue'
 import NotificationMenu from './header/NotificationMenu.vue'
 import UserMenu from './header/UserMenu.vue'

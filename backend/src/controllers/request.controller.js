@@ -69,6 +69,13 @@ async function cancel(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+async function recentActivity(req, res, next) {
+  try {
+    const result = await ActivityService.listRecent(req.user, req.query);
+    return R.paginated(res, result.data, result.meta, 'Recent activity loaded');
+  } catch (err) { return next(err); }
+}
+
 async function activities(req, res, next) {
   const db = requireDatabase();
   const connection = await db.getConnection();
@@ -144,6 +151,7 @@ module.exports = {
   cancelItem,
   submit,
   cancel,
+  recentActivity,
   activities,
   comments,
   addComment,

@@ -807,23 +807,7 @@ const depreciationLedgers: Record<string, AssetDepreciationLedgerRecord[]> = {}
 const depreciationRevisions: Record<string, AssetDepreciationRevisionRecord[]> = {}
 const importPreviews: Record<string, AnyRecord> = {}
 
-const activityLogs: ActivityLogRecord[] = [
-  {
-    id: 1,
-    user_id: 'u-001',
-    username_snapshot: 'template.user',
-    user_name_snapshot: 'Template User',
-    module: 'TEMPLATE',
-    action: 'CREATE',
-    source: 'LOCAL',
-    entity_type: 'PROJECT',
-    entity_reference: 'starter-template',
-    entity_name_snapshot: 'Asset Management Template',
-    description: 'Template data initialized',
-    status: 'SUCCESS',
-    created_at: new Date().toISOString(),
-  },
-]
+const activityLogs: ActivityLogRecord[] = []
 
 const templateApi = {
   interceptors: {

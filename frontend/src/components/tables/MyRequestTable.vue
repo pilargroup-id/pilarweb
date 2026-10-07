@@ -193,6 +193,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getMyRequests, submitRequest, getRequestById } from '@/service/api'
+import { getDisplayName } from '@/service/auth'
+import { useNotificationCenter } from '@/composables/useNotificationCenter'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
@@ -204,7 +206,25 @@ import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
 import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon } from '@/icons'
 
 const route = useRoute()
+const { pushNotification } = useNotificationCenter()
 const createdNotice = ref(typeof route.query.created === 'string' ? route.query.created : '')
+
+function notifyRequestCreated(requestNumber) {
+  if (!requestNumber) return
+  pushNotification({
+    user_name_snapshot: getDisplayName(),
+    action: 'REQUEST_SUBMITTED',
+    module: 'REQUEST',
+    entity_type: 'REQUEST',
+    entity_reference: requestNumber,
+    entity_name_snapshot: requestNumber,
+    description: `Request ${requestNumber} was submitted for Department Approval.`,
+  })
+}
+
+if (createdNotice.value) {
+  notifyRequestCreated(createdNotice.value)
+}
 const isNewRequestOpen = ref(false)
 const isEditRequestOpen = ref(false)
 const editingRequest = ref(null)
@@ -316,6 +336,7 @@ const formatDate = (value) => {
 function handleRequestCreated(payload) {
   isNewRequestOpen.value = false
   createdNotice.value = payload?.request_number || ''
+  notifyRequestCreated(createdNotice.value)
   fetchRequests(1)
 }
 

@@ -9,6 +9,7 @@ router.use(authenticate, requireApp(config.app.slug));
 
 router.get('/', RequestController.mine);
 router.get('/my', RequestController.mine);
+router.get('/activity/recent', RequestController.recentActivity);
 router.post('/', RequestController.create);
 router.get('/:id', RequestController.show);
 router.put('/:id', RequestController.update);
