@@ -154,6 +154,7 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { getFinancialClosingPeriods, getFinancialClosing } from '@/service/api'
+import { usePolling } from '@/composables/usePolling'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
@@ -248,9 +249,11 @@ const formatDate = (value) => {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
-async function fetchPeriods(page = 1) {
-  isLoading.value = true
-  errorMessage.value = ''
+async function fetchPeriods(page = 1, { silent = false } = {}) {
+  if (!silent) {
+    isLoading.value = true
+    errorMessage.value = ''
+  }
   try {
     const res = await getFinancialClosingPeriods({ page, limit: meta.limit })
     periods.value = res?.data ?? []
@@ -259,10 +262,12 @@ async function fetchPeriods(page = 1) {
     meta.total = res?.meta?.total ?? periods.value.length
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
-    periods.value = []
-    errorMessage.value = err?.message || 'Failed to load financial periods.'
+    if (!silent) {
+      periods.value = []
+      errorMessage.value = err?.message || 'Failed to load financial periods.'
+    }
   } finally {
-    isLoading.value = false
+    if (!silent) isLoading.value = false
   }
 }
 
@@ -270,6 +275,9 @@ onMounted(() => {
   fetchPeriods(1)
   fetchClosingSetting()
 })
+
+// Keep the table in sync with closing status changes (e.g. cron jobs) without a manual refresh.
+usePolling(() => fetchPeriods(meta.page, { silent: true }), 15000)
 
 defineExpose({ refresh: fetchPeriods })
 </script>
