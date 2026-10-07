@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS warehouse_fulfillment_items (
   finance_approved_qty_snapshot DECIMAL(18,4) DEFAULT NULL,
   actual_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   shortage_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
-  shortage_reason_code VARCHAR(80) DEFAULT NULL,
+  shortage_reason_code ENUM('STOCK_SHORTAGE','DAMAGED','NOT_FOUND','OTHER') DEFAULT NULL,
   shortage_note VARCHAR(500) DEFAULT NULL,
   remainder_disposition VARCHAR(80) NOT NULL DEFAULT 'NONE',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

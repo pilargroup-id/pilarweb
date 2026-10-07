@@ -5,6 +5,7 @@ const {authenticate,requireApp}=require('../middleware/auth.middleware');
 const router=express.Router();
 router.use(authenticate,requireApp(config.app.slug));
 router.get('/requests',WarehouseController.index);
+router.get('/handovers',WarehouseController.handovers);
 router.get('/requests/:requestId',WarehouseController.show);
 router.post('/requests/:requestId/accept',WarehouseController.accept);
 router.post('/fulfillments/:fulfillmentId/print',WarehouseController.print);
