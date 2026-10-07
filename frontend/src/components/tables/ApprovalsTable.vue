@@ -49,14 +49,15 @@
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <div class="flex items-center gap-2">
-            <router-link
-              :to="`/request/${item.request_id}`"
+            <button
+              @click="openDetail(item)"
+              type="button"
               title="Detail"
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
             >
               <EyeIcon class="h-4 w-4" />
               Detail
-            </router-link>
+            </button>
             <template v-if="item.request_status === 'PENDING_DEPARTMENT_APPROVAL'">
               <button
                 @click="openDecision(item, 'approve')"
@@ -131,6 +132,13 @@
       @close="isDecisionOpen = false"
       @decided="handleDecided"
     />
+
+    <DialogRequestDetail
+      :is-open="isDetailOpen"
+      :request-id="viewingRequestId"
+      @close="isDetailOpen = false"
+      @changed="fetchApprovals(meta.page)"
+    />
   </div>
 </template>
 
@@ -142,6 +150,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogApprovalDecision from '@/components/dialog/DialogApprovalDecision.vue'
+import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
 import { RefreshIcon, EyeIcon, CheckIcon, CloseIcon, UndoIcon } from '@/icons'
 
 const approvals = ref([])
@@ -153,10 +162,18 @@ const isDecisionOpen = ref(false)
 const selectedApproval = ref(null)
 const decisionMode = ref('approve')
 
+const isDetailOpen = ref(false)
+const viewingRequestId = ref(null)
+
 function openDecision(item, mode) {
   selectedApproval.value = item
   decisionMode.value = mode
   isDecisionOpen.value = true
+}
+
+function openDetail(item) {
+  viewingRequestId.value = item.request_id
+  isDetailOpen.value = true
 }
 
 function handleDecided() {

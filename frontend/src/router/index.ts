@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { setToken } from '@/service/auth'
+import { authState, fetchCurrentUser, isManager, setToken } from '@/service/auth'
 
 const APP_TITLE = 'Pilarweb'
 
@@ -63,6 +63,7 @@ const router = createRouter({
       component: () => import('../components/pages/approval/ApprovalsPage.vue'),
       meta: {
         title: 'Approvals',
+        requiresManager: true,
       },
     },
     {
@@ -163,7 +164,7 @@ const router = createRouter({
 
 export default router
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.title = `${String(to.meta.title || 'Page')} | ${APP_TITLE}`
 
   const tokenParam = to.query.token
@@ -173,6 +174,16 @@ router.beforeEach((to, from, next) => {
     delete query.token
     next({ path: to.path, query, hash: to.hash, replace: true })
     return
+  }
+
+  if (to.meta.requiresManager) {
+    if (!authState.user) {
+      await fetchCurrentUser().catch(() => {})
+    }
+    if (!isManager()) {
+      next({ path: '/' })
+      return
+    }
   }
 
   next()

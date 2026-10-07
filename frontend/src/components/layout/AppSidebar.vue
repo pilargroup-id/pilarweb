@@ -204,7 +204,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
-import { authState, fetchCapabilities } from "@/service/auth";
+import { authState, fetchCapabilities, fetchCurrentUser, isManager } from "@/service/auth";
 
 import {
   ChevronDownIcon,
@@ -252,11 +252,13 @@ const rawMenuGroups = [
         icon: BoxIcon,
         name: "My Request",
         path: "/request/my",
+        hideForManager: true,
       },
       {
         icon: CheckIcon,
         name: "Approvals",
         path: "/approvals",
+        managerOnly: true,
       },
       {
         icon: BarChartIcon,
@@ -295,11 +297,19 @@ const hasCapability = (item) => {
   return Boolean(authState.capabilities?.[item.capability]);
 };
 
+const isVisible = (item) => {
+  if (!hasCapability(item)) return false;
+  const userIsManager = isManager(authState.user);
+  if (item.managerOnly && !userIsManager) return false;
+  if (item.hideForManager && userIsManager) return false;
+  return true;
+};
+
 const menuGroups = computed(() =>
   rawMenuGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(hasCapability),
+      items: group.items.filter(isVisible),
     }))
     .filter((group) => group.items.length > 0)
 );
@@ -307,6 +317,9 @@ const menuGroups = computed(() =>
 onMounted(() => {
   if (!authState.capabilities) {
     fetchCapabilities().catch(() => {});
+  }
+  if (!authState.user) {
+    fetchCurrentUser().catch(() => {});
   }
 });
 

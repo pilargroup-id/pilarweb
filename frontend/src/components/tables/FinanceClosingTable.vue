@@ -1,5 +1,27 @@
 <template>
   <div class="space-y-5">
+    <div
+      class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-white/[0.03]"
+    >
+      <div>
+        <h3 class="text-base font-medium text-gray-800 dark:text-white/90">Closing Setting</h3>
+        <p v-if="isSettingLoading" class="text-sm text-gray-500 dark:text-gray-400">Loading setting...</p>
+        <p v-else-if="closingSetting" class="text-sm text-gray-500 dark:text-gray-400">
+          Closing Day <span class="font-medium text-gray-700 dark:text-gray-300">{{ closingSetting.closing_day }}</span>
+          &middot; Timezone <span class="font-medium text-gray-700 dark:text-gray-300">{{ closingSetting.timezone }}</span>
+        </p>
+        <p v-else class="text-sm text-gray-500 dark:text-gray-400">No closing setting configured yet.</p>
+      </div>
+      <button
+        @click="isSettingDialogOpen = true"
+        type="button"
+        class="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+      >
+        <SettingsIcon class="h-4 w-4" />
+        Edit Setting
+      </button>
+    </div>
+
     <BaseTable>
       <template #toolbar>
         <div>
@@ -119,12 +141,19 @@
       @close="closePostBatchDialog"
       @posted="handleBatchPosted"
     />
+
+    <DialogFinancialClosingSetting
+      :is-open="isSettingDialogOpen"
+      :setting="closingSetting"
+      @close="isSettingDialogOpen = false"
+      @saved="handleSettingSaved"
+    />
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
-import { getFinancialClosingPeriods } from '@/service/api'
+import { getFinancialClosingPeriods, getFinancialClosing } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
@@ -132,7 +161,8 @@ import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogCreateFinancialPeriod from '@/components/dialog/DialogCreateFinancialPeriod.vue'
 import DialogFinancialPeriodDetail from '@/components/dialog/DialogFinancialPeriodDetail.vue'
 import DialogPostInventoryAdjustmentBatch from '@/components/dialog/DialogPostInventoryAdjustmentBatch.vue'
-import { RefreshIcon, PlusIcon, EyeIcon } from '@/icons'
+import DialogFinancialClosingSetting from '@/components/dialog/DialogFinancialClosingSetting.vue'
+import { RefreshIcon, PlusIcon, EyeIcon, SettingsIcon } from '@/icons'
 
 const periods = ref([])
 const isLoading = ref(false)
@@ -147,6 +177,10 @@ const detailDialogRef = ref(null)
 
 const isPostBatchDialogOpen = ref(false)
 const batchToPost = ref(null)
+
+const closingSetting = ref(null)
+const isSettingLoading = ref(false)
+const isSettingDialogOpen = ref(false)
 
 function openDetailDialog(period) {
   periodIdToView.value = period.id
@@ -175,6 +209,23 @@ function closePostBatchDialog() {
 async function handleBatchPosted() {
   await detailDialogRef.value?.refresh()
   await fetchPeriods(meta.page)
+}
+
+async function fetchClosingSetting() {
+  isSettingLoading.value = true
+  try {
+    const res = await getFinancialClosing()
+    closingSetting.value = res?.data ?? null
+  } catch {
+    closingSetting.value = null
+  } finally {
+    isSettingLoading.value = false
+  }
+}
+
+function handleSettingSaved(setting) {
+  closingSetting.value = setting ?? closingSetting.value
+  fetchClosingSetting()
 }
 
 const formatStatusLabel = (status) => {
@@ -215,7 +266,10 @@ async function fetchPeriods(page = 1) {
   }
 }
 
-onMounted(() => fetchPeriods(1))
+onMounted(() => {
+  fetchPeriods(1)
+  fetchClosingSetting()
+})
 
 defineExpose({ refresh: fetchPeriods })
 </script>

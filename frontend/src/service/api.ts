@@ -246,6 +246,17 @@ export function getFinancialClosing(): Promise<ApiResponse<FinancialClosing>> {
   return request('/api/master/financial-closing')
 }
 
+export interface FinancialClosingSettingPayload {
+  closing_day: number
+  timezone: string
+}
+
+export function updateFinancialClosing(
+  payload: FinancialClosingSettingPayload,
+): Promise<ApiResponse<FinancialClosing>> {
+  return request('/api/master/financial-closing', { method: 'PUT', body: payload })
+}
+
 // ---------------------------------------------------------------------------
 // Requests (sections 9, 10)
 // ---------------------------------------------------------------------------

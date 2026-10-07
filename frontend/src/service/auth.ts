@@ -11,6 +11,8 @@ export interface AuthUser {
   username?: string
   email?: string
   apps?: string[]
+  job_level?: string
+  job_level_value?: number
   [key: string]: unknown
 }
 
@@ -137,4 +139,8 @@ export function getDisplayName(user: AuthUser | null = state.user): string {
 export function getDisplayEmail(user: AuthUser | null = state.user): string {
   if (!user) return ''
   return user.email || user.username || ''
+}
+
+export function isManager(user: AuthUser | null = state.user): boolean {
+  return String(user?.job_level ?? '').trim().toLowerCase() === 'manager'
 }

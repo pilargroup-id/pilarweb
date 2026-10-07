@@ -65,6 +65,7 @@
             type="button"
             class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
           >
+            <CheckIcon class="h-4 w-4" />
             Inspect
           </button>
           <span v-else class="text-gray-400 text-theme-sm dark:text-gray-600">-</span>
