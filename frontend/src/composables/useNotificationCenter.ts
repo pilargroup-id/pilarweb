@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import type { ActivityLogRecord } from '@/service/api'
 
-export type LiveNotification = Partial<ActivityLogRecord> & {
+export type LiveNotification = Omit<Partial<ActivityLogRecord>, 'id' | 'created_at'> & {
   id: string | number
   created_at: string
 }
