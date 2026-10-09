@@ -75,6 +75,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/finance-review/history',
+      name: 'Finance History Review',
+      component: () => import('../components/pages/financial/FinanceHistoryReview.vue'),
+      meta: {
+        title: 'Finance History',
+      },
+    },
+    {
       path: '/financial-closing',
       name: 'Financial Closing',
       component: () => import('../components/pages/financial/FinanceClosingPage.vue'),

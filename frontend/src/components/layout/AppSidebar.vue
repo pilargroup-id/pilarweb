@@ -266,6 +266,7 @@ const rawMenuGroups = [
         capability: "finance_access",
         subItems: [
           { name: "Finance Review", path: "/finance-review", pro: false },
+          { name: "History Review", path: "/finance-review/history", pro: false },
           { name: "Financial Closing", path: "/financial-closing", pro: false },
         ],
       },

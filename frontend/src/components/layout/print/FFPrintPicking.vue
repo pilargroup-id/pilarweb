@@ -57,7 +57,6 @@
           <th>Item</th>
           <th class="pp-col-qty">Approved Qty</th>
           <th class="pp-col-qty">Actual Qty</th>
-          <th class="pp-col-qty">Shortage</th>
           <th>Reason</th>
           <th>Remainder</th>
           <th>Note</th>
@@ -72,13 +71,12 @@
           </td>
           <td class="pp-col-qty">{{ formatQty(row.max_qty) }}</td>
           <td class="pp-col-qty"></td>
-          <td class="pp-col-qty">{{ formatQty(row.shortage_qty) }}</td>
           <td>{{ row.shortage_reason_label || '-' }}</td>
           <td>{{ row.remainder_label || '-' }}</td>
           <td>{{ row.shortage_note || '-' }}</td>
         </tr>
         <tr v-if="!rows.length">
-          <td colspan="8" class="pp-empty">No items on this fulfillment.</td>
+          <td colspan="7" class="pp-empty">No items on this fulfillment.</td>
         </tr>
       </tbody>
     </table>

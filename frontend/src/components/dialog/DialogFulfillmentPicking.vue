@@ -174,16 +174,15 @@ import {
 } from '@/service/api'
 
 const SHORTAGE_REASONS = [
-  { value: 'OUT_OF_STOCK', label: 'Out of Stock' },
+  { value: 'STOCK_SHORTAGE', label: 'Stock Shortage' },
   { value: 'DAMAGED', label: 'Damaged' },
   { value: 'NOT_FOUND', label: 'Not Found' },
-  { value: 'INSUFFICIENT_STOCK', label: 'Insufficient Stock' },
   { value: 'OTHER', label: 'Other' },
 ]
 
 const REMAINDER_OPTIONS = [
-  { value: 'BACKORDER_REMAINDER', label: 'Backorder Remainder' },
-  { value: 'CLOSE_SHORT', label: 'Close Short' },
+  { value: 'BACKORDER_REMAINDER', label: 'Keep as Backorder' },
+  { value: 'CLOSE_SHORT', label: 'Close Remaining Qty' },
 ]
 
 const props = defineProps({

@@ -51,6 +51,65 @@ async function listQueue(user, query = {}) {
   return { data: rows, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
 }
 
+async function listHistory(user, query = {}) {
+  await AccessService.requireModuleAccess(user, 'FINANCE');
+  const db = requireDatabase();
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 20, 100);
+  const offset = (page - 1) * limit;
+  const params = [];
+  let where = "WHERE fr.status <> 'PENDING'";
+  const status = String(query.status || '').trim().toUpperCase();
+  if (['APPROVED', 'REJECTED', 'CANCELED'].includes(status)) {
+    where += ' AND fr.status = ?';
+    params.push(status);
+  }
+  if (query.search) {
+    const search = `%${String(query.search).trim()}%`;
+    where += ' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR r.request_purpose_name LIKE ?)';
+    params.push(search, search, search);
+  }
+  const [countRows] = await db.query(`
+    SELECT COUNT(*) AS total
+    FROM finance_reviews fr
+    INNER JOIN requests r ON r.id = fr.request_id
+    ${where}
+  `, params);
+  const [rows] = await db.query(`
+    SELECT
+      fr.id AS finance_review_id,
+      fr.status AS finance_review_status,
+      fr.reviewer_name,
+      fr.reviewed_at,
+      fr.note AS review_note,
+      r.id AS request_id,
+      r.request_number,
+      r.request_purpose_name,
+      r.requester_name,
+      r.department_name,
+      r.reason,
+      r.submitted_at,
+      r.status AS request_status,
+      (
+        SELECT COALESCE(SUM(fri.approved_qty), 0)
+        FROM finance_review_items fri
+        WHERE fri.finance_review_id = fr.id
+      ) AS total_approved_qty,
+      (
+        SELECT COALESCE(SUM(fri.rejected_qty), 0)
+        FROM finance_review_items fri
+        WHERE fri.finance_review_id = fr.id
+      ) AS total_rejected_qty
+    FROM finance_reviews fr
+    INNER JOIN requests r ON r.id = fr.request_id
+    ${where}
+    ORDER BY fr.reviewed_at DESC
+    LIMIT ? OFFSET ?
+  `, [...params, limit, offset]);
+  const total = Number(countRows[0]?.total || 0);
+  return { data: rows, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+}
+
 async function show(user, requestId) {
   await AccessService.requireModuleAccess(user, 'FINANCE');
   return RequestService.getById(requestId, user);
@@ -207,4 +266,4 @@ async function review(user, requestId, payload = {}) {
   } finally { connection.release(); }
 }
 
-module.exports = { listQueue, show, review };
+module.exports = { listQueue, listHistory, show, review };

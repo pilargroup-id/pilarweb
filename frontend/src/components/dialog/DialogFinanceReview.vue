@@ -40,7 +40,6 @@
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
               <thead class="bg-gray-50 dark:bg-white/[0.02]">
                 <tr>
-                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty</th>
@@ -51,35 +50,22 @@
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                 <tr v-for="row in rows" :key="row.request_item_id">
                   <td class="px-4 py-3 align-top">
-                    <Badge v-if="row.is_canceled" color="light" size="sm">Canceled</Badge>
-                    <div v-else class="flex items-center gap-1.5">
-                      <button
-                        v-for="opt in DECISION_OPTIONS"
-                        :key="opt.value"
-                        type="button"
-                        :title="opt.label"
-                        @click="setDecision(row, opt.value)"
-                        :class="[
-                          'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
-                          row.decision === opt.value
-                            ? opt.activeClass
-                            : 'border-gray-200 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-500 dark:hover:bg-white/5',
-                        ]"
-                      >
-                        <component :is="opt.icon" class="h-4 w-4" />
-                      </button>
+                    <div class="flex items-center gap-2">
+                      <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {{ row.item_name }}
+                      </span>
+                      <Badge v-if="row.is_canceled" color="light" size="sm">Canceled</Badge>
                     </div>
-                  </td>
-                  <td class="px-4 py-3 align-top">
-                    <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                      {{ row.item_name }}
-                    </span>
                     <span class="block text-theme-xs text-gray-500 dark:text-gray-400">
                       {{ row.item_code }}<span v-if="row.uom_code"> &middot; {{ row.uom_code }}</span>
                     </span>
                   </td>
-                  <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
-                    {{ row.requested_qty }}
+                  <td class="px-4 py-3 align-top">
+                    <div
+                      class="w-24 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-theme-sm text-gray-600 shadow-theme-xs dark:border-gray-600 dark:bg-white/10 dark:text-gray-300"
+                    >
+                      {{ row.requested_qty }}
+                    </div>
                   </td>
                   <template v-if="row.is_canceled">
                     <td colspan="3" class="px-4 py-3 align-top text-theme-sm text-gray-400 dark:text-gray-500">
@@ -95,7 +81,6 @@
                         step="1"
                         min="0"
                         :max="row.requested_qty"
-                        :disabled="row.decision !== 'APPROVED'"
                         class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                       />
                     </td>
@@ -107,7 +92,6 @@
                         step="1"
                         min="0"
                         :max="row.requested_qty"
-                        :disabled="row.decision !== 'APPROVED'"
                         :class="[
                           'dark:bg-dark-900 w-24 rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs focus:outline-hidden focus:ring-3 disabled:cursor-not-allowed disabled:opacity-50',
                           row.reject_qty > 0
@@ -127,7 +111,7 @@
                   </template>
                 </tr>
                 <tr v-if="!rows.length">
-                  <td colspan="6" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                  <td colspan="5" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                     No items on this request.
                   </td>
                 </tr>
@@ -178,25 +162,7 @@
 import { ref, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
-import { CheckIcon, CloseIcon } from '@/icons'
 import { getFinanceRequestById, submitFinanceReview } from '@/service/api'
-
-const DECISION_OPTIONS = [
-  {
-    value: 'APPROVED',
-    label: 'Approve',
-    icon: CheckIcon,
-    activeClass:
-      'border-success-300 bg-success-50 text-success-600 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-500',
-  },
-  {
-    value: 'REJECTED',
-    label: 'Reject',
-    icon: CloseIcon,
-    activeClass:
-      'border-error-300 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-500',
-  },
-]
 
 const props = defineProps({
   isOpen: {
@@ -226,6 +192,7 @@ function sanitizeApprovedQty(row) {
   if (value > row.requested_qty) value = Math.trunc(row.requested_qty)
   row.approved_qty = value
   row.reject_qty = Math.trunc(row.requested_qty) - value
+  row.decision = value > 0 ? 'APPROVED' : 'REJECTED'
 }
 
 function sanitizeRejectQty(row) {
@@ -234,17 +201,7 @@ function sanitizeRejectQty(row) {
   if (value > row.requested_qty) value = Math.trunc(row.requested_qty)
   row.reject_qty = value
   row.approved_qty = Math.trunc(row.requested_qty) - value
-}
-
-function setDecision(row, decision) {
-  row.decision = decision
-  if (decision === 'APPROVED') {
-    row.approved_qty = Math.trunc(row.requested_qty)
-    row.reject_qty = 0
-  } else if (decision === 'REJECTED') {
-    row.approved_qty = 0
-    row.reject_qty = Math.trunc(row.requested_qty)
-  }
+  row.decision = row.approved_qty > 0 ? 'APPROVED' : 'REJECTED'
 }
 
 watch(

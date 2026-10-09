@@ -441,6 +441,22 @@ export function getFinanceRequestById(requestId: string): Promise<ApiResponse<An
   return request(`/api/finance/requests/${requestId}`)
 }
 
+export interface FinanceHistoryItem extends AnyRecord {
+  finance_review_id: number | string
+  finance_review_status: string
+  reviewer_name?: string | null
+  reviewed_at?: string | null
+  request_id: string
+  request_number: string
+  request_status: string
+}
+
+export function getFinanceHistory(
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<PaginatedResponse<FinanceHistoryItem[]>> {
+  return request('/api/finance/requests/history', { params })
+}
+
 export interface FinanceReviewItemDecision {
   request_item_id: number | string
   decision: 'APPROVED' | 'REJECTED' | 'CANCELED'
