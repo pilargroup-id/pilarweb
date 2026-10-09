@@ -128,7 +128,17 @@ async function list(user, query = {}) {
     where += ' AND r.request_id = ?';
     params.push(String(query.request_id));
   }
-  const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM returns r ${where}`, params);
+  if (query.search) {
+    const search = `%${String(query.search).trim()}%`;
+    where += ' AND (r.return_number LIKE ? OR req.request_number LIKE ? OR req.requester_name LIKE ? OR req.department_name LIKE ?)';
+    params.push(search, search, search, search);
+  }
+  const [countRows] = await db.query(`
+    SELECT COUNT(*) AS total
+    FROM returns r
+    LEFT JOIN requests req ON req.id = r.request_id
+    ${where}
+  `, params);
   const [rows] = await db.query(`
     SELECT r.*, req.request_number, req.requester_name, req.department_name
     FROM returns r

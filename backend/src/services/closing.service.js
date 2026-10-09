@@ -43,6 +43,10 @@ async function listPeriods(user, query = {}) {
     where += ' AND status = ?';
     params.push(String(query.status).trim().toUpperCase());
   }
+  if (query.search) {
+    where += ' AND period_key LIKE ?';
+    params.push(`%${String(query.search).trim()}%`);
+  }
   const [countRows] = await db.query(`SELECT COUNT(*) AS total FROM financial_periods ${where}`, params);
   const [rows] = await db.query(`SELECT * FROM financial_periods ${where} ORDER BY period_start DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
   const total = Number(countRows[0]?.total || 0);

@@ -294,7 +294,7 @@ export function createRequest(payload: CreateRequestPayload): Promise<ApiRespons
 }
 
 export function getMyRequests(
-  params: { page?: number; limit?: number } = {},
+  params: { page?: number; limit?: number; search?: string } = {},
 ): Promise<PaginatedResponse<PilarwebRequest[]>> {
   return request('/api/requests', { params })
 }
@@ -699,7 +699,7 @@ export interface FinancialPeriodDetail extends FinancialPeriod {
 }
 
 export function getFinancialClosingPeriods(
-  params: { page?: number; limit?: number; status?: string } = {},
+  params: { page?: number; limit?: number; status?: string; search?: string } = {},
 ): Promise<PaginatedResponse<FinancialPeriod[]>> {
   return request('/api/financial-closing/periods', { params })
 }
