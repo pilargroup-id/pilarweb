@@ -94,19 +94,19 @@
                   :key="item.id"
                   class="border-t border-gray-100 dark:border-gray-800"
                 >
-                  <td class="px-5 py-4 sm:px-6">
-                    <span class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.consumable_code }}</span>
+                  <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+                    <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.consumable_code }}</p>
                   </td>
-                  <td class="px-5 py-4 sm:px-6">
-                    <span class="font-medium text-gray-800 text-theme-sm dark:text-white/90">{{ item.name }}</span>
+                  <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+                    <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">{{ item.name }}</span>
                   </td>
-                  <td class="px-5 py-4 sm:px-6">
+                  <td class="px-5 py-4 whitespace-nowrap sm:px-6">
                     <Badge :color="Number(item.total_stock) <= 0 ? 'error' : 'warning'" size="sm">
                       {{ item.total_stock }}
                     </Badge>
                   </td>
-                  <td class="px-5 py-4 sm:px-6">
-                    <span class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.minimum_stock }}</span>
+                  <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+                    <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.minimum_stock }}</p>
                   </td>
                 </tr>
               </BaseTable>

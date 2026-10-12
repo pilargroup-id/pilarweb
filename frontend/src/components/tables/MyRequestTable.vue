@@ -14,7 +14,7 @@
       :message="submitError"
     />
 
-    <BaseTable>
+    <BaseTable max-height>
       <template #toolbar>
         <div class="relative w-full sm:max-w-[280px]">
           <span class="absolute -translate-y-1/2 left-3.5 top-1/2">

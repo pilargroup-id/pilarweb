@@ -9,9 +9,16 @@
       <slot name="toolbar" />
     </div>
 
-    <div class="max-w-full overflow-x-auto custom-scrollbar">
+    <div
+      class="max-w-full overflow-x-auto custom-scrollbar"
+      :class="{ 'overflow-y-auto': resolvedMaxHeight }"
+      :style="resolvedMaxHeight ? { maxHeight: resolvedMaxHeight } : null"
+    >
       <table ref="tableRef" class="min-w-full base-table-responsive">
-        <thead>
+        <thead
+          class="bg-gray-50 dark:bg-white/[0.03]"
+          :class="{ 'sticky top-0 z-10': resolvedMaxHeight }"
+        >
           <tr class="border-b border-gray-200 dark:border-gray-700">
             <slot name="head" />
           </tr>
@@ -32,7 +39,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUpdated } from 'vue'
+import { ref, computed, onMounted, onUpdated } from 'vue'
+
+// Fills the remaining viewport height below the fixed app header/toolbar/
+// pagination chrome, so the table box itself never grows taller than the
+// screen. Tuned for the common case (no alert banners above the table); a
+// page with extra content above the table just ends up with a slightly
+// smaller scroll box, which is harmless.
+const DEFAULT_MAX_HEIGHT = 'calc(100vh - 340px)'
+
+const props = defineProps({
+  // Opt-in: when set, the table body scrolls within this height while the
+  // header stays pinned (sticky) and the toolbar/pagination stay outside the
+  // scroll area, always visible. Leave unset for the previous behavior
+  // (table grows with its content, page scrolls). Pass `true` (or the bare
+  // `max-height` attribute) to use the default viewport-filling height, or a
+  // specific string/number to override it.
+  maxHeight: {
+    type: [Boolean, String, Number],
+    default: null,
+  },
+})
+
+const resolvedMaxHeight = computed(() => {
+  if (!props.maxHeight) return null
+  if (props.maxHeight === true) return DEFAULT_MAX_HEIGHT
+  return typeof props.maxHeight === 'number' ? `${props.maxHeight}px` : props.maxHeight
+})
 
 // On small screens the table is rendered as a stack of cards (see the
 // `.base-table-responsive` styles below). Every row/column here is authored

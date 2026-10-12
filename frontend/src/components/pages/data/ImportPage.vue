@@ -59,7 +59,7 @@
             <Badge color="error" size="md">Invalid {{ preview.summary.invalid }}</Badge>
           </div>
 
-          <BaseTable>
+          <BaseTable max-height>
             <template #head>
               <TableHeadCell>Row</TableHeadCell>
               <TableHeadCell>Action</TableHeadCell>
@@ -68,29 +68,37 @@
               <TableHeadCell>Notes</TableHeadCell>
             </template>
             <tr v-for="row in paginatedRows" :key="row.source_row" class="border-t border-gray-100 dark:border-gray-800">
-              <td class="whitespace-nowrap px-5 py-3 text-theme-sm text-gray-500 dark:text-gray-400">{{ row.source_row }}</td>
-              <td class="whitespace-nowrap px-5 py-3 text-theme-sm text-gray-600 dark:text-gray-300">{{ row.action }}</td>
-              <td class="px-5 py-3">
+              <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+                <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ row.source_row }}</p>
+              </td>
+              <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+                <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ row.action }}</p>
+              </td>
+              <td class="px-5 py-4 whitespace-nowrap sm:px-6">
                 <Badge :color="STATUS_BADGE[row.status] || 'light'" size="sm">{{ row.status }}</Badge>
               </td>
-              <td class="max-w-xs truncate px-5 py-3 text-theme-xs text-gray-500 dark:text-gray-400" :title="rowSummary(row)">
-                {{ rowSummary(row) }}
+              <td class="px-5 py-4 sm:px-6">
+                <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="rowSummary(row)">
+                  {{ rowSummary(row) }}
+                </p>
               </td>
-              <td class="px-5 py-3 text-theme-xs text-gray-500 dark:text-gray-400">
-                <p v-for="(err, idx) in row.errors" :key="`e${idx}`" class="text-error-600 dark:text-error-500">{{ err }}</p>
-                <p v-for="(warn, idx) in row.warnings" :key="`w${idx}`" class="text-warning-600 dark:text-orange-400">{{ warn }}</p>
+              <td class="px-5 py-4 sm:px-6">
+                <p v-for="(err, idx) in row.errors" :key="`e${idx}`" class="text-error-600 text-theme-xs dark:text-error-500">{{ err }}</p>
+                <p v-for="(warn, idx) in row.warnings" :key="`w${idx}`" class="text-warning-600 text-theme-xs dark:text-orange-400">{{ warn }}</p>
               </td>
             </tr>
-          </BaseTable>
 
-          <TablePagination
-            :page="page"
-            :limit="limit"
-            :total="preview.rows.length"
-            :total-pages="totalPages"
-            item-label="rows"
-            @update:page="(value) => (page = value)"
-          />
+            <template #pagination>
+              <TablePagination
+                :page="page"
+                :limit="limit"
+                :total="preview.rows.length"
+                :total-pages="totalPages"
+                item-label="rows"
+                @update:page="(value) => (page = value)"
+              />
+            </template>
+          </BaseTable>
 
           <p v-if="commitError" class="text-sm text-error-600 dark:text-error-500">{{ commitError }}</p>
 
