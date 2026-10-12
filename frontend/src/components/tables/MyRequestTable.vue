@@ -67,23 +67,24 @@
         <TableHeadCell>Request No</TableHeadCell>
         <TableHeadCell>Workflow</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Return Due Date</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading requests...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!requests.length">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">You haven't submitted any requests yet.</p>
           <button
             @click="isNewRequestOpen = true"
@@ -155,6 +156,11 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 sm:px-6">
+          <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="item.reason || ''">
+            {{ item.reason || '-' }}
+          </p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>

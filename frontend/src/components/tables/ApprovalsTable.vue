@@ -44,22 +44,24 @@
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
-        <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
+        <TableHeadCell>Return Due Date</TableHeadCell>
+        <TableHeadCell>Submitted</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading approvals...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!approvals.length">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No pending approvals.</p>
         </td>
       </tr>
@@ -126,11 +128,21 @@
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
         </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
+        <td class="px-5 py-4 sm:px-6">
+          <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="item.reason || ''">
+            {{ item.reason || '-' }}
+          </p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.request_status)" size="sm">{{ formatStatusLabel(item.request_status) }}</Badge>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
+            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
+          </p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
         </td>
       </tr>
 

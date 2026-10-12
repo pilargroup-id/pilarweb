@@ -56,25 +56,27 @@
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Reviewed</TableHeadCell>
         <TableHeadCell>Reviewer</TableHeadCell>
         <TableHeadCell>Approved Qty</TableHeadCell>
         <TableHeadCell>Reject Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
+        <TableHeadCell>Return Due Date</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading finance history...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!history.length">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests have been reviewed by Finance yet.</p>
         </td>
       </tr>
@@ -109,6 +111,11 @@
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
         </td>
+        <td class="px-5 py-4 sm:px-6">
+          <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="item.reason || ''">
+            {{ item.reason || '-' }}
+          </p>
+        </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.reviewed_at) }}</p>
         </td>
@@ -123,6 +130,11 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.finance_review_status)" size="sm">{{ formatStatusLabel(item.finance_review_status) }}</Badge>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
+            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
+          </p>
         </td>
       </tr>
 

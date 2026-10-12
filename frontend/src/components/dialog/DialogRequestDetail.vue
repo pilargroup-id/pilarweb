@@ -46,20 +46,70 @@
               <Badge :color="statusColor(requestDetail.status)" size="md">{{ formatStatusLabel(requestDetail.status) }}</Badge>
             </div>
 
-            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Reason</dt>
-                <dd class="text-theme-sm text-gray-800 dark:text-white/90">{{ requestDetail.reason || '-' }}</dd>
+            <section class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+              <div
+                :class="[
+                  'grid gap-4',
+                  requestDetail.requires_return ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : 'lg:grid-cols-1',
+                ]"
+              >
+                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] sm:items-center">
+                  <div class="flex min-w-0 items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900">
+                    <span
+                      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-400"
+                    >
+                      <TaskIcon class="h-4 w-4" />
+                    </span>
+                    <div class="min-w-0">
+                      <p class="text-theme-xs text-gray-500 dark:text-gray-400">Workflow</p>
+                      <p class="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {{ requestDetail.workflow_name || '-' }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="hidden h-px bg-gray-200 dark:bg-gray-800 sm:block"></div>
+                  <div class="mx-4 h-4 w-px bg-gray-200 dark:bg-gray-800 sm:hidden"></div>
+
+                  <div class="flex min-w-0 items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900">
+                    <span
+                      :class="[
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                        requestDetail.submitted_at
+                          ? 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-500'
+                          : 'bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400',
+                      ]"
+                    >
+                      <FileCheckIcon class="h-4 w-4" />
+                    </span>
+                    <div class="min-w-0">
+                      <p class="text-theme-xs text-gray-500 dark:text-gray-400">Submitted</p>
+                      <p class="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {{ submittedDateLabel }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <dl v-if="requestDetail.requires_return" class="grid gap-3">
+                  <div
+                    class="rounded-xl border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900"
+                  >
+                    <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Return Due Date</dt>
+                    <dd class="mt-1 text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ formatDate(requestDetail.return_due_date) }}</dd>
+                  </div>
+                </dl>
               </div>
-              <div v-if="requestDetail.requires_return">
-                <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Return Due Date</dt>
-                <dd class="text-theme-sm text-gray-800 dark:text-white/90">{{ formatDate(requestDetail.return_due_date) }}</dd>
-              </div>
-              <div>
-                <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Submitted</dt>
-                <dd class="text-theme-sm text-gray-800 dark:text-white/90">{{ formatDate(requestDetail.submitted_at) }}</dd>
-              </div>
-            </dl>
+
+              <dl class="mt-4">
+                <div class="rounded-xl border border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900">
+                  <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Reason</dt>
+                  <dd class="mt-1 whitespace-pre-line break-words text-theme-sm font-medium leading-6 text-gray-800 dark:text-white/90">
+                    {{ requestDetail.reason || '-' }}
+                  </dd>
+                </div>
+              </dl>
+            </section>
 
             <div>
               <h5 class="mb-3 text-theme-sm font-medium text-gray-700 dark:text-gray-300">Items</h5>
@@ -70,6 +120,7 @@
                       <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                       <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested Qty</th>
                       <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Status</th>
+                      <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Notes</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -82,9 +133,15 @@
                       <td class="px-4 py-3 align-top">
                         <Badge :color="item.status === 'CANCELED' ? 'error' : 'light'" size="sm">{{ item.status }}</Badge>
                       </td>
+                      <td
+                        class="px-4 py-3 align-top text-theme-xs"
+                        :class="item.cancel_reason ? 'text-error-600 dark:text-error-500' : 'text-gray-500 dark:text-gray-400'"
+                      >
+                        {{ itemNote(item) || '-' }}
+                      </td>
                     </tr>
                     <tr v-if="!requestDetail.items?.length">
-                      <td colspan="3" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                      <td colspan="4" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                         No items on this request.
                       </td>
                     </tr>
@@ -244,7 +301,7 @@ import { ref, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
 import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
-import { CheckIcon } from '@/icons'
+import { CheckIcon, FileCheckIcon, TaskIcon } from '@/icons'
 import { getRequestById, receiveHandover } from '@/service/api'
 
 const props = defineProps({
@@ -304,6 +361,23 @@ const formatDate = (value) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
+}
+
+const submittedDateLabel = computed(() => {
+  if (!requestDetail.value?.submitted_at) return 'Not submitted yet'
+  return formatDate(requestDetail.value.submitted_at)
+})
+
+const financeNoteByItemId = computed(() => {
+  const map = new Map()
+  for (const fi of requestDetail.value?.finance_review?.items || []) {
+    if (fi.note) map.set(Number(fi.request_item_id), fi.note)
+  }
+  return map
+})
+
+function itemNote(item) {
+  return item.cancel_reason || financeNoteByItemId.value.get(Number(item.id)) || item.notes || ''
 }
 
 const returnBalance = computed(() => {

@@ -38,6 +38,12 @@ async function listQueue(user, query = {}) {
   const [rows] = await db.query(`
     SELECT r.*,
       (
+        SELECT COALESCE(SUM(fri.approved_qty), 0)
+        FROM finance_reviews fr
+        INNER JOIN finance_review_items fri ON fri.finance_review_id = fr.id
+        WHERE fr.request_id = r.id
+      ) AS total_approved_qty,
+      (
         SELECT COALESCE(SUM(fri.rejected_qty), 0)
         FROM finance_reviews fr
         INNER JOIN finance_review_items fri ON fri.finance_review_id = fr.id
@@ -45,7 +51,7 @@ async function listQueue(user, query = {}) {
       ) AS total_rejected_qty
     FROM requests r
     ${where}
-    ORDER BY r.updated_at ASC, r.created_at ASC
+    ORDER BY r.updated_at DESC, r.created_at DESC
     LIMIT ? OFFSET ?
   `, [...params, limit, offset]);
   const total = Number(countRows[0]?.total || 0);

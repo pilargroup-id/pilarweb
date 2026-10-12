@@ -39,15 +39,12 @@
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Request Purpose <span class="text-error-500">*</span>
               </label>
-              <SelectField
+              <RequestPurposeSelect
                 v-model="form.request_purpose_id"
+                :options="purposeOptions"
                 :disabled="isLoadingMaster"
                 placeholder="Select request purpose"
-              >
-                <option v-for="purpose in purposes" :key="purpose.id" :value="purpose.id">
-                  {{ purpose.name }}
-                </option>
-              </SelectField>
+              />
               <p v-if="hasPurposeError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
                 Request Purpose is required.
               </p>
@@ -167,7 +164,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Alert from '@/components/ui/Alert.vue'
-import SelectField from '@/components/forms/FormElements/SelectField.vue'
+import RequestPurposeSelect from '@/components/forms/FormElements/RequestPurposeSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
@@ -238,11 +235,11 @@ function updateRow(index, value) {
 // the currently active purpose -> workflow mapping decides whether a Return
 // Due Date is required, so it is looked up from master data instead of a
 // hardcoded rule.
-const activeAssignment = computed(() => {
-  if (!form.request_purpose_id) return null
+function findActiveAssignment(purposeId) {
+  if (!purposeId) return null
   const now = Date.now()
   const candidates = assignments.value.filter((assignment) => {
-    if (String(assignment.request_purpose_id) !== String(form.request_purpose_id)) return false
+    if (String(assignment.request_purpose_id) !== String(purposeId)) return false
     if (!assignment.is_active) return false
     const from = assignment.effective_from ? new Date(assignment.effective_from).getTime() : -Infinity
     const to = assignment.effective_to ? new Date(assignment.effective_to).getTime() : Infinity
@@ -250,12 +247,27 @@ const activeAssignment = computed(() => {
   })
   if (!candidates.length) return null
   return candidates.sort((a, b) => new Date(b.effective_from) - new Date(a.effective_from))[0]
-})
+}
 
-const requiresReturn = computed(() => {
-  const value = activeAssignment.value?.requires_return
+function assignmentRequiresReturn(assignment) {
+  const value = assignment?.requires_return
   return value === true || value === 1 || value === '1'
-})
+}
+
+const purposeOptions = computed(() =>
+  purposes.value.map((purpose) => {
+    const assignment = findActiveAssignment(purpose.id)
+    return {
+      id: purpose.id,
+      name: purpose.name,
+      requiresReturn: assignment ? assignmentRequiresReturn(assignment) : null,
+    }
+  })
+)
+
+const activeAssignment = computed(() => findActiveAssignment(form.request_purpose_id))
+
+const requiresReturn = computed(() => assignmentRequiresReturn(activeAssignment.value))
 
 const hasPurposeWithoutWorkflow = computed(() => !!form.request_purpose_id && !activeAssignment.value)
 
