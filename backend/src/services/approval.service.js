@@ -17,15 +17,11 @@ async function listQueue(user, query = {}) {
   const params = [department.id, level, level];
   let where = `
     WHERE ra.department_id = ?
+      AND ra.status = 'PENDING'
+      AND r.status = 'PENDING_DEPARTMENT_APPROVAL'
       AND (
         (ra.allow_higher_job_level = 1 AND ? >= ra.required_job_level_value)
-        OR
-        (ra.allow_higher_job_level = 0 AND ? = ra.required_job_level_value)
-      )
-      AND (
-        (ra.status = 'PENDING' AND r.status = 'PENDING_DEPARTMENT_APPROVAL')
-        OR
-        (ra.status = 'APPROVED' AND r.status = 'PENDING_FINANCE_REVIEW' AND fr.status = 'PENDING')
+        OR (ra.allow_higher_job_level = 0 AND ? = ra.required_job_level_value)
       )
   `;
   if (query.search) {
@@ -38,7 +34,6 @@ async function listQueue(user, query = {}) {
     SELECT COUNT(*) AS total
     FROM request_approvals ra
     INNER JOIN requests r ON r.id = ra.request_id
-    LEFT JOIN finance_reviews fr ON fr.request_id = r.id
     ${where}
   `, params);
   const [rows] = await db.query(`
@@ -51,13 +46,10 @@ async function listQueue(user, query = {}) {
       r.requester_job_level_name,
       r.department_name,
       r.reason,
-      r.requires_return,
-      r.return_due_date,
       r.submitted_at,
       r.status AS request_status
     FROM request_approvals ra
     INNER JOIN requests r ON r.id = ra.request_id
-    LEFT JOIN finance_reviews fr ON fr.request_id = r.id
     ${where}
     ORDER BY r.submitted_at ASC, ra.id ASC
     LIMIT ? OFFSET ?
@@ -84,128 +76,77 @@ async function getById(user, approvalId) {
   return RequestService.getById(approval.request_id, user);
 }
 
-async function decide(user, approvalId, decision, payload = {}) {
-  const normalizedDecision = String(decision).toUpperCase();
-  if (!['APPROVED', 'REJECTED'].includes(normalizedDecision)) {
-    throw createError('Invalid approval decision', 422, 'APPROVAL_DECISION_INVALID');
+async function lockPendingApproval(connection, user, approvalId) {
+  const [rows] = await connection.query(`
+    SELECT ra.*, r.status AS request_status, r.requester_user_id
+    FROM request_approvals ra
+    INNER JOIN requests r ON r.id = ra.request_id
+    WHERE ra.id = ?
+    LIMIT 1
+    FOR UPDATE
+  `, [Number(approvalId)]);
+  const approval = rows[0];
+  if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
+  if (approval.status !== 'PENDING' || approval.request_status !== 'PENDING_DEPARTMENT_APPROVAL') {
+    throw createError('Manager approval is no longer pending', 409, 'APPROVAL_NOT_PENDING');
   }
-  const note = optionalText(payload.note ?? payload.reason, 5000);
-  if (normalizedDecision === 'REJECTED' && !note) {
-    throw createError('Rejection reason is required', 422, 'REJECTION_REASON_REQUIRED');
+  if (String(approval.requester_user_id) === String(user.id)) {
+    throw createError('Requester cannot approve their own request', 403, 'SELF_APPROVAL_FORBIDDEN');
   }
+  if (!AccessService.canApproveWithSnapshot(user, approval)) {
+    throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
+  }
+  return approval;
+}
 
+async function approve(user, approvalId, payload = {}) {
   const db = requireDatabase();
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query(`
-      SELECT ra.*, r.status AS request_status, r.requester_user_id
-      FROM request_approvals ra
-      INNER JOIN requests r ON r.id = ra.request_id
-      WHERE ra.id = ?
-      LIMIT 1
-      FOR UPDATE
-    `, [Number(approvalId)]);
-    const approval = rows[0];
-    if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
-    if (approval.status !== 'PENDING' || approval.request_status !== 'PENDING_DEPARTMENT_APPROVAL') {
-      throw createError('Approval has already been decided or request status changed', 409, 'APPROVAL_NOT_PENDING');
-    }
-    if (String(approval.requester_user_id) === String(user.id)) {
-      throw createError('Requester cannot approve their own request', 403, 'SELF_APPROVAL_FORBIDDEN');
-    }
-    if (!AccessService.canApproveWithSnapshot(user, approval)) {
-      throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
-    }
-
+    const approval = await lockPendingApproval(connection, user, approvalId);
     const actor = UserUtil.snapshot(user);
+    const note = optionalText(payload.note, 5000);
+
+    const [itemRows] = await connection.query('SELECT id, requested_qty FROM request_items WHERE request_id = ? ORDER BY id ASC', [approval.request_id]);
+    if (!itemRows.length) throw createError('No request items remain for approval', 409, 'REQUEST_ITEMS_REQUIRED');
+
     await connection.query(`
       UPDATE request_approvals
-      SET
-        status = ?,
-        approver_user_id = ?,
-        approver_internal_id = ?,
-        approver_name = ?,
-        approver_job_level_value = ?,
-        approver_job_level_name = ?,
-        note = ?,
-        decided_at = NOW()
+      SET status = 'APPROVED', approver_user_id = ?, approver_internal_id = ?,
+          approver_name = ?, approver_job_level_value = ?, approver_job_level_name = ?,
+          note = ?, decided_at = NOW()
       WHERE id = ?
     `, [
-      normalizedDecision,
-      actor.user_id,
-      actor.internal_id,
-      actor.name,
-      actor.job_level_value,
-      actor.job_level_name,
-      note,
-      Number(approvalId),
+      actor.user_id, actor.internal_id, actor.name,
+      actor.job_level_value, actor.job_level_name,
+      note, approval.id,
     ]);
 
-    if (normalizedDecision === 'REJECTED') {
-      await connection.query("UPDATE requests SET status = 'REJECTED', completed_at = NOW() WHERE id = ?", [approval.request_id]);
-    } else {
-      const [activeRows] = await connection.query(
-        "SELECT COUNT(*) AS total FROM request_items WHERE request_id = ? AND status = 'ACTIVE'",
-        [approval.request_id]
-      );
-      if (Number(activeRows[0]?.total || 0) === 0) {
-        throw createError('No active request items remain for approval', 409, 'NO_ACTIVE_REQUEST_ITEMS');
-      }
-
-      const [existingReviews] = await connection.query(
-        'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
-        [approval.request_id]
-      );
-      let reviewId;
-      if (existingReviews[0]) {
-        reviewId = existingReviews[0].id;
-        await connection.query(`
-          UPDATE finance_reviews
-          SET status = 'PENDING', reviewer_user_id = NULL, reviewer_internal_id = NULL,
-              reviewer_name = NULL, note = NULL, reviewed_at = NULL
-          WHERE id = ?
-        `, [reviewId]);
-        await connection.query('DELETE FROM finance_review_items WHERE finance_review_id = ?', [reviewId]);
-      } else {
-        const [reviewResult] = await connection.query(`
-          INSERT INTO finance_reviews (request_id, status)
-          VALUES (?, 'PENDING')
-        `, [approval.request_id]);
-        reviewId = reviewResult.insertId;
-      }
-
+    const [reviewResult] = await connection.query(`
+      INSERT INTO finance_reviews (request_id, status)
+      VALUES (?, 'PENDING')
+    `, [approval.request_id]);
+    for (const item of itemRows) {
       await connection.query(`
         INSERT INTO finance_review_items (
-          finance_review_id,
-          request_item_id,
-          requested_qty_snapshot,
-          decision,
-          approved_qty,
-          rejected_qty
-        )
-        SELECT ?, id, requested_qty, 'PENDING', NULL, 0
-        FROM request_items
-        WHERE request_id = ? AND status = 'ACTIVE'
-      `, [reviewId, approval.request_id]);
-      await connection.query("UPDATE requests SET status = 'PENDING_FINANCE_REVIEW' WHERE id = ?", [approval.request_id]);
+          finance_review_id, request_item_id, requested_qty_snapshot,
+          decision, approved_qty, rejected_qty
+        ) VALUES (?, ?, ?, 'PENDING', 0, 0)
+      `, [reviewResult.insertId, item.id, item.requested_qty]);
     }
+    await connection.query("UPDATE requests SET status = 'PENDING_FINANCE_REVIEW' WHERE id = ?", [approval.request_id]);
 
     await ActivityService.log(connection, {
       request_id: approval.request_id,
       entity_type: 'APPROVAL',
       entity_id: approval.id,
-      action_code: normalizedDecision === 'APPROVED' ? 'DEPARTMENT_APPROVED' : 'DEPARTMENT_REJECTED',
+      action_code: 'MANAGER_APPROVED',
       actor_user_id: actor.user_id,
       actor_name: actor.name,
-      before: { approval_status: 'PENDING', request_status: approval.request_status },
-      after: {
-        approval_status: normalizedDecision,
-        request_status: normalizedDecision === 'APPROVED' ? 'PENDING_FINANCE_REVIEW' : 'REJECTED',
-        note,
-      },
+      before: { status: 'PENDING_DEPARTMENT_APPROVAL' },
+      after: { status: 'PENDING_FINANCE_REVIEW', note },
     });
-
     await connection.commit();
     return RequestService.getById(approval.request_id, user);
   } catch (err) {
@@ -222,53 +163,19 @@ async function revert(user, approvalId, payload = {}) {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query(`
-      SELECT ra.*, r.status AS request_status, r.requester_user_id
-      FROM request_approvals ra
-      INNER JOIN requests r ON r.id = ra.request_id
-      WHERE ra.id = ?
-      LIMIT 1
-      FOR UPDATE
-    `, [Number(approvalId)]);
-    const approval = rows[0];
-    if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
-    if (approval.status !== 'APPROVED' || approval.request_status !== 'PENDING_FINANCE_REVIEW') {
-      throw createError('Only an approved request waiting for Finance can be reverted', 409, 'APPROVAL_REVERT_NOT_ALLOWED');
-    }
-    if (!AccessService.canApproveWithSnapshot(user, approval)) {
-      throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
-    }
-
-    const [financeRows] = await connection.query(
-      'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
-      [approval.request_id]
-    );
-    const finance = financeRows[0];
-    if (!finance || finance.status !== 'PENDING') {
-      throw createError('Finance has already processed this request; it can no longer be reverted', 409, 'FINANCE_ALREADY_PROCESSED');
-    }
-
+    const approval = await lockPendingApproval(connection, user, approvalId);
     const actor = UserUtil.snapshot(user);
+
     await connection.query(`
       UPDATE request_approvals
-      SET status = 'PENDING', approver_user_id = NULL, approver_internal_id = NULL,
-          approver_name = NULL, approver_job_level_value = NULL, approver_job_level_name = NULL,
-          note = NULL, decided_at = NULL,
-          reverted_at = NOW(), reverted_by_user_id = ?, reverted_by_name = ?, revert_reason = ?
+      SET status = 'REVERTED', reverted_at = NOW(), reverted_by_user_id = ?,
+          reverted_by_name = ?, revert_reason = ?
       WHERE id = ?
-    `, [actor.user_id, actor.name, reason, Number(approvalId)]);
-    await connection.query(
-      "UPDATE finance_reviews SET status = 'REVERTED' WHERE id = ?",
-      [finance.id]
-    );
-    await connection.query(
-      "UPDATE finance_review_items SET decision = 'REVERTED', approved_qty = NULL WHERE finance_review_id = ?",
-      [finance.id]
-    );
+    `, [actor.user_id, actor.name, reason, approval.id]);
     await connection.query(`
       UPDATE requests
-      SET status = 'PENDING_DEPARTMENT_APPROVAL', reverted_at = NOW(), reverted_by_user_id = ?,
-          reverted_by_name = ?, revert_reason = ?
+      SET status = 'REVERTED_TO_REQUESTER', reverted_at = NOW(),
+          reverted_by_user_id = ?, reverted_by_name = ?, revert_reason = ?
       WHERE id = ?
     `, [actor.user_id, actor.name, reason, approval.request_id]);
 
@@ -276,13 +183,12 @@ async function revert(user, approvalId, payload = {}) {
       request_id: approval.request_id,
       entity_type: 'APPROVAL',
       entity_id: approval.id,
-      action_code: 'DEPARTMENT_APPROVAL_REVERTED',
+      action_code: 'MANAGER_REVERTED',
       actor_user_id: actor.user_id,
       actor_name: actor.name,
-      before: { approval_status: 'APPROVED', request_status: approval.request_status },
-      after: { approval_status: 'PENDING', request_status: 'PENDING_DEPARTMENT_APPROVAL', reason },
+      before: { approval_status: 'PENDING', request_status: 'PENDING_DEPARTMENT_APPROVAL' },
+      after: { approval_status: 'REVERTED', request_status: 'REVERTED_TO_REQUESTER', reason },
     });
-
     await connection.commit();
     return RequestService.getById(approval.request_id, user);
   } catch (err) {
@@ -291,7 +197,7 @@ async function revert(user, approvalId, payload = {}) {
   } finally { connection.release(); }
 }
 
-async function cancelItem(user, approvalId, itemId, payload = {}) {
+async function cancel(user, approvalId, payload = {}) {
   const reason = optionalText(payload.reason ?? payload.note, 5000);
   if (!reason) throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
 
@@ -299,48 +205,32 @@ async function cancelItem(user, approvalId, itemId, payload = {}) {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query(`
-      SELECT ra.*, r.status AS request_status, r.requester_user_id
-      FROM request_approvals ra
-      INNER JOIN requests r ON r.id = ra.request_id
-      WHERE ra.id = ?
-      LIMIT 1
-      FOR UPDATE
-    `, [Number(approvalId)]);
-    const approval = rows[0];
-    if (!approval) throw createError('Approval not found', 404, 'APPROVAL_NOT_FOUND');
-    if (!['PENDING', 'APPROVED'].includes(approval.status)) {
-      throw createError('Approval can no longer cancel request items', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
-    }
-    if (!AccessService.canApproveWithSnapshot(user, approval)) {
-      throw createError('User does not meet this approval rule', 403, 'APPROVAL_ACCESS_FORBIDDEN');
-    }
-    if (approval.status === 'PENDING' && approval.request_status !== 'PENDING_DEPARTMENT_APPROVAL') {
-      throw createError('Request is not waiting for department approval', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
-    }
-    if (approval.status === 'APPROVED') {
-      if (approval.request_status !== 'PENDING_FINANCE_REVIEW') {
-        throw createError('Approved request is no longer waiting for Finance', 409, 'APPROVAL_ITEM_CANCEL_NOT_ALLOWED');
-      }
-      const [financeRows] = await connection.query(
-        'SELECT id, status FROM finance_reviews WHERE request_id = ? LIMIT 1 FOR UPDATE',
-        [approval.request_id]
-      );
-      if (!financeRows[0] || financeRows[0].status !== 'PENDING') {
-        throw createError('Finance has already processed this request item', 409, 'FINANCE_ALREADY_PROCESSED');
-      }
-    }
+    const approval = await lockPendingApproval(connection, user, approvalId);
+    const actor = UserUtil.snapshot(user);
 
-    const [requestRows] = await connection.query('SELECT * FROM requests WHERE id = ? LIMIT 1', [approval.request_id]);
-    await RequestService.cancelItemWithConnection(
-      connection,
-      requestRows[0],
-      itemId,
-      user,
-      'DEPARTMENT_APPROVAL',
-      reason
-    );
+    await connection.query(`
+      UPDATE request_approvals
+      SET status = 'CANCELED', approver_user_id = ?, approver_internal_id = ?,
+          approver_name = ?, approver_job_level_value = ?, approver_job_level_name = ?,
+          note = ?, decided_at = NOW()
+      WHERE id = ?
+    `, [
+      actor.user_id, actor.internal_id, actor.name,
+      actor.job_level_value, actor.job_level_name,
+      reason, approval.id,
+    ]);
+    await connection.query("UPDATE requests SET status = 'CANCELED', canceled_at = NOW(), completed_at = NOW() WHERE id = ?", [approval.request_id]);
 
+    await ActivityService.log(connection, {
+      request_id: approval.request_id,
+      entity_type: 'APPROVAL',
+      entity_id: approval.id,
+      action_code: 'MANAGER_CANCELED',
+      actor_user_id: actor.user_id,
+      actor_name: actor.name,
+      before: { status: 'PENDING_DEPARTMENT_APPROVAL' },
+      after: { status: 'CANCELED', reason },
+    });
     await connection.commit();
     return RequestService.getById(approval.request_id, user);
   } catch (err) {
@@ -349,10 +239,4 @@ async function cancelItem(user, approvalId, itemId, payload = {}) {
   } finally { connection.release(); }
 }
 
-module.exports = {
-  listQueue,
-  getById,
-  decide,
-  revert,
-  cancelItem,
-};
+module.exports = { listQueue, getById, approve, revert, cancel };

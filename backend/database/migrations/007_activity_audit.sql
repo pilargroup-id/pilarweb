@@ -1,4 +1,4 @@
--- Pilarweb migration 008: comments and append-only business activity log
+-- Pilarweb migration 007: comments and append-only business activity log
 
 USE pilarweb;
 

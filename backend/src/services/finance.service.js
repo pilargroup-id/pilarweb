@@ -2,6 +2,7 @@ const { requireDatabase } = require('../config/database.config');
 const AccessService = require('./access.service');
 const ActivityService = require('./activity.service');
 const RequestService = require('./request.service');
+const WarehouseService = require('./warehouse.service');
 const UserUtil = require('../utils/user.util');
 const { createError, optionalText, nonNegativeNumber, parsePositiveInt } = require('../utils/business.util');
 
@@ -34,15 +35,8 @@ async function listQueue(user, query = {}) {
       r.requester_name,
       r.department_name,
       r.reason,
-      r.requires_return,
-      r.return_due_date,
       r.submitted_at,
-      r.status AS request_status,
-      (
-        SELECT COALESCE(SUM(fri.rejected_qty), 0)
-        FROM finance_review_items fri
-        WHERE fri.finance_review_id = fr.id
-      ) AS total_rejected_qty
+      r.status AS request_status
     FROM finance_reviews fr
     INNER JOIN requests r ON r.id = fr.request_id
     ${where}
@@ -60,9 +54,9 @@ async function listHistory(user, query = {}) {
   const limit = parsePositiveInt(query.limit, 20, 100);
   const offset = (page - 1) * limit;
   const params = [];
-  let where = "WHERE fr.status <> 'PENDING'";
+  let where = "WHERE fr.status IN ('APPROVED','REJECTED')";
   const status = String(query.status || '').trim().toUpperCase();
-  if (['APPROVED', 'REJECTED', 'CANCELED'].includes(status)) {
+  if (['APPROVED', 'REJECTED'].includes(status)) {
     where += ' AND fr.status = ?';
     params.push(status);
   }
@@ -90,20 +84,10 @@ async function listHistory(user, query = {}) {
       r.requester_name,
       r.department_name,
       r.reason,
-      r.requires_return,
-      r.return_due_date,
       r.submitted_at,
       r.status AS request_status,
-      (
-        SELECT COALESCE(SUM(fri.approved_qty), 0)
-        FROM finance_review_items fri
-        WHERE fri.finance_review_id = fr.id
-      ) AS total_approved_qty,
-      (
-        SELECT COALESCE(SUM(fri.rejected_qty), 0)
-        FROM finance_review_items fri
-        WHERE fri.finance_review_id = fr.id
-      ) AS total_rejected_qty
+      (SELECT COALESCE(SUM(fri.approved_qty),0) FROM finance_review_items fri WHERE fri.finance_review_id = fr.id) AS total_approved_qty,
+      (SELECT COALESCE(SUM(fri.rejected_qty),0) FROM finance_review_items fri WHERE fri.finance_review_id = fr.id) AS total_rejected_qty
     FROM finance_reviews fr
     INNER JOIN requests r ON r.id = fr.request_id
     ${where}
@@ -141,14 +125,8 @@ async function review(user, requestId, payload = {}) {
 
     const decisions = Array.isArray(payload.items) ? payload.items : [];
     const [itemRows] = await connection.query(`
-      SELECT
-        fri.id AS finance_review_item_id,
-        fri.request_item_id,
-        fri.decision AS current_decision,
-        COALESCE(fri.requested_qty_snapshot, ri.requested_qty) AS requested_qty,
-        ri.status AS request_item_status
+      SELECT fri.id AS finance_review_item_id, fri.request_item_id, fri.requested_qty_snapshot
       FROM finance_review_items fri
-      INNER JOIN request_items ri ON ri.id = fri.request_item_id
       WHERE fri.finance_review_id = ?
       ORDER BY fri.id ASC
     `, [reviewRow.id]);
@@ -157,33 +135,18 @@ async function review(user, requestId, payload = {}) {
     const byRequestItemId = new Map(decisions.map((row) => [Number(row.request_item_id), row]));
     let totalApproved = 0;
     let totalRejected = 0;
-    let canceledCount = 0;
-    let rejectedCount = 0;
-    const actor = UserUtil.snapshot(user);
 
     for (const row of itemRows) {
-      if (row.request_item_status === 'CANCELED' || row.current_decision === 'CANCELED') {
-        canceledCount += 1;
-        await connection.query(`
-          UPDATE finance_review_items
-          SET decision = 'CANCELED', approved_qty = 0, rejected_qty = 0
-          WHERE id = ?
-        `, [row.finance_review_item_id]);
-        continue;
-      }
-
       const input = byRequestItemId.get(Number(row.request_item_id));
-      if (!input) {
-        throw createError(`Decision is required for request item ${row.request_item_id}`, 422, 'FINANCE_DECISION_REQUIRED');
-      }
+      if (!input) throw createError(`Decision is required for request item ${row.request_item_id}`, 422, 'FINANCE_DECISION_REQUIRED');
       const decision = String(input.decision || '').trim().toUpperCase();
-      if (!['APPROVED', 'REJECTED', 'CANCELED'].includes(decision)) {
-        throw createError('Finance item decision must be APPROVED, REJECTED, or CANCELED', 422, 'FINANCE_DECISION_INVALID');
+      if (!['APPROVED', 'REJECTED'].includes(decision)) {
+        throw createError('Finance item decision must be APPROVED or REJECTED', 422, 'FINANCE_DECISION_INVALID');
       }
 
-      const requestedQty = Number(row.requested_qty || 0);
+      const requestedQty = Number(row.requested_qty_snapshot || 0);
       let approvedQty = 0;
-      let rejectedQty = 0;
+      let rejectedQty = requestedQty;
       const note = optionalText(input.note ?? input.reason, 500);
 
       if (decision === 'APPROVED') {
@@ -192,41 +155,19 @@ async function review(user, requestId, payload = {}) {
           throw createError('approved_qty must be greater than 0 and not exceed requested_qty', 422, 'FINANCE_APPROVED_QTY_INVALID');
         }
         rejectedQty = Math.max(0, requestedQty - approvedQty);
-        totalApproved += approvedQty;
-        totalRejected += rejectedQty;
-      } else if (decision === 'CANCELED') {
-        if (!note) throw createError('Cancel reason is required', 422, 'CANCEL_REASON_REQUIRED');
-        canceledCount += 1;
-        await connection.query(`
-          UPDATE request_items
-          SET status = 'CANCELED', canceled_at = NOW(), canceled_by_user_id = ?,
-              canceled_by_name = ?, canceled_by_stage = 'FINANCE', cancel_reason = ?
-          WHERE id = ? AND status = 'ACTIVE'
-        `, [actor.user_id, actor.name, note, row.request_item_id]);
-      } else {
-        rejectedQty = requestedQty;
-        totalRejected += rejectedQty;
-        rejectedCount += 1;
       }
+      totalApproved += approvedQty;
+      totalRejected += rejectedQty;
 
       await connection.query(`
         UPDATE finance_review_items
-        SET requested_qty_snapshot = ?, decision = ?, approved_qty = ?, rejected_qty = ?, note = ?
+        SET decision = ?, approved_qty = ?, rejected_qty = ?, note = ?
         WHERE id = ?
-      `, [
-        requestedQty,
-        decision,
-        decision === 'APPROVED' ? approvedQty : 0,
-        rejectedQty,
-        note,
-        row.finance_review_item_id,
-      ]);
+      `, [decision, approvedQty, rejectedQty, note, row.finance_review_item_id]);
     }
 
-    let overall;
-    if (totalApproved > 0) overall = 'APPROVED';
-    else if (rejectedCount > 0) overall = 'REJECTED';
-    else overall = 'CANCELED';
+    const overall = totalApproved > 0 ? 'APPROVED' : 'REJECTED';
+    const actor = UserUtil.snapshot(user);
     const note = optionalText(payload.note, 5000);
     await connection.query(`
       UPDATE finance_reviews
@@ -234,31 +175,27 @@ async function review(user, requestId, payload = {}) {
       WHERE id = ?
     `, [overall, actor.user_id, actor.internal_id, actor.name, note, reviewRow.id]);
 
-    const requestStatus = overall === 'APPROVED' ? 'READY_FOR_WAREHOUSE' : overall;
-    await connection.query(`
-      UPDATE requests
-      SET
-        status = ?,
-        completed_at = CASE WHEN ? IN ('REJECTED', 'CANCELED') THEN NOW() ELSE completed_at END,
-        canceled_at = CASE WHEN ? = 'CANCELED' THEN NOW() ELSE canceled_at END
-      WHERE id = ?
-    `, [requestStatus, requestStatus, requestStatus, requestId]);
+    let fulfillmentId = null;
+    if (overall === 'APPROVED') {
+      fulfillmentId = await WarehouseService.createFromFinance(connection, requestId, actor);
+    } else {
+      await connection.query("UPDATE requests SET status = 'REJECTED', completed_at = NOW() WHERE id = ?", [requestId]);
+    }
 
     await ActivityService.log(connection, {
       request_id: requestId,
       entity_type: 'FINANCE_REVIEW',
       entity_id: reviewRow.id,
-      action_code: overall === 'APPROVED' ? 'FINANCE_REVIEW_APPROVED' : (overall === 'CANCELED' ? 'FINANCE_REVIEW_CANCELED' : 'FINANCE_REVIEW_REJECTED'),
+      action_code: overall === 'APPROVED' ? 'FINANCE_REVIEW_APPROVED' : 'FINANCE_REVIEW_REJECTED',
       actor_user_id: actor.user_id,
       actor_name: actor.name,
+      before: { status: 'PENDING_FINANCE_REVIEW' },
       after: {
-        status: overall,
-        request_status: requestStatus,
+        finance_status: overall,
+        request_status: overall === 'APPROVED' ? 'PICKING' : 'REJECTED',
         total_approved_qty: totalApproved,
         total_rejected_qty: totalRejected,
-        canceled_items: canceledCount,
-        rejected_items: rejectedCount,
-        note,
+        fulfillment_id: fulfillmentId,
       },
     });
 

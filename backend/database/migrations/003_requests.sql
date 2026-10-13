@@ -1,4 +1,4 @@
--- Pilarweb migration 003: request transaction headers and item snapshots
+-- Pilarweb migration 003: request headers and item snapshots
 
 USE pilarweb;
 
@@ -8,13 +8,7 @@ CREATE TABLE IF NOT EXISTS requests (
   request_purpose_id BIGINT UNSIGNED NOT NULL,
   request_purpose_code VARCHAR(50) NOT NULL,
   request_purpose_name VARCHAR(150) NOT NULL,
-  workflow_definition_id BIGINT UNSIGNED NOT NULL,
-  workflow_code VARCHAR(80) NOT NULL,
-  workflow_name VARCHAR(150) NOT NULL,
-  workflow_version INT NOT NULL,
-  requires_return TINYINT(1) NOT NULL DEFAULT 0,
-  return_due_date DATE DEFAULT NULL,
-  status VARCHAR(80) NOT NULL DEFAULT 'DRAFT',
+  status VARCHAR(80) NOT NULL DEFAULT 'PENDING_DEPARTMENT_APPROVAL',
   requester_user_id VARCHAR(36) NOT NULL,
   requester_internal_id INT DEFAULT NULL,
   requester_name VARCHAR(255) DEFAULT NULL,
@@ -24,10 +18,14 @@ CREATE TABLE IF NOT EXISTS requests (
   department_name VARCHAR(255) DEFAULT NULL,
   company_id VARCHAR(100) DEFAULT NULL,
   company_name VARCHAR(255) DEFAULT NULL,
-  reason TEXT DEFAULT NULL,
-  submitted_at DATETIME DEFAULT NULL,
+  reason TEXT NOT NULL,
+  submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME DEFAULT NULL,
   canceled_at DATETIME DEFAULT NULL,
+  reverted_at DATETIME DEFAULT NULL,
+  reverted_by_user_id VARCHAR(36) DEFAULT NULL,
+  reverted_by_name VARCHAR(255) DEFAULT NULL,
+  revert_reason TEXT DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -35,7 +33,6 @@ CREATE TABLE IF NOT EXISTS requests (
   KEY idx_requests_requester (requester_user_id, created_at),
   KEY idx_requests_department_status (department_id, status),
   KEY idx_requests_purpose (request_purpose_id),
-  KEY idx_requests_workflow (workflow_definition_id),
   KEY idx_requests_status_created (status, created_at)
 ) ENGINE=InnoDB;
 
@@ -56,6 +53,7 @@ CREATE TABLE IF NOT EXISTS request_items (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_request_items_item (request_id, itembase_item_id),
   KEY idx_request_items_request (request_id),
   KEY idx_request_items_item_code (item_code),
   KEY idx_request_items_itembase_id (itembase_item_id)

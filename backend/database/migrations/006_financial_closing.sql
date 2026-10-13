@@ -1,4 +1,5 @@
--- Pilarweb migration 007: Finance periods and NetSuite Inventory Adjustment batches
+-- Pilarweb migration 006: Finance periods and NetSuite Inventory Adjustment batches
+-- All requests are non-returnable. Adjustment quantity equals actual handed-over quantity.
 
 USE pilarweb;
 
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS inventory_adjustment_batch_items (
   item_name VARCHAR(255) NOT NULL,
   actual_issued_qty DECIMAL(18,4) NOT NULL,
   source_warehouse_code VARCHAR(80) DEFAULT NULL,
-  loan_warehouse_code VARCHAR(80) NOT NULL DEFAULT 'LOAN',
+  destination_warehouse_code VARCHAR(80) NOT NULL DEFAULT 'LOAN',
   inventory_transfer_number VARCHAR(100) DEFAULT NULL,
   adjustment_qty DECIMAL(18,4) NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

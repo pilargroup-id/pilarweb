@@ -1,4 +1,4 @@
--- Pilarweb migration 004: department approval and Finance review
+-- Pilarweb migration 004: Manager approval and Finance review
 
 USE pilarweb;
 
@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS request_approvals (
   request_id VARCHAR(36) NOT NULL,
   approval_rule_id BIGINT UNSIGNED DEFAULT NULL,
   approval_order INT NOT NULL DEFAULT 1,
+  department_id INT NOT NULL,
+  department_name VARCHAR(255) DEFAULT NULL,
+  required_job_level_value INT NOT NULL,
+  required_job_level_name VARCHAR(150) DEFAULT NULL,
+  allow_higher_job_level TINYINT(1) NOT NULL DEFAULT 1,
   status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
   approver_user_id VARCHAR(36) DEFAULT NULL,
   approver_internal_id INT DEFAULT NULL,
@@ -15,12 +20,16 @@ CREATE TABLE IF NOT EXISTS request_approvals (
   approver_job_level_name VARCHAR(150) DEFAULT NULL,
   note TEXT DEFAULT NULL,
   decided_at DATETIME DEFAULT NULL,
+  reverted_at DATETIME DEFAULT NULL,
+  reverted_by_user_id VARCHAR(36) DEFAULT NULL,
+  reverted_by_name VARCHAR(255) DEFAULT NULL,
+  revert_reason TEXT DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_request_approvals_request (request_id, approval_order),
+  UNIQUE KEY uq_request_approvals_request_order (request_id, approval_order),
   KEY idx_request_approvals_status (status),
-  KEY idx_request_approvals_approver (approver_user_id, status)
+  KEY idx_request_approvals_department_status (department_id, status)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS finance_reviews (
@@ -43,14 +52,16 @@ CREATE TABLE IF NOT EXISTS finance_review_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   finance_review_id BIGINT UNSIGNED NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,
-  requested_qty_snapshot DECIMAL(18,4) DEFAULT NULL,
+  requested_qty_snapshot DECIMAL(18,4) NOT NULL,
   decision VARCHAR(50) NOT NULL DEFAULT 'PENDING',
-  approved_qty DECIMAL(18,4) DEFAULT NULL,
+  approved_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   rejected_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   note VARCHAR(500) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_finance_review_items_review_item (finance_review_id, request_item_id),
-  KEY idx_finance_review_items_request_item (request_item_id)
+  UNIQUE KEY uq_finance_review_items_request_item (finance_review_id, request_item_id),
+  KEY idx_finance_review_items_review (finance_review_id),
+  KEY idx_finance_review_items_request_item (request_item_id),
+  KEY idx_finance_review_items_decision (decision)
 ) ENGINE=InnoDB;

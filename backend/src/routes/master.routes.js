@@ -9,8 +9,6 @@ router.use(authenticate, requireApp(config.app.slug));
 
 router.get('/bootstrap', MasterController.bootstrap);
 router.get('/request-purposes', MasterController.requestPurposes);
-router.get('/workflows', MasterController.workflows);
-router.get('/purpose-workflows', MasterController.purposeWorkflowAssignments);
 router.get('/approval-rules', MasterController.approvalRules);
 router.get('/warehouse-locations', MasterController.warehouseLocations);
 router.get('/financial-closing', MasterController.financialClosing);
@@ -21,7 +19,6 @@ async function requireAdmin(req,res,next){
 }
 
 router.get('/module-access-rules', requireAdmin, MasterController.moduleAccessRules);
-router.post('/purpose-workflows', requireAdmin, MasterController.assignPurposeWorkflow);
 router.post('/approval-rules', requireAdmin, MasterController.createApprovalRule);
 router.put('/approval-rules/:id', requireAdmin, MasterController.updateApprovalRule);
 router.put('/financial-closing', requireAdmin, MasterController.updateFinancialClosing);
