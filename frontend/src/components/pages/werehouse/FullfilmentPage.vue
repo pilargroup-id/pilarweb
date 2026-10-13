@@ -8,9 +8,6 @@
       <ComponentCard>
         <InventoryTransferTable ref="transferTableRef" @changed="refreshAll" />
       </ComponentCard>
-      <ComponentCard>
-        <HandoverTable ref="handoverTableRef" @changed="refreshAll" />
-      </ComponentCard>
     </div>
   </AdminLayout>
 </template>
@@ -22,7 +19,6 @@ import PageBreadcrumb from "@/components/common/PageBreadcrumb.vue";
 import ComponentCard from "@/components/common/ComponentCard.vue";
 import FullfilmentTable from "@/components/tables/FullfilmentTable.vue";
 import InventoryTransferTable from "@/components/tables/InventoryTransferTable.vue";
-import HandoverTable from "@/components/tables/HandoverTable.vue";
 
 const currentPageTitle = ref("Fulfillment / Picking");
 

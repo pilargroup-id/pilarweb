@@ -267,7 +267,7 @@ const rawMenuGroups = [
         subItems: [
           { name: "Finance Review", path: "/finance-review", pro: false },
           { name: "History Review", path: "/finance-review/history", pro: false },
-          { name: "Financial Closing", path: "/financial-closing", pro: false },
+          // { name: "Financial Closing", path: "/financial-closing", pro: false },
         ],
       },
       {
@@ -277,7 +277,7 @@ const rawMenuGroups = [
         subItems: [
           { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
-          { name: "Returns", path: "/returns", pro: false },
+          { name: "Hand Over", path: "/warehouse/handover", pro: false },
         ],
       },
             {

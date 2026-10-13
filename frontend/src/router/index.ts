@@ -107,6 +107,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/warehouse/handover',
+      name: 'Warehouse Handover',
+      component: () => import('../components/pages/werehouse/HandOverPage.vue'),
+      meta: {
+        title: 'Handover',
+      },
+    },
+    {
       path: '/returns',
       name: 'Returns',
       component: () => import('../components/pages/werehouse/ReturnPage.vue'),
