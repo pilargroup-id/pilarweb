@@ -47,25 +47,24 @@
         <TableHeadCell>Purpose</TableHeadCell>
         <TableHeadCell>Items</TableHeadCell>
         <TableHeadCell>Actual Qty</TableHeadCell>
-        <TableHeadCell>Reject Qty</TableHeadCell>
-        <TableHeadCell>Status</TableHeadCell>
+        <TableHeadCell>Handed Over By</TableHeadCell>
         <TableHeadCell>Handed Over At</TableHeadCell>
-        <TableHeadCell>Received At</TableHeadCell>
-        <TableHeadCell>Return Due Date</TableHeadCell>
+        <TableHeadCell>DO Prints</TableHeadCell>
+        <TableHeadCell>Last DO Printed At</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading Handover list...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No handover records found.</p>
         </td>
       </tr>
@@ -76,26 +75,15 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <div class="flex items-center gap-2">
-            <button
-              v-if="item.handover_status === 'PENDING'"
-              @click="openDialog(item)"
-              type="button"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-            >
-              <CheckIcon class="h-4 w-4" />
-              Hand Over
-            </button>
-            <button
-              @click="handlePrintDO(item)"
-              type="button"
-              :disabled="printingId === item.handover_id"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-            >
-              <PrinterIcon class="h-4 w-4" />
-              {{ printingId === item.handover_id ? 'Printing...' : 'Print DO' }}
-            </button>
-          </div>
+          <button
+            @click="handlePrintDO(item)"
+            type="button"
+            :disabled="printingId === item.handover_id"
+            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+          >
+            <PrinterIcon class="h-4 w-4" />
+            {{ printingId === item.handover_id ? 'Printing...' : 'Reprint DO' }}
+          </button>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -121,23 +109,16 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatQty(item.total_actual_qty) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p :class="rejectQtyClass(item.total_rejected_qty)">{{ formatQty(item.total_rejected_qty) }}</p>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <Badge :color="statusBadgeColor(item.handover_status)" size="sm">
-            {{ formatStatusLabel(item.handover_status) }}
-          </Badge>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.handed_over_by_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.handed_over_at) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.received_at) }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.do_print_count ?? '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
-            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
-          </p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.last_do_printed_at) }}</p>
         </td>
       </tr>
 
@@ -154,28 +135,15 @@
       </template>
     </BaseTable>
 
-    <DialogInventoryTransfer
-      :is-open="isDialogOpen"
-      :queue-item="requestToProcess"
-      @close="closeDialog"
-      @updated="emit('changed')"
-      @handed-over="handleHandedOver"
-    />
-
     <Teleport to="body">
-      <FFPrintDO
+      <FFPrintFulfillmentDo
         :active="isPrintingDO"
         :request-number="printItem?.request_number"
-        :transfer-number="printTransferNumber"
+        :fulfillment-number="printItem?.fulfillment_number"
         :company-name="printItem?.company_name"
         :requester-name="printItem?.requester_name"
         :department-name="printItem?.department_name"
-        :source-warehouse-code="printTransfer?.source_warehouse_code"
-        :source-warehouse-name="printTransfer?.source_warehouse_name"
-        :destination-warehouse-code="printTransfer?.destination_warehouse_code"
-        :destination-warehouse-name="printTransfer?.destination_warehouse_name"
-        :transfer-date="printTransfer?.transfer_date"
-        :note="printTransfer?.note"
+        :note="printItem?.note"
         :printed-at="printDoPrintedAt"
         :rows="printDoRows"
       />
@@ -185,14 +153,12 @@
 
 <script setup>
 import { reactive, ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { getWarehouseHandovers, getWarehouseRequestDetail } from '@/service/api'
-import Badge from '@/components/ui/Badge.vue'
+import { getWarehouseHandovers, getWarehouseFulfillmentDetail } from '@/service/api'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
-import DialogInventoryTransfer from '@/components/dialog/DialogInventoryTransfer.vue'
-import FFPrintDO from '@/components/layout/print/FFPrintDO.vue'
-import { RefreshIcon, CheckIcon, PrinterIcon } from '@/icons'
+import FFPrintFulfillmentDo from '@/components/layout/print/FFPrintFulfillmentDo.vue'
+import { RefreshIcon, PrinterIcon } from '@/icons'
 
 const emit = defineEmits(['changed'])
 
@@ -203,73 +169,35 @@ const search = ref('')
 let searchTimer = null
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
-const isDialogOpen = ref(false)
-const requestToProcess = ref(null)
-
-function openDialog(item) {
-  requestToProcess.value = {
-    id: item.request_id,
-    request_number: item.request_number,
-    requester_name: item.requester_name,
-    department_name: item.department_name,
-  }
-  isDialogOpen.value = true
-}
-
-function closeDialog() {
-  isDialogOpen.value = false
-  requestToProcess.value = null
-}
-
-function handleHandedOver() {
-  closeDialog()
-  emit('changed')
-}
-
 const printingId = ref(null)
 const isPrintingDO = ref(false)
 const printItem = ref(null)
 const printFulfillment = ref(null)
 const printDoPrintedAt = ref(null)
 
-const printTransferNumber = computed(() => {
-  const transfers = printFulfillment.value?.inventory_transfers || []
-  return transfers.map((t) => t.inventory_transfer_number).join(', ')
-})
+const printDoRows = computed(() =>
+  (printFulfillment.value?.items || []).map((item) => ({
+    id: item.id,
+    item_name: item.item_name,
+    item_code: item.item_code,
+    actual_qty: item.actual_qty,
+    source_warehouse_code: item.source_warehouse_code,
+    inventory_transfer_number: item.inventory_transfer_number,
+  }))
+)
 
-const printTransfer = computed(() => {
-  const transfers = printFulfillment.value?.inventory_transfers || []
-  return transfers[transfers.length - 1] || null
-})
-
-const printDoRows = computed(() => {
-  if (!printFulfillment.value) return []
-  const itemsById = new Map((printFulfillment.value.items || []).map((item) => [Number(item.id), item]))
-  const rows = []
-  for (const transfer of printFulfillment.value.inventory_transfers || []) {
-    for (const ti of transfer.items || []) {
-      rows.push({
-        id: ti.id,
-        item_code: ti.item_code,
-        item_name: itemsById.get(Number(ti.fulfillment_item_id))?.item_name || '',
-        qty: ti.transferred_qty,
-      })
-    }
-  }
-  return rows
-})
-
+// Section 18/19: Handover is a history list, not an action queue. Reprinting
+// the DO only needs the fulfillment detail -- fetched directly by its own id.
 async function handlePrintDO(item) {
   printingId.value = item.handover_id
   try {
-    const res = await getWarehouseRequestDetail(item.request_id)
-    const detail = res?.data
-    const fulfillment = (detail?.fulfillments || []).find((f) => Number(f.id) === Number(item.fulfillment_id))
+    const res = await getWarehouseFulfillmentDetail(item.fulfillment_id)
+    const fulfillment = res?.data
     if (!fulfillment) {
       window.alert('Fulfillment data was not found for this handover.')
       return
     }
-    printItem.value = { ...item, company_name: detail?.company_name }
+    printItem.value = item
     printFulfillment.value = fulfillment
     printDoPrintedAt.value = new Date()
     isPrintingDO.value = true
@@ -286,40 +214,10 @@ async function handlePrintDO(item) {
   }
 }
 
-const formatStatusLabel = (status) => {
-  if (!status) return '-'
-  return status
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
-}
-
-const STATUS_BADGE_COLOR = {
-  PENDING: 'warning',
-  HANDED_OVER: 'info',
-  RECEIVED: 'success',
-}
-
-const statusBadgeColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
-
 const formatQty = (value) => {
   const num = Number(value ?? 0)
   if (Number.isNaN(num)) return '-'
   return num % 1 === 0 ? String(num) : num.toFixed(2)
-}
-
-const rejectQtyClass = (value) => {
-  const num = Number(value ?? 0)
-  return num > 0
-    ? 'text-theme-sm font-medium text-error-600 dark:text-error-500'
-    : 'text-theme-sm text-gray-400 dark:text-gray-500'
-}
-
-const formatDate = (value) => {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
 const formatDateTime = (value) => {

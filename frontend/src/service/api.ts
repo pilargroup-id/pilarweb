@@ -111,14 +111,6 @@ export interface RequestPurpose extends AnyRecord {
   code: string
 }
 
-export interface WorkflowDefinition extends AnyRecord {
-  id: number | string
-}
-
-export interface PurposeWorkflowAssignment extends AnyRecord {
-  id: number | string
-}
-
 export interface ApprovalRule extends AnyRecord {
   id: number | string
   department_id?: string | number
@@ -132,8 +124,6 @@ export type FinancialClosing = AnyRecord | null
 
 export interface MasterBootstrap {
   request_purposes: RequestPurpose[]
-  workflows: WorkflowDefinition[]
-  purpose_workflow_assignments: PurposeWorkflowAssignment[]
   approval_rules: ApprovalRule[]
   warehouse_locations: WarehouseLocation[]
   financial_closing: FinancialClosing
@@ -170,25 +160,6 @@ export function updateRequestPurpose(
 
 export function deleteRequestPurpose(id: string | number): Promise<ApiResponse<null>> {
   return request(`/api/master/request-purposes/${id}`, { method: 'DELETE' })
-}
-
-export function getWorkflows(): Promise<ApiResponse<WorkflowDefinition[]>> {
-  return request('/api/master/workflows')
-}
-
-export function getPurposeWorkflows(): Promise<ApiResponse<PurposeWorkflowAssignment[]>> {
-  return request('/api/master/purpose-workflows')
-}
-
-export interface AssignPurposeWorkflowPayload {
-  request_purpose_id: string | number
-  workflow_definition_id: string | number
-}
-
-export function assignPurposeWorkflow(
-  payload: AssignPurposeWorkflowPayload,
-): Promise<ApiResponse<{ id: number | string }>> {
-  return request('/api/master/purpose-workflows', { method: 'POST', body: payload })
 }
 
 export function getApprovalRules(
@@ -279,7 +250,6 @@ export interface CreateRequestItemPayload {
 export interface CreateRequestPayload {
   request_purpose_id: string | number
   reason: string
-  return_due_date?: string
   items: CreateRequestItemPayload[]
 }
 
@@ -328,7 +298,6 @@ export function submitRequest(id: string): Promise<ApiResponse<PilarwebRequest>>
 export interface UpdateRequestPayload {
   request_purpose_id?: string | number
   reason?: string
-  return_due_date?: string | null
 }
 
 export function updateRequest(
@@ -492,23 +461,89 @@ export function getWarehouseQueue(
   return request('/api/warehouse/requests', { params })
 }
 
-export function getWarehouseRequestDetail(requestId: string): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/requests/${requestId}`)
-}
-
 export interface HandoverRecord extends AnyRecord {
   handover_id: number
-  handover_status: 'PENDING' | 'HANDED_OVER' | 'RECEIVED'
+  handover_status: 'HANDED_OVER'
+  handed_over_by_name: string | null
+  handed_over_at: string | null
+  note: string | null
   request_id: string
   request_number: string
+  request_purpose_name: string | null
+  requester_name: string | null
+  department_name: string | null
   fulfillment_id: number
   fulfillment_number: string
+  do_print_count: number
+  last_do_printed_at: string | null
+  item_count: number
+  total_actual_qty: number
 }
 
 export function getWarehouseHandovers(
   params: { page?: number; limit?: number; search?: string; status?: string } = {},
 ): Promise<PaginatedResponse<HandoverRecord[]>> {
   return request('/api/warehouse/handovers', { params })
+}
+
+// ---------------------------------------------------------------------------
+// Warehouse Fulfillment lifecycle (sections 11-18 of the integration guide):
+// Picking -> Ready for Delivery -> Print DO / Handed Over.
+// ---------------------------------------------------------------------------
+
+export interface WarehouseFulfillmentListItem extends AnyRecord {
+  id: number | string
+  fulfillment_number: string
+  status: 'PICKING' | 'READY_FOR_DELIVERY' | 'HANDED_OVER'
+  request_id: string
+  request_number: string
+}
+
+export function getWarehouseFulfillments(
+  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+): Promise<PaginatedResponse<WarehouseFulfillmentListItem[]>> {
+  return request('/api/warehouse/fulfillments', { params })
+}
+
+export function getWarehouseFulfillmentDetail(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}`)
+}
+
+export function printPickingForm(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/print-picking`, { method: 'POST' })
+}
+
+export interface FulfillmentProgressItemPayload {
+  fulfillment_item_id: number | string
+  actual_qty?: number | null
+  source_warehouse_code?: string | null
+  inventory_transfer_number?: string | null
+  note?: string | null
+}
+
+export interface FulfillmentProgressPayload {
+  items: FulfillmentProgressItemPayload[]
+}
+
+export function saveFulfillmentProgress(
+  fulfillmentId: string | number,
+  payload: FulfillmentProgressPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/progress`, { method: 'PUT', body: payload })
+}
+
+export function completeFulfillmentPicking(
+  fulfillmentId: string | number,
+  payload: FulfillmentProgressPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/complete-picking`, { method: 'POST', body: payload })
+}
+
+export function printFulfillmentDeliveryOrder(
+  fulfillmentId: string | number,
+  payload: { note?: string | null } = {},
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/print-do`, { method: 'POST', body: payload })
 }
 
 export function acceptWarehouseRequest(requestId: string): Promise<ApiResponse<AnyRecord>> {

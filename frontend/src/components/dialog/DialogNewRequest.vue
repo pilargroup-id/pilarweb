@@ -48,26 +48,6 @@
               <p v-if="hasPurposeError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
                 Request Purpose is required.
               </p>
-              <p
-                v-else-if="hasPurposeWithoutWorkflow"
-                class="mt-1.5 text-xs text-warning-600 dark:text-orange-400"
-              >
-                No active workflow is configured for this purpose yet.
-              </p>
-              <p v-else-if="activeAssignment" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                Workflow: {{ activeAssignment.workflow_name }} v{{ activeAssignment.workflow_version }}
-                <template v-if="requiresReturn"> &middot; Returnable</template>
-              </p>
-            </div>
-
-            <div v-if="requiresReturn">
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Return Due Date <span class="text-error-500">*</span>
-              </label>
-              <DateField v-model="form.return_due_date" />
-              <p v-if="hasReturnDateError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
-                Return Due Date is required for this workflow.
-              </p>
             </div>
 
             <div>
@@ -165,7 +145,6 @@ import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Alert from '@/components/ui/Alert.vue'
 import RequestPurposeSelect from '@/components/forms/FormElements/RequestPurposeSelect.vue'
-import DateField from '@/components/forms/FormElements/DateField.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import RequestItemRow from '@/components/tables/Request/RequestItemRow.vue'
@@ -198,13 +177,11 @@ const isEditMode = computed(() => !!props.request)
 const isLoadingMaster = ref(false)
 const masterError = ref('')
 const purposes = ref([])
-const assignments = ref([])
 let masterLoaded = false
 
 const form = reactive({
   request_purpose_id: '',
   reason: '',
-  return_due_date: '',
 })
 
 let rowKeySeed = 0
@@ -231,49 +208,12 @@ function updateRow(index, value) {
   items.value.splice(index, 1, value)
 }
 
-// Request Purpose is not permanently tied to one workflow (docs section 7):
-// the currently active purpose -> workflow mapping decides whether a Return
-// Due Date is required, so it is looked up from master data instead of a
-// hardcoded rule.
-function findActiveAssignment(purposeId) {
-  if (!purposeId) return null
-  const now = Date.now()
-  const candidates = assignments.value.filter((assignment) => {
-    if (String(assignment.request_purpose_id) !== String(purposeId)) return false
-    if (!assignment.is_active) return false
-    const from = assignment.effective_from ? new Date(assignment.effective_from).getTime() : -Infinity
-    const to = assignment.effective_to ? new Date(assignment.effective_to).getTime() : Infinity
-    return now >= from && now < to
-  })
-  if (!candidates.length) return null
-  return candidates.sort((a, b) => new Date(b.effective_from) - new Date(a.effective_from))[0]
-}
-
-function assignmentRequiresReturn(assignment) {
-  const value = assignment?.requires_return
-  return value === true || value === 1 || value === '1'
-}
-
 const purposeOptions = computed(() =>
-  purposes.value.map((purpose) => {
-    const assignment = findActiveAssignment(purpose.id)
-    return {
-      id: purpose.id,
-      name: purpose.name,
-      requiresReturn: assignment ? assignmentRequiresReturn(assignment) : null,
-    }
-  })
+  purposes.value.map((purpose) => ({
+    id: purpose.id,
+    name: purpose.name,
+  }))
 )
-
-const activeAssignment = computed(() => findActiveAssignment(form.request_purpose_id))
-
-const requiresReturn = computed(() => assignmentRequiresReturn(activeAssignment.value))
-
-const hasPurposeWithoutWorkflow = computed(() => !!form.request_purpose_id && !activeAssignment.value)
-
-watch(requiresReturn, (value) => {
-  if (!value) form.return_due_date = ''
-})
 
 const submitAttempted = ref(false)
 const validationErrors = ref([])
@@ -282,15 +222,11 @@ const isSubmitting = ref(false)
 
 const hasPurposeError = computed(() => submitAttempted.value && !form.request_purpose_id)
 const hasReasonError = computed(() => submitAttempted.value && !form.reason.trim())
-const hasReturnDateError = computed(
-  () => submitAttempted.value && requiresReturn.value && !form.return_due_date
-)
 
 function validate() {
   const errors = []
   if (!form.request_purpose_id) errors.push('Request Purpose is required.')
   if (!form.reason.trim()) errors.push('Reason is required.')
-  if (requiresReturn.value && !form.return_due_date) errors.push('Return Due Date is required for this workflow.')
 
   const firstRowIndexByItemId = new Map()
   items.value.forEach((row, index) => {
@@ -316,7 +252,6 @@ function buildPayload() {
   return {
     request_purpose_id: form.request_purpose_id,
     reason: form.reason.trim(),
-    ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
     items: items.value.map((row) => ({
       itembase_item_id: row.item_id,
       requested_qty: Number(row.qty),
@@ -332,9 +267,6 @@ function resetForm() {
   if (props.request) {
     form.request_purpose_id = props.request.request_purpose_id ?? ''
     form.reason = props.request.reason ?? ''
-    form.return_due_date = props.request.return_due_date
-      ? String(props.request.return_due_date).slice(0, 10)
-      : ''
 
     const activeItems = (props.request.items ?? []).filter((it) => it.status === 'ACTIVE')
     items.value = activeItems.length
@@ -356,7 +288,6 @@ function resetForm() {
   } else {
     form.request_purpose_id = ''
     form.reason = ''
-    form.return_due_date = ''
     items.value = [createEmptyRow()]
   }
 
@@ -372,7 +303,6 @@ async function loadMaster() {
   try {
     const res = await getMasterBootstrap()
     purposes.value = res?.data?.request_purposes ?? []
-    assignments.value = res?.data?.purpose_workflow_assignments ?? []
     masterLoaded = true
   } catch (err) {
     masterError.value = err?.message || 'Failed to load master data.'
@@ -400,7 +330,6 @@ async function submitEdit() {
   await updateRequest(requestId, {
     request_purpose_id: form.request_purpose_id,
     reason: form.reason.trim(),
-    ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
   })
 
   if (removedItemIds.value.length) {

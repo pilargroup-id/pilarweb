@@ -13,14 +13,6 @@
         >
           {{ selectedOption ? selectedOption.name : placeholder }}
         </span>
-        <Badge
-          v-if="selectedOption && selectedOption.requiresReturn !== null"
-          :color="selectedOption.requiresReturn ? 'success' : 'light'"
-          size="sm"
-          class="shrink-0"
-        >
-          {{ selectedOption.requiresReturn ? 'Returnable' : 'Non-Returnable' }}
-        </Badge>
       </span>
       <ChevronDownIcon
         class="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 dark:text-gray-400"
@@ -52,14 +44,6 @@
               {{ option.name }}
             </span>
           </span>
-          <Badge
-            v-if="option.requiresReturn !== null"
-            :color="option.requiresReturn ? 'success' : 'light'"
-            size="sm"
-            class="shrink-0"
-          >
-            {{ option.requiresReturn ? 'Returnable' : 'Non-Returnable' }}
-          </Badge>
         </li>
         <li v-if="!options.length" class="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">
           No options available.
@@ -71,7 +55,6 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import Badge from '@/components/ui/Badge.vue'
 import { ChevronDownIcon, CheckIcon } from '@/icons'
 import vClickOutside from '@/components/common/v-click-outside.vue'
 

@@ -36,17 +36,34 @@
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <div v-else class="flex flex-col gap-5">
+            <div class="flex items-center gap-2">
+              <Badge :color="statusColor(fulfillment?.status)" size="sm">{{ formatStatusLabel(fulfillment?.status) }}</Badge>
+              <span v-if="fulfillment?.last_picking_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                Picking form printed {{ formatDateTime(fulfillment.last_picking_printed_at) }}
+              </span>
+              <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
+              </span>
+            </div>
+
             <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
                 <thead class="bg-gray-50 dark:bg-white/[0.02]">
                   <tr>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty (finance)</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actual Qty <span class="text-error-500">*</span></th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Shortage</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Reason <span class="text-error-500">*</span></th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Remainder <span class="text-error-500">*</span></th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note <span class="text-error-500">*</span></th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved (Finance)</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Rejected (Finance)</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                      Actual Qty <span v-if="isPicking" class="text-error-500">*</span>
+                    </th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                      Source Warehouse <span v-if="isPicking" class="text-error-500">*</span>
+                    </th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                      IWT No. <span v-if="isPicking" class="text-error-500">*</span>
+                    </th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -58,45 +75,60 @@
                       <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ row.item_code }}</span>
                     </td>
                     <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
-                      {{ row.max_qty }}
+                      {{ formatQty(row.requested_qty) }}
+                    </td>
+                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
+                      {{ formatQty(row.approved_qty) }}
+                    </td>
+                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
+                      {{ formatQty(row.rejected_qty) }}
                     </td>
                     <td class="px-4 py-3 align-top">
                       <input
+                        v-if="isPicking"
                         v-model.number="row.actual_qty"
                         type="number"
-                        step="1"
+                        step="0.01"
                         min="0"
-                        :max="row.max_qty"
-                        @keydown="blockDecimalKey"
+                        :max="row.approved_qty"
                         @input="sanitizeActualQty(row)"
                         class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                       />
-                    </td>
-                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
-                      {{ shortageQty(row) }}
+                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(row.actual_qty) }}</span>
                     </td>
                     <td class="px-4 py-3 align-top">
-                      <SelectField v-model="row.shortage_reason_code" :disabled="shortageQty(row) <= 0" placeholder="Select reason">
-                        <option v-for="opt in SHORTAGE_REASONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                      <SelectField v-if="isPicking" v-model="row.source_warehouse_code" placeholder="Select warehouse">
+                        <option v-for="opt in warehouseLocations" :key="opt.code" :value="opt.code">{{ opt.name }} ({{ opt.code }})</option>
                       </SelectField>
-                    </td>
-                    <td class="px-4 py-3 align-top">
-                      <SelectField v-model="row.remainder_disposition" :disabled="shortageQty(row) <= 0" placeholder="Select disposition">
-                        <option v-for="opt in REMAINDER_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                      </SelectField>
+                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.source_warehouse_code || '-' }}</span>
                     </td>
                     <td class="px-4 py-3 align-top">
                       <input
-                        v-model="row.shortage_note"
+                        v-if="isPicking"
+                        v-model="row.inventory_transfer_number"
+                        @input="row.inventory_transfer_number = row.inventory_transfer_number.toUpperCase()"
                         type="text"
-                        :disabled="shortageQty(row) <= 0"
-                        placeholder="Optional note"
-                        class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                        placeholder="e.g. IT2604868"
+                        class="dark:bg-dark-900 w-36 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                       />
+                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.inventory_transfer_number || '-' }}</span>
+                      <span v-if="row.inventory_transfer_recorded_at" class="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
+                        {{ formatDateTime(row.inventory_transfer_recorded_at) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 align-top">
+                      <input
+                        v-if="isPicking"
+                        v-model="row.note"
+                        type="text"
+                        placeholder="Optional note"
+                        class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                      />
+                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.note || '-' }}</span>
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
-                    <td colspan="7" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="8" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                       No items on this fulfillment.
                     </td>
                   </tr>
@@ -107,18 +139,18 @@
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
             <p v-if="infoMessage" class="text-sm text-success-600 dark:text-success-500">{{ infoMessage }}</p>
 
-            <div class="flex items-center justify-end gap-3 pt-2">
+            <div v-if="isPicking" class="flex items-center justify-end gap-3 pt-2">
               <button
-                @click="handlePrint"
+                @click="handlePrintPicking"
                 type="button"
-                :disabled="isPrinting || !fulfillment"
+                :disabled="isPrintingPicking || !fulfillment"
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
               >
                 <PrinterIcon class="h-4 w-4" />
-                {{ isPrinting ? 'Printing...' : 'Print' }}
+                {{ isPrintingPicking ? 'Printing...' : 'Print Picking Form' }}
               </button>
               <button
-                @click="handleSave"
+                @click="handleSaveProgress"
                 type="button"
                 :disabled="isSaving || !fulfillment"
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
@@ -127,13 +159,32 @@
                 {{ isSaving ? 'Saving...' : 'Save Progress' }}
               </button>
               <button
-                @click="handleConfirm"
+                @click="handleCompletePicking"
                 type="button"
-                :disabled="isConfirming || isSaving || !fulfillment"
+                :disabled="isCompleting || isSaving || !fulfillment"
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckIcon class="h-4 w-4" />
-                {{ isConfirming ? 'Confirming...' : 'Confirm Picking' }}
+                {{ isCompleting ? 'Completing...' : 'Complete Picking' }}
+              </button>
+            </div>
+
+            <div v-else-if="fulfillment" class="flex items-center justify-end gap-3 pt-2">
+              <input
+                v-if="fulfillment.status === 'READY_FOR_DELIVERY'"
+                v-model="doNote"
+                type="text"
+                placeholder="Optional dispatch note"
+                class="dark:bg-dark-900 w-64 rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              />
+              <button
+                @click="handlePrintDo"
+                type="button"
+                :disabled="isPrintingDo"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <PrinterIcon class="h-4 w-4" />
+                {{ isPrintingDo ? 'Printing...' : (fulfillment.status === 'HANDED_OVER' ? 'Reprint Delivery Order' : 'Print Delivery Order') }}
               </button>
             </div>
           </div>
@@ -144,18 +195,27 @@
 
   <Teleport to="body">
     <FFPrintPicking
-      :active="isPrinting"
+      :active="isPrintingPicking"
       :request-number="queueItem?.request_number"
       :fulfillment-number="fulfillment?.fulfillment_number"
       :company-name="queueItem?.company_name"
       :requester-name="queueItem?.requester_name"
       :department-name="queueItem?.department_name"
       :request-purpose-name="queueItem?.request_purpose_name"
-      :accepted-by-name="fulfillment?.accepted_by_name"
-      :accepted-at="fulfillment?.accepted_at"
       :status="fulfillment?.status"
-      :printed-at="printedAt"
-      :rows="printRows"
+      :printed-at="pickingPrintedAt"
+      :rows="printPickingRows"
+    />
+    <FFPrintFulfillmentDo
+      :active="isPrintingDo"
+      :request-number="queueItem?.request_number"
+      :fulfillment-number="fulfillment?.fulfillment_number"
+      :company-name="queueItem?.company_name"
+      :requester-name="queueItem?.requester_name"
+      :department-name="queueItem?.department_name"
+      :note="doNote"
+      :printed-at="doPrintedAt"
+      :rows="printDoRows"
     />
   </Teleport>
 </template>
@@ -163,27 +223,19 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
+import Badge from '@/components/ui/Badge.vue'
 import SelectField from '@/components/forms/FormElements/SelectField.vue'
 import FFPrintPicking from '@/components/layout/print/FFPrintPicking.vue'
+import FFPrintFulfillmentDo from '@/components/layout/print/FFPrintFulfillmentDo.vue'
 import { PrinterIcon, SaveIcon, CheckIcon } from '@/icons'
 import {
-  getWarehouseRequestDetail,
-  printFulfillment,
-  updateFulfillmentItem,
-  confirmFulfillmentPicking,
+  getWarehouseFulfillmentDetail,
+  getWarehouseLocations,
+  printPickingForm,
+  saveFulfillmentProgress,
+  completeFulfillmentPicking,
+  printFulfillmentDeliveryOrder,
 } from '@/service/api'
-
-const SHORTAGE_REASONS = [
-  { value: 'STOCK_SHORTAGE', label: 'Stock Shortage' },
-  { value: 'DAMAGED', label: 'Damaged' },
-  { value: 'NOT_FOUND', label: 'Not Found' },
-  { value: 'OTHER', label: 'Other' },
-]
-
-const REMAINDER_OPTIONS = [
-  { value: 'BACKORDER_REMAINDER', label: 'Keep as Backorder' },
-  { value: 'CLOSE_SHORT', label: 'Close Remaining Qty' },
-]
 
 const props = defineProps({
   isOpen: {
@@ -196,46 +248,55 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['close', 'confirmed'])
+const emit = defineEmits(['close', 'changed'])
 
 const isLoading = ref(false)
 const loadError = ref('')
 const isSaving = ref(false)
-const isPrinting = ref(false)
-const isConfirming = ref(false)
+const isCompleting = ref(false)
+const isPrintingPicking = ref(false)
+const isPrintingDo = ref(false)
 const errorMessage = ref('')
 const infoMessage = ref('')
 const fulfillment = ref(null)
 const rows = ref([])
-const printedAt = ref(null)
+const pickingPrintedAt = ref(null)
+const doPrintedAt = ref(null)
+const doNote = ref('')
+const warehouseLocations = ref([])
+let hasChanges = false
 
-const printRows = computed(() =>
-  rows.value.map((row) => {
-    const shortage = shortageQty(row)
-    return {
-      id: row.id,
-      item_name: row.item_name,
-      item_code: row.item_code,
-      max_qty: row.max_qty,
-      actual_qty: row.actual_qty,
-      shortage_qty: shortage,
-      shortage_reason_label: shortage > 0
-        ? SHORTAGE_REASONS.find((opt) => opt.value === row.shortage_reason_code)?.label || '-'
-        : '-',
-      remainder_label: shortage > 0
-        ? REMAINDER_OPTIONS.find((opt) => opt.value === row.remainder_disposition)?.label || '-'
-        : '-',
-      shortage_note: row.shortage_note || '',
-    }
-  })
+const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
+
+const printPickingRows = computed(() =>
+  rows.value.map((row) => ({
+    id: row.id,
+    item_name: row.item_name,
+    item_code: row.item_code,
+    requested_qty: row.requested_qty,
+    approved_qty: row.approved_qty,
+  }))
+)
+
+const printDoRows = computed(() =>
+  rows.value.map((row) => ({
+    id: row.id,
+    item_name: row.item_name,
+    item_code: row.item_code,
+    actual_qty: row.actual_qty,
+    source_warehouse_code: row.source_warehouse_code,
+    inventory_transfer_number: row.inventory_transfer_number,
+  }))
 )
 
 watch(
   () => props.isOpen,
   (open) => {
     if (open && props.queueItem?.id) {
+      loadWarehouseLocations()
       loadDetail(props.queueItem.id)
     } else if (!open) {
+      if (hasChanges) emit('changed')
       reset()
     }
   }
@@ -247,49 +308,54 @@ function reset() {
   errorMessage.value = ''
   infoMessage.value = ''
   loadError.value = ''
+  doNote.value = ''
+  hasChanges = false
 }
 
-function shortageQty(row) {
-  return Math.max(0, Number(row.max_qty || 0) - Number(row.actual_qty || 0))
-}
-
-function blockDecimalKey(event) {
-  if (event.key === '.' || event.key === ',') {
-    event.preventDefault()
+async function loadWarehouseLocations() {
+  if (warehouseLocations.value.length) return
+  try {
+    const res = await getWarehouseLocations()
+    warehouseLocations.value = res?.data ?? []
+  } catch {
+    warehouseLocations.value = []
   }
 }
 
+function applyFulfillment(data) {
+  fulfillment.value = data
+  rows.value = (data?.items || []).map((item) => ({
+    id: item.id,
+    item_name: item.item_name,
+    item_code: item.item_code,
+    requested_qty: Number(item.requested_qty_snapshot ?? 0),
+    approved_qty: Number(item.finance_approved_qty_snapshot ?? 0),
+    rejected_qty: Number(item.finance_rejected_qty_snapshot ?? 0),
+    actual_qty: item.actual_qty === null || item.actual_qty === undefined ? null : Number(item.actual_qty),
+    source_warehouse_code: item.source_warehouse_code || '',
+    inventory_transfer_number: item.inventory_transfer_number || '',
+    inventory_transfer_recorded_at: item.inventory_transfer_recorded_at || null,
+    note: item.note || '',
+  }))
+}
+
 function sanitizeActualQty(row) {
-  let value = Math.trunc(Number(row.actual_qty) || 0)
-  const max = Number(row.max_qty || 0)
-  if (value > max) value = max
-  if (value < 0) value = 0
+  let value = Number(row.actual_qty)
+  if (Number.isNaN(value)) value = null
+  const max = Number(row.approved_qty || 0)
+  if (value !== null) {
+    if (value > max) value = max
+    if (value < 0) value = 0
+  }
   row.actual_qty = value
 }
 
-async function loadDetail(requestId) {
+async function loadDetail(fulfillmentId) {
   reset()
   isLoading.value = true
   try {
-    const res = await getWarehouseRequestDetail(requestId)
-    const detail = res?.data
-    const active = [...(detail?.fulfillments || [])].reverse().find((f) => f.status === 'PICKING') || null
-    fulfillment.value = active
-    rows.value = (active?.items || []).map((item) => ({
-      id: item.id,
-      item_name: item.item_name,
-      item_code: item.item_code,
-      max_qty: Number(item.finance_approved_qty_snapshot ?? 0),
-      actual_qty: Number(item.actual_qty ?? 0),
-      shortage_reason_code: item.shortage_reason_code || '',
-      remainder_disposition: item.remainder_disposition && item.remainder_disposition !== 'NONE'
-        ? item.remainder_disposition
-        : '',
-      shortage_note: item.shortage_note || '',
-    }))
-    if (!active) {
-      loadError.value = 'This request has no fulfillment currently in picking.'
-    }
+    const res = await getWarehouseFulfillmentDetail(fulfillmentId)
+    applyFulfillment(res?.data)
   } catch (err) {
     loadError.value = err?.message || 'Failed to load fulfillment detail.'
   } finally {
@@ -298,100 +364,170 @@ async function loadDetail(requestId) {
 }
 
 function close() {
-  if (isSaving.value || isConfirming.value) return
+  if (isSaving.value || isCompleting.value) return
   emit('close')
 }
 
-function validateRows() {
+function buildItemsPayload() {
+  return rows.value.map((row) => ({
+    fulfillment_item_id: row.id,
+    actual_qty: row.actual_qty === null || row.actual_qty === '' ? null : Number(row.actual_qty),
+    source_warehouse_code: row.source_warehouse_code || null,
+    inventory_transfer_number: row.inventory_transfer_number?.trim() || null,
+    note: row.note?.trim() || null,
+  }))
+}
+
+function validateQuantities() {
   for (const row of rows.value) {
+    if (row.actual_qty === null) continue
     const actual = Number(row.actual_qty)
     if (Number.isNaN(actual) || actual < 0) {
       return `Actual qty for "${row.item_name}" must be 0 or greater.`
     }
-    if (!Number.isInteger(actual)) {
-      return `Actual qty for "${row.item_name}" must be a whole number (no decimals).`
-    }
-    if (actual > Number(row.max_qty)) {
-      return `Actual qty for "${row.item_name}" cannot exceed the approved quantity (${row.max_qty}).`
-    }
-    if (shortageQty(row) > 0) {
-      if (!row.shortage_reason_code) return `Shortage reason is required for "${row.item_name}".`
-      if (!row.remainder_disposition) return `Remainder disposition is required for "${row.item_name}".`
-      if (!row.shortage_note?.trim()) return `Note is required for "${row.item_name}".`
+    if (actual > Number(row.approved_qty) + 0.0001) {
+      return `Actual qty for "${row.item_name}" cannot exceed the approved quantity (${row.approved_qty}).`
     }
   }
   return ''
 }
 
-async function saveProgress() {
-  if (!fulfillment.value) return false
-  const validationError = validateRows()
+function validateForComplete() {
+  const qtyError = validateQuantities()
+  if (qtyError) return qtyError
+  for (const row of rows.value) {
+    if (row.actual_qty === null) return `Actual qty is required for "${row.item_name}".`
+    if (!row.source_warehouse_code) return `Source warehouse is required for "${row.item_name}".`
+    if (!row.inventory_transfer_number?.trim()) return `Inventory Transfer number is required for "${row.item_name}".`
+  }
+  return ''
+}
+
+async function handleSaveProgress() {
+  if (!fulfillment.value) return
+  infoMessage.value = ''
+  const validationError = validateQuantities()
   if (validationError) {
     errorMessage.value = validationError
-    return false
+    return
   }
   errorMessage.value = ''
   isSaving.value = true
   try {
-    for (const row of rows.value) {
-      const shortage = shortageQty(row)
-      await updateFulfillmentItem(fulfillment.value.id, row.id, {
-        actual_qty: Number(row.actual_qty),
-        shortage_reason_code: shortage > 0 ? row.shortage_reason_code : null,
-        remainder_disposition: shortage > 0 ? row.remainder_disposition : null,
-        shortage_note: row.shortage_note?.trim() || null,
-      })
-    }
-    return true
+    const res = await saveFulfillmentProgress(fulfillment.value.id, { items: buildItemsPayload() })
+    applyFulfillment(res?.data)
+    hasChanges = true
+    infoMessage.value = 'Picking progress saved.'
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to save picking progress.'
-    return false
   } finally {
     isSaving.value = false
   }
 }
 
-async function handleSave() {
+async function handleCompletePicking() {
+  if (!fulfillment.value) return
   infoMessage.value = ''
-  const ok = await saveProgress()
-  if (ok) infoMessage.value = 'Picking progress saved.'
+  const validationError = validateForComplete()
+  if (validationError) {
+    errorMessage.value = validationError
+    return
+  }
+  errorMessage.value = ''
+  isCompleting.value = true
+  try {
+    const res = await completeFulfillmentPicking(fulfillment.value.id, { items: buildItemsPayload() })
+    applyFulfillment(res?.data)
+    hasChanges = true
+    infoMessage.value = 'Picking completed. Ready for Delivery.'
+  } catch (err) {
+    errorMessage.value = err?.message || 'Failed to complete picking.'
+  } finally {
+    isCompleting.value = false
+  }
 }
 
-async function handlePrint() {
+async function handlePrintPicking() {
   if (!fulfillment.value) return
   errorMessage.value = ''
   infoMessage.value = ''
-  isPrinting.value = true
+  isPrintingPicking.value = true
   try {
-    await printFulfillment(fulfillment.value.id)
-    printedAt.value = new Date()
+    const res = await printPickingForm(fulfillment.value.id)
+    applyFulfillment(res?.data)
+    hasChanges = true
+    pickingPrintedAt.value = new Date()
     await nextTick()
     const originalTitle = document.title
     document.title = ' '
     window.print()
     document.title = originalTitle
-    infoMessage.value = 'Print event recorded.'
+    infoMessage.value = 'Picking form print recorded.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to record print event.'
+    errorMessage.value = err?.message || 'Failed to record picking form print.'
   } finally {
-    isPrinting.value = false
+    isPrintingPicking.value = false
   }
 }
 
-async function handleConfirm() {
-  infoMessage.value = ''
-  const saved = await saveProgress()
-  if (!saved || !fulfillment.value) return
-  isConfirming.value = true
+async function handlePrintDo() {
+  if (!fulfillment.value) return
   errorMessage.value = ''
+  infoMessage.value = ''
+  isPrintingDo.value = true
   try {
-    await confirmFulfillmentPicking(fulfillment.value.id)
-    emit('confirmed')
-    emit('close')
+    const res = await printFulfillmentDeliveryOrder(fulfillment.value.id, { note: doNote.value.trim() || null })
+    applyFulfillment(res?.data)
+    hasChanges = true
+    doPrintedAt.value = new Date()
+    await nextTick()
+    const originalTitle = document.title
+    document.title = ' '
+    window.print()
+    document.title = originalTitle
+    infoMessage.value = fulfillment.value?.status === 'HANDED_OVER'
+      ? 'Delivery Order printed. Request handed over.'
+      : 'Delivery Order print recorded.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to confirm picking.'
+    errorMessage.value = err?.message || 'Failed to record Delivery Order print.'
   } finally {
-    isConfirming.value = false
+    isPrintingDo.value = false
   }
+}
+
+const STATUS_BADGE_COLOR = {
+  PICKING: 'info',
+  READY_FOR_DELIVERY: 'warning',
+  HANDED_OVER: 'success',
+}
+
+const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
+
+const formatStatusLabel = (status) => {
+  if (!status) return '-'
+  return status
+    .split('_')
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+const formatQty = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const num = Number(value)
+  if (Number.isNaN(num)) return '-'
+  return num % 1 === 0 ? String(num) : num.toFixed(2)
+}
+
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 </script>

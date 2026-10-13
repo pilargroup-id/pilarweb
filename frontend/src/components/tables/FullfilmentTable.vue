@@ -45,24 +45,25 @@
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
-        <TableHeadCell>Approve Qty (Finance)</TableHeadCell>
-        <TableHeadCell>Reject Qty</TableHeadCell>
+        <TableHeadCell>Approved Qty (Finance)</TableHeadCell>
+        <TableHeadCell>Rejected Qty</TableHeadCell>
+        <TableHeadCell>Actual Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently being picked.</p>
+        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking or Ready for Delivery.</p>
         </td>
       </tr>
       <tr
@@ -75,11 +76,11 @@
           <button
             @click="openPickingDialog(item)"
             type="button"
-            title="Process"
-            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            :title="processLabel(item.status)"
+            :class="processButtonClass(item.status)"
           >
             <PencilIcon class="h-4 w-4" />
-            Process
+            {{ processLabel(item.status) }}
           </button>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -106,6 +107,9 @@
           <p :class="rejectQtyClass(item.total_rejected_qty)">{{ formatQty(item.total_rejected_qty) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatQty(item.total_actual_qty) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
         </td>
       </tr>
@@ -127,14 +131,14 @@
       :is-open="isPickingDialogOpen"
       :queue-item="requestToProcess"
       @close="closePickingDialog"
-      @confirmed="emit('changed')"
+      @changed="emit('changed')"
     />
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted, onUnmounted } from 'vue'
-import { getWarehouseQueue } from '@/service/api'
+import { getWarehouseFulfillments } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
@@ -164,8 +168,30 @@ function closePickingDialog() {
   requestToProcess.value = null
 }
 
+// Section 23: one dialog drives the whole fulfillment lifecycle, so the row
+// action is always "open the dialog" — only its label/color hints at what
+// the next step inside it will be (pick vs. print DO).
+const PROCESS_LABEL = {
+  PICKING: 'Pick Process',
+  READY_FOR_DELIVERY: 'DO Process',
+}
+
+const processLabel = (status) => PROCESS_LABEL[status] || 'Process'
+
+const PROCESS_BUTTON_OUTLINE_BASE =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-theme-sm font-medium shadow-theme-xs dark:bg-gray-800'
+
+const PROCESS_BUTTON_COLOR_CLASS = {
+  PICKING: 'border-blue-light-300 text-blue-light-500 hover:bg-blue-light-50 dark:border-blue-light-800 dark:hover:bg-white/[0.03]',
+  READY_FOR_DELIVERY: 'border-warning-300 text-warning-600 hover:bg-warning-50 dark:border-warning-800 dark:hover:bg-white/[0.03]',
+}
+
+const processButtonClass = (status) =>
+  `${PROCESS_BUTTON_OUTLINE_BASE} ${PROCESS_BUTTON_COLOR_CLASS[status] || 'border-brand-300 text-brand-500 hover:bg-brand-50 dark:border-brand-800 dark:hover:bg-white/[0.03]'}`
+
 const STATUS_BADGE_COLOR = {
   PICKING: 'info',
+  READY_FOR_DELIVERY: 'warning',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
@@ -198,16 +224,17 @@ const rejectQtyClass = (value) => {
     : 'text-theme-sm text-gray-400 dark:text-gray-500'
 }
 
-// Section 10: Fulfillment/Picking only acts on fulfillments Warehouse has
-// already accepted and are actively being picked.
+// Section 11/23: Picking and Ready for Delivery are one operational screen —
+// Warehouse works a fulfillment from picking through to printing the DO here,
+// so both statuses are listed together instead of in separate tables.
 async function fetchQueue(page = 1) {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getWarehouseQueue({
+    const res = await getWarehouseFulfillments({
       page,
       limit: meta.limit,
-      status: 'PICKING',
+      status: 'PICKING,READY_FOR_DELIVERY',
       ...(search.value ? { search: search.value } : {}),
     })
     queue.value = res?.data ?? []

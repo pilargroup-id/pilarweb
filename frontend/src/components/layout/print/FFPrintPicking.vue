@@ -32,14 +32,6 @@
       </div>
       <div class="pp-meta-col">
         <div class="pp-meta-row">
-          <span class="pp-meta-label">Accepted By</span>
-          <span class="pp-meta-value">{{ acceptedByName || '-' }}</span>
-        </div>
-        <div class="pp-meta-row">
-          <span class="pp-meta-label">Accepted At</span>
-          <span class="pp-meta-value">{{ formatDateTime(acceptedAt) }}</span>
-        </div>
-        <div class="pp-meta-row">
           <span class="pp-meta-label">Status</span>
           <span class="pp-meta-value">{{ statusLabel }}</span>
         </div>
@@ -55,10 +47,11 @@
         <tr>
           <th class="pp-col-no">No</th>
           <th>Item</th>
+          <th class="pp-col-qty">Requested Qty</th>
           <th class="pp-col-qty">Approved Qty</th>
           <th class="pp-col-qty">Actual Qty</th>
-          <th>Reason</th>
-          <th>Remainder</th>
+          <th>Source Warehouse</th>
+          <th>IWT No.</th>
           <th>Note</th>
         </tr>
       </thead>
@@ -69,14 +62,15 @@
             <span class="pp-item-name">{{ row.item_name }}</span>
             <span class="pp-item-code">{{ row.item_code }}</span>
           </td>
-          <td class="pp-col-qty">{{ formatQty(row.max_qty) }}</td>
+          <td class="pp-col-qty">{{ formatQty(row.requested_qty) }}</td>
+          <td class="pp-col-qty">{{ formatQty(row.approved_qty) }}</td>
           <td class="pp-col-qty"></td>
-          <td>{{ row.shortage_reason_label || '-' }}</td>
-          <td>{{ row.remainder_label || '-' }}</td>
-          <td>{{ row.shortage_note || '-' }}</td>
+          <td></td>
+          <td></td>
+          <td></td>
         </tr>
         <tr v-if="!rows.length">
-          <td colspan="7" class="pp-empty">No items on this fulfillment.</td>
+          <td colspan="8" class="pp-empty">No items on this fulfillment.</td>
         </tr>
       </tbody>
     </table>
@@ -102,8 +96,6 @@ const props = defineProps({
   requesterName: { type: String, default: '' },
   departmentName: { type: String, default: '' },
   requestPurposeName: { type: String, default: '' },
-  acceptedByName: { type: String, default: '' },
-  acceptedAt: { type: [String, Date], default: null },
   status: { type: String, default: '' },
   printedAt: { type: [String, Date], default: null },
   rows: { type: Array, default: () => [] },

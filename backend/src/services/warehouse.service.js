@@ -86,12 +86,15 @@ async function listFulfillments(user, query = {}) {
   let where = 'WHERE 1=1';
 
   if (query.status) {
-    const status = String(query.status).trim().toUpperCase();
-    if (!['PICKING', 'READY_FOR_DELIVERY', 'HANDED_OVER'].includes(status)) {
+    const statuses = String(query.status)
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    if (!statuses.length || statuses.some((s) => !['PICKING', 'READY_FOR_DELIVERY', 'HANDED_OVER'].includes(s))) {
       throw createError('Invalid fulfillment status', 422, 'FULFILLMENT_STATUS_INVALID');
     }
-    where += ' AND wf.status = ?';
-    params.push(status);
+    where += ` AND wf.status IN (${statuses.map(() => '?').join(',')})`;
+    params.push(...statuses);
   }
   if (query.search) {
     const search = `%${String(query.search).trim()}%`;
@@ -119,6 +122,7 @@ async function listFulfillments(user, query = {}) {
       r.status AS request_status,
       (SELECT COUNT(*) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id = wf.id) AS item_count,
       (SELECT COALESCE(SUM(wfi.finance_approved_qty_snapshot),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id = wf.id) AS total_approved_qty,
+      (SELECT COALESCE(SUM(wfi.finance_rejected_qty_snapshot),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id = wf.id) AS total_rejected_qty,
       (SELECT COALESCE(SUM(wfi.actual_qty),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id = wf.id) AS total_actual_qty
     FROM warehouse_fulfillments wf
     INNER JOIN requests r ON r.id = wf.request_id

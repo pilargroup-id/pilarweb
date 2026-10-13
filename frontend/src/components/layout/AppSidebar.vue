@@ -275,7 +275,7 @@ const rawMenuGroups = [
         name: "Warehouse",
         capability: "warehouse_access",
         subItems: [
-          { name: "Request Queue", path: "/warehouse/requests", pro: false },
+          // { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
           { name: "Hand Over", path: "/warehouse/handover", pro: false },
         ],

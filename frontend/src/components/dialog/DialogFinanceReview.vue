@@ -50,12 +50,9 @@
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                 <tr v-for="row in rows" :key="row.request_item_id">
                   <td class="px-4 py-3 align-top">
-                    <div class="flex items-center gap-2">
-                      <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                        {{ row.item_name }}
-                      </span>
-                      <Badge v-if="row.is_canceled" color="light" size="sm">Canceled</Badge>
-                    </div>
+                    <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                      {{ row.item_name }}
+                    </span>
                     <span class="block text-theme-xs text-gray-500 dark:text-gray-400">
                       {{ row.item_code }}<span v-if="row.uom_code"> &middot; {{ row.uom_code }}</span>
                     </span>
@@ -67,48 +64,41 @@
                       {{ row.requested_qty }}
                     </div>
                   </td>
-                  <template v-if="row.is_canceled">
-                    <td colspan="3" class="px-4 py-3 align-top text-theme-sm text-gray-400 dark:text-gray-500">
-                      &mdash;
-                    </td>
-                  </template>
-                  <template v-else>
-                    <td class="px-4 py-3 align-top">
-                      <input
-                        v-model.number="row.approved_qty"
-                        @input="sanitizeApprovedQty(row)"
-                        type="number"
-                        step="1"
-                        min="0"
-                        :max="row.requested_qty"
-                        class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
-                      />
-                    </td>
-                    <td class="px-4 py-3 align-top">
-                      <input
-                        v-model.number="row.reject_qty"
-                        @input="sanitizeRejectQty(row)"
-                        type="number"
-                        step="1"
-                        min="0"
-                        :max="row.requested_qty"
-                        :class="[
-                          'dark:bg-dark-900 w-24 rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs focus:outline-hidden focus:ring-3 disabled:cursor-not-allowed disabled:opacity-50',
-                          row.reject_qty > 0
-                            ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
-                            : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
-                        ]"
-                      />
-                    </td>
-                    <td class="px-4 py-3 align-top">
-                      <input
-                        v-model="row.note"
-                        type="text"
-                        placeholder="Optional note"
-                        class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                      />
-                    </td>
-                  </template>
+                  <td class="px-4 py-3 align-top">
+                    <input
+                      v-model.number="row.approved_qty"
+                      @input="sanitizeApprovedQty(row)"
+                      type="number"
+                      step="1"
+                      min="0"
+                      :max="row.requested_qty"
+                      class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                    />
+                  </td>
+                  <td class="px-4 py-3 align-top">
+                    <input
+                      v-model.number="row.reject_qty"
+                      @input="sanitizeRejectQty(row)"
+                      type="number"
+                      step="1"
+                      min="0"
+                      :max="row.requested_qty"
+                      :class="[
+                        'dark:bg-dark-900 w-24 rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs focus:outline-hidden focus:ring-3 disabled:cursor-not-allowed disabled:opacity-50',
+                        row.reject_qty > 0
+                          ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
+                          : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
+                      ]"
+                    />
+                  </td>
+                  <td class="px-4 py-3 align-top">
+                    <input
+                      v-model="row.note"
+                      type="text"
+                      placeholder="Optional note"
+                      class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                    />
+                  </td>
                 </tr>
                 <tr v-if="!rows.length">
                   <td colspan="5" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
@@ -145,7 +135,7 @@
             </button>
             <button
               type="submit"
-              :disabled="isSubmitting || !activeRows.length"
+              :disabled="isSubmitting || !rows.length"
               class="flex justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {{ isSubmitting ? 'Saving...' : 'Submit Review' }}
@@ -159,9 +149,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
-import Badge from '@/components/ui/Badge.vue'
 import { getFinanceRequestById, submitFinanceReview } from '@/service/api'
 
 const props = defineProps({
@@ -183,8 +172,6 @@ const isSubmitting = ref(false)
 const errorMessage = ref('')
 const note = ref('')
 const rows = ref([])
-
-const activeRows = computed(() => rows.value.filter((row) => !row.is_canceled))
 
 function sanitizeApprovedQty(row) {
   let value = Math.trunc(Number(row.approved_qty) || 0)
@@ -230,7 +217,6 @@ async function loadRequest(requestId) {
     const financeItems = detail?.finance_review?.items || []
     rows.value = financeItems.map((fri) => {
       const requestItem = itemsById.get(Number(fri.request_item_id)) || {}
-      const isCanceled = requestItem.status === 'CANCELED' || fri.decision === 'CANCELED'
       return {
         request_item_id: fri.request_item_id,
         item_name: requestItem.item_name || '-',
@@ -241,7 +227,6 @@ async function loadRequest(requestId) {
         approved_qty: Number(requestItem.requested_qty ?? 0),
         reject_qty: 0,
         note: '',
-        is_canceled: isCanceled,
       }
     })
   } catch (err) {
@@ -259,7 +244,7 @@ function close() {
 async function submit() {
   if (!props.queueItem?.request_id) return
 
-  for (const row of activeRows.value) {
+  for (const row of rows.value) {
     if (row.decision === 'APPROVED') {
       if (
         !row.approved_qty ||
@@ -278,7 +263,7 @@ async function submit() {
   try {
     await submitFinanceReview(props.queueItem.request_id, {
       note: note.value.trim() || null,
-      items: activeRows.value.map((row) => ({
+      items: rows.value.map((row) => ({
         request_item_id: row.request_item_id,
         decision: row.decision,
         approved_qty: row.decision === 'APPROVED' ? row.approved_qty : 0,
