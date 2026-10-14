@@ -22,11 +22,18 @@
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">{{ isEditMode ? 'Edit Request' : 'New Request' }}</h4>
           <p class="pr-12 text-sm text-white/70">
-            {{ isEditMode ? request.request_number : 'Fields marked with * are required.' }}
+            {{ isEditMode ? (requestDetail?.request_number || '') : 'Fields marked with * are required.' }}
           </p>
         </div>
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
+          <div v-if="isEditMode && isLoadingRequest" class="py-10 text-center">
+            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading request...</p>
+          </div>
+          <div v-else-if="isEditMode && loadError" class="py-10 text-center">
+            <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
+          </div>
+          <template v-else>
           <div
             v-if="masterError"
             class="mb-5 rounded-lg border border-error-200 bg-error-50 p-4 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-500"
@@ -39,7 +46,7 @@
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Request Purpose <span class="text-error-500">*</span>
               </label>
-              <RequestPurposeSelect
+              <SearchableSelect
                 v-model="form.request_purpose_id"
                 :options="purposeOptions"
                 :disabled="isLoadingMaster"
@@ -134,6 +141,7 @@
               </button>
             </div>
           </form>
+          </template>
         </div>
       </div>
     </template>
@@ -144,13 +152,14 @@
 import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Alert from '@/components/ui/Alert.vue'
-import RequestPurposeSelect from '@/components/forms/FormElements/RequestPurposeSelect.vue'
+import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import RequestItemRow from '@/components/tables/Request/RequestItemRow.vue'
 import { PlusIcon } from '@/icons'
 import {
   getMasterBootstrap,
+  getRequestById,
   createRequest,
   updateRequest,
   addRequestItem,
@@ -164,20 +173,24 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  request: {
-    type: Object,
+  requestId: {
+    type: [String, Number],
     default: null,
   },
 })
 
 const emit = defineEmits(['close', 'created', 'updated'])
 
-const isEditMode = computed(() => !!props.request)
+const isEditMode = computed(() => !!props.requestId)
 
 const isLoadingMaster = ref(false)
 const masterError = ref('')
 const purposes = ref([])
 let masterLoaded = false
+
+const isLoadingRequest = ref(false)
+const loadError = ref('')
+const requestDetail = ref(null)
 
 const form = reactive({
   request_purpose_id: '',
@@ -260,17 +273,17 @@ function buildPayload() {
   }
 }
 
-function resetForm() {
+function populateForm() {
   removedItemIds.value = []
   originalItemsById = new Map()
 
-  if (props.request) {
-    form.request_purpose_id = props.request.request_purpose_id ?? ''
-    form.reason = props.request.reason ?? ''
+  if (requestDetail.value) {
+    form.request_purpose_id = requestDetail.value.request_purpose_id ?? ''
+    form.reason = requestDetail.value.reason ?? ''
 
-    const activeItems = (props.request.items ?? []).filter((it) => it.status === 'ACTIVE')
-    items.value = activeItems.length
-      ? activeItems.map((it) => {
+    const requestItems = requestDetail.value.items ?? []
+    items.value = requestItems.length
+      ? requestItems.map((it) => {
           rowKeySeed += 1
           originalItemsById.set(it.id, { requested_qty: Number(it.requested_qty), notes: it.notes || '' })
           return {
@@ -296,6 +309,22 @@ function resetForm() {
   submitNotice.value = null
 }
 
+async function loadRequest() {
+  if (!props.requestId) return
+  isLoadingRequest.value = true
+  loadError.value = ''
+  try {
+    const res = await getRequestById(props.requestId)
+    requestDetail.value = res?.data ?? null
+    populateForm()
+  } catch (err) {
+    requestDetail.value = null
+    loadError.value = err?.message || 'Failed to load request.'
+  } finally {
+    isLoadingRequest.value = false
+  }
+}
+
 async function loadMaster() {
   if (masterLoaded) return
   isLoadingMaster.value = true
@@ -314,8 +343,17 @@ async function loadMaster() {
 watch(
   () => props.isOpen,
   (open) => {
-    if (!open) return
-    resetForm()
+    if (!open) {
+      requestDetail.value = null
+      loadError.value = ''
+      return
+    }
+    if (props.requestId) {
+      loadRequest()
+    } else {
+      requestDetail.value = null
+      populateForm()
+    }
     loadMaster()
   }
 )
@@ -325,7 +363,7 @@ function close() {
 }
 
 async function submitEdit() {
-  const requestId = props.request.id
+  const requestId = requestDetail.value.id
 
   await updateRequest(requestId, {
     request_purpose_id: form.request_purpose_id,
@@ -334,14 +372,14 @@ async function submitEdit() {
 
   if (removedItemIds.value.length) {
     let cancelReason = ''
-    if (props.request.status !== 'DRAFT') {
+    if (requestDetail.value.status !== 'DRAFT') {
       cancelReason = window.prompt('Please provide a reason for removing item(s) from this request:') || ''
       if (!cancelReason.trim()) {
         throw new Error('A reason is required to remove items from a submitted request.')
       }
     }
     for (const itemId of removedItemIds.value) {
-      if (props.request.status === 'DRAFT') {
+      if (requestDetail.value.status === 'DRAFT') {
         await removeRequestItem(requestId, itemId)
       } else {
         await cancelRequestItem(requestId, itemId, { reason: cancelReason.trim() })

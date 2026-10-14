@@ -82,7 +82,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
-import { approveApproval, rejectApproval, revertApproval } from '@/service/api'
+import { approveApproval, cancelApproval, revertApproval } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
@@ -95,7 +95,7 @@ const props = defineProps({
   },
   mode: {
     type: String,
-    default: 'approve', // 'approve' | 'reject' | 'revert'
+    default: 'approve', // 'approve' | 'cancel' | 'revert'
   },
 })
 
@@ -110,13 +110,13 @@ const MODE_CONFIG = {
     submitLabel: 'Approve',
     submitClass: 'bg-brand-500 hover:bg-brand-600',
   },
-  reject: {
-    title: 'Reject Request',
+  cancel: {
+    title: 'Cancel Request',
     label: 'Reason',
-    placeholder: 'Explain why this request does not meet department requirements',
+    placeholder: 'Explain why this request is being canceled',
     showNote: true,
     required: true,
-    submitLabel: 'Reject',
+    submitLabel: 'Cancel Request',
     submitClass: 'bg-error-500 hover:bg-error-600',
   },
   revert: {
@@ -168,7 +168,7 @@ async function submit() {
     } else if (props.mode === 'revert') {
       await revertApproval(props.approval.id, { reason: note.value.trim() })
     } else {
-      await rejectApproval(props.approval.id, { reason: note.value.trim() })
+      await cancelApproval(props.approval.id, { reason: note.value.trim() })
     }
     emit('decided')
     close()

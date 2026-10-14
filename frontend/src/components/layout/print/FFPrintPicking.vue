@@ -47,11 +47,8 @@
         <tr>
           <th class="pp-col-no">No</th>
           <th>Item</th>
-          <th class="pp-col-qty">Requested Qty</th>
           <th class="pp-col-qty">Approved Qty</th>
           <th class="pp-col-qty">Actual Qty</th>
-          <th>Source Warehouse</th>
-          <th>IWT No.</th>
           <th>Note</th>
         </tr>
       </thead>
@@ -62,15 +59,12 @@
             <span class="pp-item-name">{{ row.item_name }}</span>
             <span class="pp-item-code">{{ row.item_code }}</span>
           </td>
-          <td class="pp-col-qty">{{ formatQty(row.requested_qty) }}</td>
           <td class="pp-col-qty">{{ formatQty(row.approved_qty) }}</td>
           <td class="pp-col-qty"></td>
           <td></td>
-          <td></td>
-          <td></td>
         </tr>
         <tr v-if="!rows.length">
-          <td colspan="8" class="pp-empty">No items on this fulfillment.</td>
+          <td colspan="5" class="pp-empty">No items on this fulfillment.</td>
         </tr>
       </tbody>
     </table>

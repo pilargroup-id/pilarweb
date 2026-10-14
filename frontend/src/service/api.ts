@@ -374,11 +374,11 @@ export function approveApproval(
   return request(`/api/approvals/${id}/approve`, { method: 'POST', body: payload })
 }
 
-export function rejectApproval(
+export function cancelApproval(
   id: number | string,
   payload: { reason: string },
 ): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/approvals/${id}/reject`, { method: 'POST', body: payload })
+  return request(`/api/approvals/${id}/cancel`, { method: 'POST', body: payload })
 }
 
 export function revertApproval(

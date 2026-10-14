@@ -36,34 +36,50 @@
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <div v-else class="flex flex-col gap-5">
-            <div class="flex items-center gap-2">
-              <Badge :color="statusColor(fulfillment?.status)" size="sm">{{ formatStatusLabel(fulfillment?.status) }}</Badge>
-              <span v-if="fulfillment?.last_picking_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
-                Picking form printed {{ formatDateTime(fulfillment.last_picking_printed_at) }}
-              </span>
-              <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
-                &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
-              </span>
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+                  IWT No. <span v-if="isPicking" class="text-error-500">*</span>
+                </span>
+                <input
+                  v-if="isPicking"
+                  v-model="iwtNumber"
+                  @input="iwtNumber = iwtNumber.toUpperCase()"
+                  type="text"
+                  placeholder="e.g. IT2604868"
+                  class="dark:bg-dark-900 w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                />
+                <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ iwtNumber || '-' }}</span>
+                <span v-if="iwtRecordedAt" class="text-theme-xs text-gray-400 dark:text-gray-500">
+                  {{ formatDateTime(iwtRecordedAt) }}
+                </span>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge :color="statusColor(fulfillment?.status)" size="sm">{{ formatStatusLabel(fulfillment?.status) }}</Badge>
+                <span v-if="fulfillment?.last_picking_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                  Picking form printed {{ formatDateTime(fulfillment.last_picking_printed_at) }}
+                </span>
+                <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                  &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
+                </span>
+              </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+            <div class="overflow-visible rounded-xl border border-gray-200 dark:border-gray-800">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
                 <thead class="bg-gray-50 dark:bg-white/[0.02]">
                   <tr>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                    <th class="rounded-tl-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved (Finance)</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Rejected (Finance)</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                       Actual Qty <span v-if="isPicking" class="text-error-500">*</span>
                     </th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                       Source Warehouse <span v-if="isPicking" class="text-error-500">*</span>
                     </th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                      IWT No. <span v-if="isPicking" class="text-error-500">*</span>
-                    </th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
+                    <th class="rounded-tr-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -80,9 +96,6 @@
                     <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
                       {{ formatQty(row.approved_qty) }}
                     </td>
-                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
-                      {{ formatQty(row.rejected_qty) }}
-                    </td>
                     <td class="px-4 py-3 align-top">
                       <input
                         v-if="isPicking"
@@ -97,24 +110,13 @@
                       <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(row.actual_qty) }}</span>
                     </td>
                     <td class="px-4 py-3 align-top">
-                      <SelectField v-if="isPicking" v-model="row.source_warehouse_code" placeholder="Select warehouse">
-                        <option v-for="opt in warehouseLocations" :key="opt.code" :value="opt.code">{{ opt.name }} ({{ opt.code }})</option>
-                      </SelectField>
-                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.source_warehouse_code || '-' }}</span>
-                    </td>
-                    <td class="px-4 py-3 align-top">
-                      <input
+                      <SearchableSelect
                         v-if="isPicking"
-                        v-model="row.inventory_transfer_number"
-                        @input="row.inventory_transfer_number = row.inventory_transfer_number.toUpperCase()"
-                        type="text"
-                        placeholder="e.g. IT2604868"
-                        class="dark:bg-dark-900 w-36 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                        v-model="row.source_warehouse_code"
+                        :options="warehouseOptions"
+                        placeholder="Select warehouse"
                       />
-                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.inventory_transfer_number || '-' }}</span>
-                      <span v-if="row.inventory_transfer_recorded_at" class="mt-1 block text-theme-xs text-gray-400 dark:text-gray-500">
-                        {{ formatDateTime(row.inventory_transfer_recorded_at) }}
-                      </span>
+                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.source_warehouse_code || '-' }}</span>
                     </td>
                     <td class="px-4 py-3 align-top">
                       <input
@@ -128,7 +130,7 @@
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
-                    <td colspan="8" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="6" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                       No items on this fulfillment.
                     </td>
                   </tr>
@@ -224,7 +226,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Badge from '@/components/ui/Badge.vue'
-import SelectField from '@/components/forms/FormElements/SelectField.vue'
+import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import FFPrintPicking from '@/components/layout/print/FFPrintPicking.vue'
 import FFPrintFulfillmentDo from '@/components/layout/print/FFPrintFulfillmentDo.vue'
 import { PrinterIcon, SaveIcon, CheckIcon } from '@/icons'
@@ -263,10 +265,19 @@ const rows = ref([])
 const pickingPrintedAt = ref(null)
 const doPrintedAt = ref(null)
 const doNote = ref('')
+const iwtNumber = ref('')
+const iwtRecordedAt = ref(null)
 const warehouseLocations = ref([])
 let hasChanges = false
 
 const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
+
+const warehouseOptions = computed(() =>
+  warehouseLocations.value.map((opt) => ({
+    id: opt.code,
+    name: `${opt.name} (${opt.code})`,
+  }))
+)
 
 const printPickingRows = computed(() =>
   rows.value.map((row) => ({
@@ -285,7 +296,7 @@ const printDoRows = computed(() =>
     item_code: row.item_code,
     actual_qty: row.actual_qty,
     source_warehouse_code: row.source_warehouse_code,
-    inventory_transfer_number: row.inventory_transfer_number,
+    inventory_transfer_number: iwtNumber.value,
   }))
 )
 
@@ -309,6 +320,8 @@ function reset() {
   infoMessage.value = ''
   loadError.value = ''
   doNote.value = ''
+  iwtNumber.value = ''
+  iwtRecordedAt.value = null
   hasChanges = false
 }
 
@@ -324,19 +337,19 @@ async function loadWarehouseLocations() {
 
 function applyFulfillment(data) {
   fulfillment.value = data
-  rows.value = (data?.items || []).map((item) => ({
+  const items = data?.items || []
+  rows.value = items.map((item) => ({
     id: item.id,
     item_name: item.item_name,
     item_code: item.item_code,
     requested_qty: Number(item.requested_qty_snapshot ?? 0),
     approved_qty: Number(item.finance_approved_qty_snapshot ?? 0),
-    rejected_qty: Number(item.finance_rejected_qty_snapshot ?? 0),
     actual_qty: item.actual_qty === null || item.actual_qty === undefined ? null : Number(item.actual_qty),
     source_warehouse_code: item.source_warehouse_code || '',
-    inventory_transfer_number: item.inventory_transfer_number || '',
-    inventory_transfer_recorded_at: item.inventory_transfer_recorded_at || null,
     note: item.note || '',
   }))
+  iwtNumber.value = items[0]?.inventory_transfer_number || ''
+  iwtRecordedAt.value = items[0]?.inventory_transfer_recorded_at || null
 }
 
 function sanitizeActualQty(row) {
@@ -369,11 +382,12 @@ function close() {
 }
 
 function buildItemsPayload() {
+  const transferNumber = iwtNumber.value?.trim() || null
   return rows.value.map((row) => ({
     fulfillment_item_id: row.id,
     actual_qty: row.actual_qty === null || row.actual_qty === '' ? null : Number(row.actual_qty),
     source_warehouse_code: row.source_warehouse_code || null,
-    inventory_transfer_number: row.inventory_transfer_number?.trim() || null,
+    inventory_transfer_number: transferNumber,
     note: row.note?.trim() || null,
   }))
 }
@@ -395,10 +409,10 @@ function validateQuantities() {
 function validateForComplete() {
   const qtyError = validateQuantities()
   if (qtyError) return qtyError
+  if (!iwtNumber.value?.trim()) return 'IWT No. is required.'
   for (const row of rows.value) {
     if (row.actual_qty === null) return `Actual qty is required for "${row.item_name}".`
     if (!row.source_warehouse_code) return `Source warehouse is required for "${row.item_name}".`
-    if (!row.inventory_transfer_number?.trim()) return `Inventory Transfer number is required for "${row.item_name}".`
   }
   return ''
 }

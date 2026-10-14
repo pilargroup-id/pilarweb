@@ -46,7 +46,6 @@
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
-        <TableHeadCell>Return Due Date</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
       </template>
 
@@ -93,13 +92,13 @@
                 Approve
               </button>
               <button
-                @click="openDecision(item, 'reject')"
+                @click="openDecision(item, 'cancel')"
                 type="button"
-                title="Reject"
+                title="Cancel"
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
               >
                 <CloseIcon class="h-4 w-4" />
-                Reject
+                Cancel
               </button>
             </template>
             <button
@@ -135,11 +134,6 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.request_status)" size="sm">{{ formatStatusLabel(item.request_status) }}</Badge>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
-            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
-          </p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>

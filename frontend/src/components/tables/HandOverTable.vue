@@ -75,15 +75,25 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <button
-            @click="handlePrintDO(item)"
-            type="button"
-            :disabled="printingId === item.handover_id"
-            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-          >
-            <PrinterIcon class="h-4 w-4" />
-            {{ printingId === item.handover_id ? 'Printing...' : 'Reprint DO' }}
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="handleViewDetail(item)"
+              type="button"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            >
+              <EyeIcon class="h-4 w-4" />
+              Detail
+            </button>
+            <button
+              @click="handlePrintDO(item)"
+              type="button"
+              :disabled="printingId === item.handover_id"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            >
+              <PrinterIcon class="h-4 w-4" />
+              {{ printingId === item.handover_id ? 'Printing...' : 'Reprint DO' }}
+            </button>
+          </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -148,6 +158,12 @@
         :rows="printDoRows"
       />
     </Teleport>
+
+    <DialogRequestDetail
+      :is-open="isDetailOpen"
+      :request-id="viewingRequestId"
+      @close="isDetailOpen = false"
+    />
   </div>
 </template>
 
@@ -158,7 +174,8 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import FFPrintFulfillmentDo from '@/components/layout/print/FFPrintFulfillmentDo.vue'
-import { RefreshIcon, PrinterIcon } from '@/icons'
+import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
+import { RefreshIcon, PrinterIcon, EyeIcon } from '@/icons'
 
 const emit = defineEmits(['changed'])
 
@@ -174,6 +191,14 @@ const isPrintingDO = ref(false)
 const printItem = ref(null)
 const printFulfillment = ref(null)
 const printDoPrintedAt = ref(null)
+
+const isDetailOpen = ref(false)
+const viewingRequestId = ref(null)
+
+function handleViewDetail(item) {
+  viewingRequestId.value = item.request_id
+  isDetailOpen.value = true
+}
 
 const printDoRows = computed(() =>
   (printFulfillment.value?.items || []).map((item) => ({

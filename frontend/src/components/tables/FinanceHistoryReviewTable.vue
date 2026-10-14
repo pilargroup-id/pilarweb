@@ -62,7 +62,6 @@
         <TableHeadCell>Approved Qty</TableHeadCell>
         <TableHeadCell>Reject Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
-        <TableHeadCell>Return Due Date</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
@@ -130,11 +129,6 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.finance_review_status)" size="sm">{{ formatStatusLabel(item.finance_review_status) }}</Badge>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
-            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
-          </p>
         </td>
       </tr>
 

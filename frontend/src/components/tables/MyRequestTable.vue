@@ -65,26 +65,24 @@
       <template #head>
         <TableHeadCell>Action</TableHeadCell>
         <TableHeadCell>Request No</TableHeadCell>
-        <TableHeadCell>Workflow</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
-        <TableHeadCell>Return Due Date</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading requests...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!requests.length">
-        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">You haven't submitted any requests yet.</p>
           <button
             @click="isNewRequestOpen = true"
@@ -115,13 +113,12 @@
             <button
               v-if="isEditable(item.status)"
               @click="handleEditRequest(item)"
-              :disabled="editingId === item.id"
               type="button"
               title="Edit"
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-light-300 bg-white px-3 py-2 text-theme-sm font-medium text-blue-light-600 shadow-theme-xs hover:bg-blue-light-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-light-800 dark:bg-gray-800 dark:text-blue-light-400 dark:hover:bg-white/[0.03]"
             >
               <PencilIcon class="h-4 w-4" />
-              {{ editingId === item.id ? 'Loading...' : 'Edit' }}
+              Edit
             </button>
             <button
               v-if="isSubmittable(item.status)"
@@ -152,9 +149,6 @@
           </span>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.workflow_name || '-' }}</p>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 sm:px-6">
@@ -164,11 +158,6 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">
-            {{ item.requires_return ? formatDate(item.return_due_date) : '-' }}
-          </p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
@@ -196,7 +185,7 @@
 
     <DialogNewRequest
       :is-open="isEditRequestOpen"
-      :request="editingRequest"
+      :request-id="editingRequestId"
       @close="isEditRequestOpen = false"
       @updated="handleRequestUpdated"
     />
@@ -220,7 +209,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getMyRequests, submitRequest, getRequestById } from '@/service/api'
+import { getMyRequests, submitRequest } from '@/service/api'
 import { getDisplayName } from '@/service/auth'
 import { useNotificationCenter } from '@/composables/useNotificationCenter'
 import Alert from '@/components/ui/Alert.vue'
@@ -255,7 +244,7 @@ if (createdNotice.value) {
 }
 const isNewRequestOpen = ref(false)
 const isEditRequestOpen = ref(false)
-const editingRequest = ref(null)
+const editingRequestId = ref(null)
 const isCancelRequestOpen = ref(false)
 const cancelingRequest = ref(null)
 const isDetailOpen = ref(false)
@@ -266,7 +255,6 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const submitError = ref('')
 const submittingId = ref('')
-const editingId = ref('')
 const search = ref('')
 let searchTimer = null
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
@@ -300,18 +288,10 @@ const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
 const isEditable = (status) => EDITABLE_STATUSES.has(status)
 const isCancellable = (status) => CANCELLABLE_STATUSES.has(status)
 
-async function handleEditRequest(item) {
+function handleEditRequest(item) {
   submitError.value = ''
-  editingId.value = item.id
-  try {
-    const detail = await getRequestById(item.id)
-    editingRequest.value = detail?.data ?? item
-    isEditRequestOpen.value = true
-  } catch (err) {
-    submitError.value = err?.message || `Failed to load request ${item.request_number}.`
-  } finally {
-    editingId.value = ''
-  }
+  editingRequestId.value = item.id
+  isEditRequestOpen.value = true
 }
 
 function handleRequestUpdated() {
