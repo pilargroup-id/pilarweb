@@ -23,7 +23,9 @@
             <slot name="head" />
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody
+          class="divide-y divide-gray-200 dark:divide-gray-700 [&>tr:nth-child(even)]:bg-gray-50/60 dark:[&>tr:nth-child(even)]:bg-white/[0.02]"
+        >
           <slot />
         </tbody>
       </table>
