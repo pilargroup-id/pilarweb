@@ -189,6 +189,24 @@ export function createApprovalRule(
   return request('/api/master/approval-rules', { method: 'POST', body: payload })
 }
 
+export interface JobLevelRecord extends AnyRecord {
+  id: number | string
+  name?: string
+}
+
+export function getJobLevels(): Promise<ApiResponse<JobLevelRecord[]>> {
+  return request('/api/master/job-levels')
+}
+
+export interface DepartmentRecord extends AnyRecord {
+  id: number | string
+  name?: string
+}
+
+export function getDepartments(): Promise<ApiResponse<DepartmentRecord[]>> {
+  return request('/api/internal/directory/departments')
+}
+
 export function getWarehouseLocations(): Promise<ApiResponse<WarehouseLocation[]>> {
   return request('/api/master/warehouse-locations')
 }

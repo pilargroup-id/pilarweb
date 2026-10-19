@@ -30,109 +30,143 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
         <form class="flex flex-col gap-4" @submit.prevent="submit">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Code</label>
-              <input
-                :value="generatedCode"
-                type="text"
-                placeholder="Generated from name"
-                disabled
-                class="dark:bg-dark-900 h-11 w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm uppercase text-gray-500 shadow-theme-xs placeholder:text-gray-400 placeholder:normal-case dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400 dark:placeholder:text-white/30"
-              />
-              <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">Auto-generated from name.</p>
-            </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Name *</label>
+            <input
+              v-model="form.name"
+              type="text"
+              placeholder="e.g. Product Department Default"
+              required
+              class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+            />
+          </div>
 
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Name *</label>
-              <input
-                v-model="form.name"
-                type="text"
-                placeholder="e.g. Product Department Default"
-                required
-                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
+          <div :ref="(el) => (departmentCombo.containerRef.value = el)" class="relative">
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Department</label>
+            <input
+              v-model="departmentCombo.query.value"
+              type="text"
+              autocomplete="off"
+              :placeholder="isLoadingDepartments ? 'Loading departments...' : 'Search department (optional)...'"
+              @focus="departmentCombo.open()"
+              @click="departmentCombo.open()"
+              class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+            />
+            <div
+              v-if="departmentCombo.isOpen.value"
+              class="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900"
+            >
+              <ul class="custom-scrollbar max-h-56 overflow-y-auto py-1" role="listbox">
+                <li v-if="isLoadingDepartments" class="px-3 py-2 text-sm text-gray-400">Loading...</li>
+                <li v-else-if="!departmentCombo.filtered.value.length" class="px-3 py-2 text-sm text-gray-400">
+                  No departments found.
+                </li>
+                <li
+                  v-for="item in departmentCombo.filtered.value"
+                  :key="getDeptId(item)"
+                  @click="departmentCombo.select(item)"
+                  role="option"
+                  class="cursor-pointer px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/[0.03]"
+                  :class="{ 'bg-gray-50 dark:bg-white/[0.03]': String(getDeptId(item)) === String(form.department_id) }"
+                >
+                  <span class="block text-sm font-medium text-gray-800 dark:text-white/90">{{ getDeptLabel(item) }}</span>
+                </li>
+              </ul>
             </div>
+            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
+              A rule with no department is used as the fallback when a department has no rule of its own. Clear the field to use the global fallback.
+            </p>
           </div>
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Department ID</label>
-              <input
-                v-model="form.department_id"
-                type="number"
-                placeholder="Leave blank for global fallback"
-                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-              <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
-                A rule with no department is used as the fallback when a department has no rule of its own.
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Department Name</label>
-              <input
-                v-model="form.department_name"
-                type="text"
-                placeholder="Optional display name"
-                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+            <div :ref="(el) => (requesterJobLevelCombo.containerRef.value = el)" class="relative">
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Requester Block Min Job Level
               </label>
               <input
-                v-model="form.requester_block_min_job_level_value"
-                type="number"
-                placeholder="Defaults to approver min level"
+                v-model="requesterJobLevelCombo.query.value"
+                type="text"
+                autocomplete="off"
+                :placeholder="isLoadingJobLevels ? 'Loading job levels...' : 'Defaults to approver min level'"
+                @focus="requesterJobLevelCombo.open()"
+                @click="requesterJobLevelCombo.open()"
                 class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               />
+              <div
+                v-if="requesterJobLevelCombo.isOpen.value"
+                class="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900"
+              >
+                <ul class="custom-scrollbar max-h-56 overflow-y-auto py-1" role="listbox">
+                  <li v-if="isLoadingJobLevels" class="px-3 py-2 text-sm text-gray-400">Loading...</li>
+                  <li v-else-if="!requesterJobLevelCombo.filtered.value.length" class="px-3 py-2 text-sm text-gray-400">
+                    No job levels found.
+                  </li>
+                  <li
+                    v-for="item in requesterJobLevelCombo.filtered.value"
+                    :key="getJobLevelKey(item)"
+                    @click="requesterJobLevelCombo.select(item)"
+                    role="option"
+                    class="cursor-pointer px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/[0.03]"
+                    :class="{ 'bg-gray-50 dark:bg-white/[0.03]': getJobLevelLabel(item) === requesterJobLevelLabel }"
+                  >
+                    <span class="block text-sm font-medium text-gray-800 dark:text-white/90">{{ getJobLevelLabel(item) }}</span>
+                  </li>
+                </ul>
+              </div>
               <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
                 Users at or above this job level cannot create requests.
               </p>
             </div>
 
-            <div>
+            <div :ref="(el) => (approverJobLevelCombo.containerRef.value = el)" class="relative">
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Approver Min Job Level *
               </label>
               <input
-                v-model="form.approver_min_job_level_value"
-                type="number"
-                placeholder="e.g. 5"
+                v-model="approverJobLevelCombo.query.value"
+                type="text"
+                autocomplete="off"
                 required
+                :placeholder="isLoadingJobLevels ? 'Loading job levels...' : 'Search job level...'"
+                @focus="approverJobLevelCombo.open()"
+                @click="approverJobLevelCombo.open()"
                 class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               />
+              <div
+                v-if="approverJobLevelCombo.isOpen.value"
+                class="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900"
+              >
+                <ul class="custom-scrollbar max-h-56 overflow-y-auto py-1" role="listbox">
+                  <li v-if="isLoadingJobLevels" class="px-3 py-2 text-sm text-gray-400">Loading...</li>
+                  <li v-else-if="!approverJobLevelCombo.filtered.value.length" class="px-3 py-2 text-sm text-gray-400">
+                    No job levels found.
+                  </li>
+                  <li
+                    v-for="item in approverJobLevelCombo.filtered.value"
+                    :key="getJobLevelKey(item)"
+                    @click="approverJobLevelCombo.select(item)"
+                    role="option"
+                    class="cursor-pointer px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/[0.03]"
+                    :class="{ 'bg-gray-50 dark:bg-white/[0.03]': getJobLevelLabel(item) === form.approver_job_level_name }"
+                  >
+                    <span class="block text-sm font-medium text-gray-800 dark:text-white/90">{{ getJobLevelLabel(item) }}</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Approver Job Level Name</label>
-              <input
-                v-model="form.approver_job_level_name"
-                type="text"
-                placeholder="e.g. Assistant Manager"
-                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Priority</label>
-              <input
-                v-model="form.priority"
-                type="number"
-                placeholder="100"
-                class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
-              <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
-                Lower number is evaluated first when multiple rules match.
-              </p>
-            </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Priority</label>
+            <input
+              v-model="form.priority"
+              type="number"
+              placeholder="100"
+              class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+            />
+            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
+              Lower number is evaluated first when multiple rules match.
+            </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-8">
@@ -175,10 +209,10 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import ToggleSwitch from '@/components/forms/FormElements/ToggleSwitch.vue'
-import { createApprovalRule } from '@/service/api'
+import { createApprovalRule, getDepartments, getJobLevels } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
@@ -221,15 +255,182 @@ const form = reactive(defaultForm())
 
 const generatedCode = computed(() => slugifyCode(form.name))
 
+const departmentOptions = ref([])
+const jobLevelOptions = ref([])
+const isLoadingDepartments = ref(false)
+const isLoadingJobLevels = ref(false)
+
+function getDeptId(item) {
+  return item?.id ?? item?.department_id ?? item?.code ?? ''
+}
+
+function getDeptLabel(item) {
+  return item?.name || item?.department_name || item?.display_name || String(getDeptId(item))
+}
+
+function getJobLevelKey(item) {
+  return item?.id ?? item?.code ?? ''
+}
+
+function getJobLevelValue(item) {
+  const candidate =
+    item?.value ?? item?.level_value ?? item?.job_level_value ?? item?.level ?? item?.level_order ?? item?.order ?? item?.id
+  const num = Number(candidate)
+  return Number.isFinite(num) ? num : candidate
+}
+
+function getJobLevelLabel(item) {
+  return item?.name || item?.job_level_name || item?.label || String(getJobLevelValue(item))
+}
+
+async function loadDepartments() {
+  if (isLoadingDepartments.value) return
+  isLoadingDepartments.value = true
+  try {
+    const res = await getDepartments()
+    departmentOptions.value = Array.isArray(res?.data) ? res.data : []
+  } catch {
+    departmentOptions.value = []
+  } finally {
+    isLoadingDepartments.value = false
+  }
+}
+
+async function loadJobLevels() {
+  if (isLoadingJobLevels.value) return
+  isLoadingJobLevels.value = true
+  try {
+    const res = await getJobLevels()
+    jobLevelOptions.value = Array.isArray(res?.data) ? res.data : []
+  } catch {
+    jobLevelOptions.value = []
+  } finally {
+    isLoadingJobLevels.value = false
+  }
+}
+
+function createCombo({ options, getLabel, onSelect }) {
+  const query = ref('')
+  const isOpen = ref(false)
+  const containerRef = ref(null)
+
+  const filtered = computed(() => {
+    const term = query.value.trim().toLowerCase()
+    const list = options.value
+    if (!term) return list
+    return list.filter((item) => String(getLabel(item)).toLowerCase().includes(term))
+  })
+
+  function open() {
+    isOpen.value = true
+  }
+
+  function select(item) {
+    onSelect(item)
+    query.value = getLabel(item)
+    isOpen.value = false
+  }
+
+  function closeAndSync(displayFromModel) {
+    isOpen.value = false
+    if (!query.value.trim()) {
+      onSelect(null)
+      return
+    }
+    query.value = displayFromModel()
+  }
+
+  function reset() {
+    query.value = ''
+    isOpen.value = false
+  }
+
+  return { query, isOpen, containerRef, filtered, open, select, closeAndSync, reset }
+}
+
+const requesterJobLevelLabel = ref('')
+
+const departmentCombo = createCombo({
+  options: departmentOptions,
+  getLabel: getDeptLabel,
+  onSelect: (item) => {
+    form.department_id = item ? getDeptId(item) : ''
+    form.department_name = item ? getDeptLabel(item) : ''
+  },
+})
+
+const requesterJobLevelCombo = createCombo({
+  options: jobLevelOptions,
+  getLabel: getJobLevelLabel,
+  onSelect: (item) => {
+    form.requester_block_min_job_level_value = item ? getJobLevelValue(item) : ''
+    requesterJobLevelLabel.value = item ? getJobLevelLabel(item) : ''
+  },
+})
+
+const approverJobLevelCombo = createCombo({
+  options: jobLevelOptions,
+  getLabel: getJobLevelLabel,
+  onSelect: (item) => {
+    form.approver_min_job_level_value = item ? getJobLevelValue(item) : ''
+    form.approver_job_level_name = item ? getJobLevelLabel(item) : ''
+  },
+})
+
+// Job level values aren't unique per title (e.g. "Staff" and "Driver" can share
+// the same approval tier), so re-deriving a label from the stored value would be
+// ambiguous. Always redisplay the label captured at selection time instead.
+function departmentDisplay() {
+  return form.department_name || ''
+}
+
+function requesterJobLevelDisplay() {
+  return requesterJobLevelLabel.value
+}
+
+function approverJobLevelDisplay() {
+  return form.approver_job_level_name || ''
+}
+
+function handleClickOutside(event) {
+  if (departmentCombo.containerRef.value && !departmentCombo.containerRef.value.contains(event.target)) {
+    departmentCombo.closeAndSync(departmentDisplay)
+  }
+  if (
+    requesterJobLevelCombo.containerRef.value &&
+    !requesterJobLevelCombo.containerRef.value.contains(event.target)
+  ) {
+    requesterJobLevelCombo.closeAndSync(requesterJobLevelDisplay)
+  }
+  if (
+    approverJobLevelCombo.containerRef.value &&
+    !approverJobLevelCombo.containerRef.value.contains(event.target)
+  ) {
+    approverJobLevelCombo.closeAndSync(approverJobLevelDisplay)
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
+
 function resetForm() {
   Object.assign(form, defaultForm())
   errorMessage.value = ''
+  requesterJobLevelLabel.value = ''
+  departmentCombo.reset()
+  requesterJobLevelCombo.reset()
+  approverJobLevelCombo.reset()
 }
 
 watch(
   () => props.isOpen,
   (open) => {
-    if (!open) resetForm()
+    if (open) {
+      loadDepartments()
+      loadJobLevels()
+    } else {
+      resetForm()
+    }
   }
 )
 

@@ -50,6 +50,7 @@ const config = {
       process.env.PILARGROUP_URL || 'https://pilargroup.id'
     ).replace(/\/$/, ''),
     meTimeoutMs: numberEnv('AUTH_ME_TIMEOUT_MS', 10000),
+    internalSyncSecret: required('INTERNAL_SYNC_SECRET'),
   },
 
   cors: {

@@ -3,7 +3,7 @@
     <button
       @click="isModalOpen = true"
       type="button"
-      class="inline-flex items-center justify-center gap-2 rounded-lg btn-sidebar-gradient px-4 py-2.5 text-theme-sm font-medium text-white shadow-theme-xs"
+      class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white shadow-theme-xs hover:bg-brand-600"
     >
       <PlusIcon class="h-4 w-4" />
       Create

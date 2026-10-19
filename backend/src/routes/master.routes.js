@@ -1,6 +1,7 @@
 const express = require('express');
 const config = require('../config');
 const MasterController = require('../controllers/master.controller');
+const DirectoryController = require('../controllers/directory.controller');
 const AccessService = require('../services/access.service');
 const { authenticate, requireApp } = require('../middleware/auth.middleware');
 
@@ -12,6 +13,7 @@ router.get('/request-purposes', MasterController.requestPurposes);
 router.get('/approval-rules', MasterController.approvalRules);
 router.get('/warehouse-locations', MasterController.warehouseLocations);
 router.get('/financial-closing', MasterController.financialClosing);
+router.get('/job-levels', DirectoryController.jobLevels);
 
 async function requireAdmin(req,res,next){
   try{await AccessService.requireModuleAccess(req.user,'ADMIN');return next();}

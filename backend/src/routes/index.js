@@ -10,5 +10,6 @@ router.use('/finance', require('./finance.routes'));
 router.use('/warehouse', require('./warehouse.routes'));
 router.use('/reports', require('./report.routes'));
 router.use('/financial-closing', require('./closing.routes'));
+router.use('/internal', require('./internal.routes'));
 
 module.exports = router;
