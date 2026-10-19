@@ -1,5 +1,4 @@
--- Pilarweb migration 004: Manager approval and Finance review
-
+-- Pilarweb migration 004: manager approval + Finance per-SKU/per-quantity review
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS request_approvals (

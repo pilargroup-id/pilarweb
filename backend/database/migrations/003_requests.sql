@@ -1,5 +1,4 @@
--- Pilarweb migration 003: request headers and item snapshots
-
+-- Pilarweb migration 003: request header + SKU snapshots
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS requests (
@@ -8,17 +7,21 @@ CREATE TABLE IF NOT EXISTS requests (
   request_purpose_id BIGINT UNSIGNED NOT NULL,
   request_purpose_code VARCHAR(50) NOT NULL,
   request_purpose_name VARCHAR(150) NOT NULL,
+  purpose_return_type ENUM('NON_RETURNABLE','RETURNABLE') NOT NULL,
   status VARCHAR(80) NOT NULL DEFAULT 'PENDING_DEPARTMENT_APPROVAL',
   requester_user_id VARCHAR(36) NOT NULL,
   requester_internal_id INT DEFAULT NULL,
   requester_name VARCHAR(255) DEFAULT NULL,
   requester_job_level_value INT DEFAULT NULL,
   requester_job_level_name VARCHAR(150) DEFAULT NULL,
-  department_id INT NOT NULL,
+  department_id INT NOT NULL COMMENT 'Requester department snapshot; drives approval and request restriction',
   department_name VARCHAR(255) DEFAULT NULL,
+  target_department_id INT NOT NULL COMMENT 'Historical/business target department; does not drive approval or restriction',
+  target_department_name VARCHAR(255) DEFAULT NULL,
   company_id VARCHAR(100) DEFAULT NULL,
   company_name VARCHAR(255) DEFAULT NULL,
   reason TEXT NOT NULL,
+  return_due_date DATE DEFAULT NULL,
   submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME DEFAULT NULL,
   canceled_at DATETIME DEFAULT NULL,
@@ -32,7 +35,9 @@ CREATE TABLE IF NOT EXISTS requests (
   UNIQUE KEY uq_requests_number (request_number),
   KEY idx_requests_requester (requester_user_id, created_at),
   KEY idx_requests_department_status (department_id, status),
+  KEY idx_requests_target_department (target_department_id, created_at),
   KEY idx_requests_purpose (request_purpose_id),
+  KEY idx_requests_return_type_due (purpose_return_type, return_due_date),
   KEY idx_requests_status_created (status, created_at)
 ) ENGINE=InnoDB;
 

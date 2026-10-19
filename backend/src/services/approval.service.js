@@ -45,6 +45,10 @@ async function listQueue(user, query = {}) {
       r.requester_name,
       r.requester_job_level_name,
       r.department_name,
+      r.target_department_id,
+      r.target_department_name,
+      r.purpose_return_type,
+      r.return_due_date,
       r.reason,
       r.submitted_at,
       r.status AS request_status

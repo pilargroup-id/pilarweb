@@ -1,5 +1,4 @@
--- Pilarweb migration 002: module access and department approval configuration
-
+-- Pilarweb migration 002: operational access, approval rules, validation-override access
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS module_access_rules (
@@ -29,7 +28,7 @@ CREATE TABLE IF NOT EXISTS approval_rules (
   department_id INT DEFAULT NULL,
   department_name VARCHAR(255) DEFAULT NULL,
   requester_block_min_job_level_value INT DEFAULT NULL,
-  approver_min_job_level_value INT DEFAULT NULL,
+  approver_min_job_level_value INT NOT NULL,
   approver_job_level_name VARCHAR(150) DEFAULT NULL,
   allow_higher_job_level TINYINT(1) NOT NULL DEFAULT 1,
   priority INT NOT NULL DEFAULT 100,
@@ -39,4 +38,18 @@ CREATE TABLE IF NOT EXISTS approval_rules (
   PRIMARY KEY (id),
   UNIQUE KEY uq_approval_rules_code (code),
   KEY idx_approval_rules_department (department_id, is_active, priority)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS validation_override_users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id VARCHAR(36) NOT NULL,
+  user_name_snapshot VARCHAR(255) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by_user_id VARCHAR(36) DEFAULT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_validation_override_users_user (user_id),
+  KEY idx_validation_override_users_active (is_active)
 ) ENGINE=InnoDB;

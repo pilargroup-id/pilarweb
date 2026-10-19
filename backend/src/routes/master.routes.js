@@ -1,35 +1,30 @@
-const express = require('express');
-const config = require('../config');
-const MasterController = require('../controllers/master.controller');
-const DirectoryController = require('../controllers/directory.controller');
-const AccessService = require('../services/access.service');
-const { authenticate, requireApp } = require('../middleware/auth.middleware');
-
-const router = express.Router();
-router.use(authenticate, requireApp(config.app.slug));
-
-router.get('/bootstrap', MasterController.bootstrap);
-router.get('/request-purposes', MasterController.requestPurposes);
-router.get('/approval-rules', MasterController.approvalRules);
-router.get('/warehouse-locations', MasterController.warehouseLocations);
-router.get('/financial-closing', MasterController.financialClosing);
-router.get('/job-levels', DirectoryController.jobLevels);
-
-async function requireAdmin(req,res,next){
-  try{await AccessService.requireModuleAccess(req.user,'ADMIN');return next();}
-  catch(err){return next(err);}
-}
-
-router.get('/module-access-rules', requireAdmin, MasterController.moduleAccessRules);
-router.post('/approval-rules', requireAdmin, MasterController.createApprovalRule);
-router.put('/approval-rules/:id', requireAdmin, MasterController.updateApprovalRule);
-router.put('/financial-closing', requireAdmin, MasterController.updateFinancialClosing);
-router.post('/module-access-rules', requireAdmin, MasterController.createModuleAccessRule);
-router.put('/module-access-rules/:id', requireAdmin, MasterController.updateModuleAccessRule);
-router.post('/request-purposes', requireAdmin, MasterController.createRequestPurpose);
-router.put('/request-purposes/:id', requireAdmin, MasterController.updateRequestPurpose);
-router.delete('/request-purposes/:id', requireAdmin, MasterController.deleteRequestPurpose);
-router.post('/warehouse-locations', requireAdmin, MasterController.createWarehouseLocation);
-router.put('/warehouse-locations/:id', requireAdmin, MasterController.updateWarehouseLocation);
-
-module.exports = router;
+const express=require('express');
+const config=require('../config');
+const MasterController=require('../controllers/master.controller');
+const DirectoryController=require('../controllers/directory.controller');
+const AccessService=require('../services/access.service');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/bootstrap',MasterController.bootstrap);
+router.get('/request-purposes',MasterController.requestPurposes);
+router.get('/approval-rules',MasterController.approvalRules);
+router.get('/warehouse-locations',MasterController.warehouseLocations);
+router.get('/financial-closing',MasterController.financialClosing);
+router.get('/job-levels',DirectoryController.jobLevels);
+async function requireAdmin(req,res,next){try{await AccessService.requireModuleAccess(req.user,'ADMIN');return next();}catch(e){return next(e);}}
+router.get('/module-access-rules',requireAdmin,MasterController.moduleAccessRules);
+router.get('/validation-override-users',requireAdmin,MasterController.validationOverrideUsers);
+router.post('/approval-rules',requireAdmin,MasterController.createApprovalRule);
+router.put('/approval-rules/:id',requireAdmin,MasterController.updateApprovalRule);
+router.put('/financial-closing',requireAdmin,MasterController.updateFinancialClosing);
+router.post('/module-access-rules',requireAdmin,MasterController.createModuleAccessRule);
+router.put('/module-access-rules/:id',requireAdmin,MasterController.updateModuleAccessRule);
+router.post('/request-purposes',requireAdmin,MasterController.createRequestPurpose);
+router.put('/request-purposes/:id',requireAdmin,MasterController.updateRequestPurpose);
+router.delete('/request-purposes/:id',requireAdmin,MasterController.deleteRequestPurpose);
+router.post('/warehouse-locations',requireAdmin,MasterController.createWarehouseLocation);
+router.put('/warehouse-locations/:id',requireAdmin,MasterController.updateWarehouseLocation);
+router.post('/validation-override-users',requireAdmin,MasterController.createValidationOverrideUser);
+router.put('/validation-override-users/:id',requireAdmin,MasterController.updateValidationOverrideUser);
+module.exports=router;

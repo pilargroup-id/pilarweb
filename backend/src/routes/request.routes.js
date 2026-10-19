@@ -5,7 +5,7 @@ const { authenticate, requireApp } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 router.use(authenticate, requireApp(config.app.slug));
-
+router.get('/eligibility', RequestController.eligibility);
 router.get('/', RequestController.mine);
 router.get('/my', RequestController.mine);
 router.get('/activity/recent', RequestController.recentActivity);
@@ -19,5 +19,4 @@ router.delete('/:id/items/:itemId', RequestController.removeItem);
 router.get('/:id/activity', RequestController.activities);
 router.get('/:id/comments', RequestController.comments);
 router.post('/:id/comments', RequestController.addComment);
-
 module.exports = router;

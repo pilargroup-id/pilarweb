@@ -6,6 +6,7 @@ const router=express.Router();
 router.use(authenticate,requireApp(config.app.slug));
 router.get('/requests',FinanceController.index);
 router.get('/requests/history',FinanceController.history);
+router.get('/reports/requests/export',FinanceController.exportRequests);
 router.get('/requests/:requestId',FinanceController.show);
 router.post('/requests/:requestId/review',FinanceController.review);
 module.exports=router;

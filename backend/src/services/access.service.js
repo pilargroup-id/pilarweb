@@ -5,16 +5,8 @@ const { createError } = require('../utils/business.util');
 async function findModuleRules(moduleCode, connection = null) {
   const db = connection || requireDatabase();
   const [rows] = await db.query(`
-    SELECT
-      id,
-      module_code,
-      user_id,
-      department_id,
-      company_id,
-      min_job_level_value,
-      max_job_level_value,
-      priority,
-      is_active
+    SELECT id, module_code, user_id, department_id, company_id,
+           min_job_level_value, max_job_level_value, priority, is_active
     FROM module_access_rules
     WHERE module_code = ? AND is_active = 1
     ORDER BY priority ASC, id ASC
@@ -43,15 +35,7 @@ function matchesRule(user, rule) {
   return true;
 }
 
-const IT_DEPARTMENT_ID = 8;
-
-function isItDepartment(user) {
-  const department = UserUtil.primaryDepartment(user);
-  return Boolean(department) && Number(department.id) === IT_DEPARTMENT_ID;
-}
-
 async function hasModuleAccess(user, moduleCode, connection = null) {
-  if (isItDepartment(user)) return true;
   const rules = await findModuleRules(moduleCode, connection);
   return rules.some((rule) => matchesRule(user, rule));
 }
@@ -59,36 +43,39 @@ async function hasModuleAccess(user, moduleCode, connection = null) {
 async function requireModuleAccess(user, moduleCode, connection = null) {
   const allowed = await hasModuleAccess(user, moduleCode, connection);
   if (!allowed) {
-    throw createError(
-      `User does not have ${String(moduleCode).toUpperCase()} access`,
-      403,
-      'MODULE_ACCESS_FORBIDDEN'
-    );
+    throw createError(`User does not have ${String(moduleCode).toUpperCase()} access`, 403, 'MODULE_ACCESS_FORBIDDEN');
+  }
+}
+
+async function hasValidationOverrideAccess(user, connection = null) {
+  if (!user?.id) return false;
+  const db = connection || requireDatabase();
+  const [rows] = await db.query(`
+    SELECT id
+    FROM validation_override_users
+    WHERE user_id = ? AND is_active = 1
+    LIMIT 1
+  `, [String(user.id)]);
+  return Boolean(rows[0]);
+}
+
+async function requireValidationOverrideAccess(user, connection = null) {
+  if (!(await hasValidationOverrideAccess(user, connection))) {
+    throw createError('User does not have Validation Override access', 403, 'VALIDATION_OVERRIDE_ACCESS_FORBIDDEN');
   }
 }
 
 async function findApprovalRuleForDepartment(departmentId, connection = null) {
   const db = connection || requireDatabase();
   const [rows] = await db.query(`
-    SELECT
-      id,
-      code,
-      name,
-      department_id,
-      department_name,
-      requester_block_min_job_level_value,
-      approver_min_job_level_value,
-      approver_job_level_name,
-      allow_higher_job_level,
-      priority,
-      is_active
+    SELECT id, code, name, department_id, department_name,
+           requester_block_min_job_level_value,
+           approver_min_job_level_value, approver_job_level_name,
+           allow_higher_job_level, priority, is_active
     FROM approval_rules
     WHERE is_active = 1
       AND (department_id = ? OR department_id IS NULL)
-    ORDER BY
-      CASE WHEN department_id = ? THEN 0 ELSE 1 END,
-      priority ASC,
-      id ASC
+    ORDER BY CASE WHEN department_id = ? THEN 0 ELSE 1 END, priority ASC, id ASC
     LIMIT 1
   `, [departmentId, departmentId]);
   return rows[0] || null;
@@ -110,44 +97,39 @@ function canApproveWithSnapshot(user, approval) {
   const level = UserUtil.jobLevelValue(user);
   if (!department || level === null) return false;
   if (Number(department.id) !== Number(approval.department_id)) return false;
-
   const min = Number(approval.required_job_level_value);
   if (!Number.isFinite(min)) return false;
-
-  if (Number(approval.allow_higher_job_level) === 1) return level >= min;
-  return level === min;
+  return Number(approval.allow_higher_job_level) === 1 ? level >= min : level === min;
 }
-
 
 async function getCapabilities(user, connection = null) {
   const db = connection || requireDatabase();
   const department = UserUtil.primaryDepartment(user);
-  const approvalRule = department
-    ? await findApprovalRuleForDepartment(department.id, db)
-    : null;
+  const approvalRule = department ? await findApprovalRuleForDepartment(department.id, db) : null;
 
-  const modules = {};
-  for (const code of ['ADMIN', 'FINANCE', 'WAREHOUSE']) {
-    modules[code.toLowerCase()] = await hasModuleAccess(user, code, db);
-  }
+  const [admin, finance, warehouse, validationOverride] = await Promise.all([
+    hasModuleAccess(user, 'ADMIN', db),
+    hasModuleAccess(user, 'FINANCE', db),
+    hasModuleAccess(user, 'WAREHOUSE', db),
+    hasValidationOverrideAccess(user, db),
+  ]);
 
   let canApproveDepartment = false;
   if (department && approvalRule) {
     const level = UserUtil.jobLevelValue(user);
     const min = Number(approvalRule.approver_min_job_level_value);
     if (Number.isFinite(level) && Number.isFinite(min)) {
-      canApproveDepartment = Number(approvalRule.allow_higher_job_level) === 1
-        ? level >= min
-        : level === min;
+      canApproveDepartment = Number(approvalRule.allow_higher_job_level) === 1 ? level >= min : level === min;
     }
   }
 
   return {
     can_create_request: canCreateRequestWithRule(user, approvalRule),
     can_approve_department: canApproveDepartment,
-    finance_access: modules.finance,
-    warehouse_access: modules.warehouse,
-    admin_access: modules.admin,
+    finance_access: finance,
+    warehouse_access: warehouse,
+    admin_access: admin,
+    validation_override_access: validationOverride,
     approval_rule_configured: Boolean(approvalRule),
   };
 }
@@ -156,6 +138,8 @@ module.exports = {
   findModuleRules,
   hasModuleAccess,
   requireModuleAccess,
+  hasValidationOverrideAccess,
+  requireValidationOverrideAccess,
   findApprovalRuleForDepartment,
   canCreateRequestWithRule,
   canApproveWithSnapshot,

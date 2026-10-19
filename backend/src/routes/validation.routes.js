@@ -1,0 +1,11 @@
+const express=require('express');
+const config=require('../config');
+const ValidationController=require('../controllers/validation.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/restrictions',ValidationController.restrictions);
+router.get('/',ValidationController.index);
+router.post('/',ValidationController.create);
+router.post('/:id/revoke',ValidationController.revoke);
+module.exports=router;

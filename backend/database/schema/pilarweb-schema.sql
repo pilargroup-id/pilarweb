@@ -1,10 +1,12 @@
 -- Pilarweb consolidated schema
--- Simplified non-returnable flow
--- Generated from clean development migrations.
+-- Generated from clean development migrations 001-008.
 
+
+-- ================================================================
+-- 001_master_configuration.sql
+-- ================================================================
 -- Pilarweb migration 001: master configuration
--- Target: MariaDB 10.11+
--- Rule: no foreign-key constraints.
+-- Clean development baseline. MariaDB 10.11+.
 
 CREATE DATABASE IF NOT EXISTS pilarweb
   CHARACTER SET utf8mb4
@@ -17,17 +19,20 @@ CREATE TABLE IF NOT EXISTS master_request_purposes (
   code VARCHAR(50) NOT NULL,
   name VARCHAR(150) NOT NULL,
   description VARCHAR(500) DEFAULT NULL,
+  return_type ENUM('NON_RETURNABLE','RETURNABLE') NOT NULL DEFAULT 'NON_RETURNABLE',
   sort_order INT NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_master_request_purposes_code (code),
-  KEY idx_master_request_purposes_active_sort (is_active, sort_order)
+  KEY idx_master_request_purposes_active_sort (is_active, sort_order),
+  KEY idx_master_request_purposes_return_type (return_type, is_active)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS warehouse_locations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  internal_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'Optional NetSuite Location Internal ID',
   code VARCHAR(80) NOT NULL,
   name VARCHAR(150) NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -35,6 +40,7 @@ CREATE TABLE IF NOT EXISTS warehouse_locations (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_warehouse_locations_code (code),
+  UNIQUE KEY uq_warehouse_locations_internal_id (internal_id),
   KEY idx_warehouse_locations_active (is_active)
 ) ENGINE=InnoDB;
 
@@ -61,8 +67,10 @@ CREATE TABLE IF NOT EXISTS number_sequences (
   UNIQUE KEY uq_number_sequences_key_period (sequence_key, period_key)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 002: module access and department approval configuration
-
+-- ================================================================
+-- 002_access_approval_configuration.sql
+-- ================================================================
+-- Pilarweb migration 002: operational access, approval rules, validation-override access
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS module_access_rules (
@@ -92,7 +100,7 @@ CREATE TABLE IF NOT EXISTS approval_rules (
   department_id INT DEFAULT NULL,
   department_name VARCHAR(255) DEFAULT NULL,
   requester_block_min_job_level_value INT DEFAULT NULL,
-  approver_min_job_level_value INT DEFAULT NULL,
+  approver_min_job_level_value INT NOT NULL,
   approver_job_level_name VARCHAR(150) DEFAULT NULL,
   allow_higher_job_level TINYINT(1) NOT NULL DEFAULT 1,
   priority INT NOT NULL DEFAULT 100,
@@ -104,8 +112,24 @@ CREATE TABLE IF NOT EXISTS approval_rules (
   KEY idx_approval_rules_department (department_id, is_active, priority)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 003: request headers and item snapshots
+CREATE TABLE IF NOT EXISTS validation_override_users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id VARCHAR(36) NOT NULL,
+  user_name_snapshot VARCHAR(255) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by_user_id VARCHAR(36) DEFAULT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_validation_override_users_user (user_id),
+  KEY idx_validation_override_users_active (is_active)
+) ENGINE=InnoDB;
 
+-- ================================================================
+-- 003_requests.sql
+-- ================================================================
+-- Pilarweb migration 003: request header + SKU snapshots
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS requests (
@@ -114,17 +138,21 @@ CREATE TABLE IF NOT EXISTS requests (
   request_purpose_id BIGINT UNSIGNED NOT NULL,
   request_purpose_code VARCHAR(50) NOT NULL,
   request_purpose_name VARCHAR(150) NOT NULL,
+  purpose_return_type ENUM('NON_RETURNABLE','RETURNABLE') NOT NULL,
   status VARCHAR(80) NOT NULL DEFAULT 'PENDING_DEPARTMENT_APPROVAL',
   requester_user_id VARCHAR(36) NOT NULL,
   requester_internal_id INT DEFAULT NULL,
   requester_name VARCHAR(255) DEFAULT NULL,
   requester_job_level_value INT DEFAULT NULL,
   requester_job_level_name VARCHAR(150) DEFAULT NULL,
-  department_id INT NOT NULL,
+  department_id INT NOT NULL COMMENT 'Requester department snapshot; drives approval and request restriction',
   department_name VARCHAR(255) DEFAULT NULL,
+  target_department_id INT NOT NULL COMMENT 'Historical/business target department; does not drive approval or restriction',
+  target_department_name VARCHAR(255) DEFAULT NULL,
   company_id VARCHAR(100) DEFAULT NULL,
   company_name VARCHAR(255) DEFAULT NULL,
   reason TEXT NOT NULL,
+  return_due_date DATE DEFAULT NULL,
   submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME DEFAULT NULL,
   canceled_at DATETIME DEFAULT NULL,
@@ -138,7 +166,9 @@ CREATE TABLE IF NOT EXISTS requests (
   UNIQUE KEY uq_requests_number (request_number),
   KEY idx_requests_requester (requester_user_id, created_at),
   KEY idx_requests_department_status (department_id, status),
+  KEY idx_requests_target_department (target_department_id, created_at),
   KEY idx_requests_purpose (request_purpose_id),
+  KEY idx_requests_return_type_due (purpose_return_type, return_due_date),
   KEY idx_requests_status_created (status, created_at)
 ) ENGINE=InnoDB;
 
@@ -165,8 +195,10 @@ CREATE TABLE IF NOT EXISTS request_items (
   KEY idx_request_items_itembase_id (itembase_item_id)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 004: Manager approval and Finance review
-
+-- ================================================================
+-- 004_approvals_finance.sql
+-- ================================================================
+-- Pilarweb migration 004: manager approval + Finance per-SKU/per-quantity review
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS request_approvals (
@@ -233,9 +265,10 @@ CREATE TABLE IF NOT EXISTS finance_review_items (
   KEY idx_finance_review_items_decision (decision)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 005: simplified Warehouse picking, IWT, DO, and handover
--- One Finance-approved request creates exactly one fulfillment.
-
+-- ================================================================
+-- 005_warehouse_fulfillment.sql
+-- ================================================================
+-- Pilarweb migration 005: one fulfillment header owns source warehouse + IWT
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS warehouse_fulfillments (
@@ -243,6 +276,12 @@ CREATE TABLE IF NOT EXISTS warehouse_fulfillments (
   request_id VARCHAR(36) NOT NULL,
   fulfillment_number VARCHAR(80) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'PICKING',
+  source_warehouse_id BIGINT UNSIGNED DEFAULT NULL,
+  source_warehouse_internal_id BIGINT UNSIGNED DEFAULT NULL,
+  source_warehouse_code VARCHAR(80) DEFAULT NULL,
+  source_warehouse_name VARCHAR(150) DEFAULT NULL,
+  inventory_transfer_number VARCHAR(100) DEFAULT NULL,
+  inventory_transfer_recorded_at DATETIME DEFAULT NULL,
   created_by_user_id VARCHAR(36) DEFAULT NULL,
   created_by_name VARCHAR(255) DEFAULT NULL,
   picking_print_count INT UNSIGNED NOT NULL DEFAULT 0,
@@ -265,7 +304,9 @@ CREATE TABLE IF NOT EXISTS warehouse_fulfillments (
   PRIMARY KEY (id),
   UNIQUE KEY uq_warehouse_fulfillments_request (request_id),
   UNIQUE KEY uq_warehouse_fulfillments_number (fulfillment_number),
-  KEY idx_warehouse_fulfillments_status (status, updated_at)
+  KEY idx_warehouse_fulfillments_status (status, updated_at),
+  KEY idx_warehouse_fulfillments_source (source_warehouse_id),
+  KEY idx_warehouse_fulfillments_iwt (inventory_transfer_number)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS warehouse_fulfillment_items (
@@ -278,19 +319,13 @@ CREATE TABLE IF NOT EXISTS warehouse_fulfillment_items (
   finance_approved_qty_snapshot DECIMAL(18,4) NOT NULL,
   finance_rejected_qty_snapshot DECIMAL(18,4) NOT NULL DEFAULT 0,
   actual_qty DECIMAL(18,4) DEFAULT NULL,
-  source_warehouse_id BIGINT UNSIGNED DEFAULT NULL,
-  source_warehouse_code VARCHAR(80) DEFAULT NULL,
-  source_warehouse_name VARCHAR(150) DEFAULT NULL,
-  inventory_transfer_number VARCHAR(100) DEFAULT NULL,
-  inventory_transfer_recorded_at DATETIME DEFAULT NULL,
   note VARCHAR(500) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_warehouse_fulfillment_items_request_item (fulfillment_id, request_item_id),
   KEY idx_warehouse_fulfillment_items_fulfillment (fulfillment_id),
-  KEY idx_warehouse_fulfillment_items_request_item (request_item_id),
-  KEY idx_warehouse_fulfillment_items_iwt (inventory_transfer_number)
+  KEY idx_warehouse_fulfillment_items_request_item (request_item_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS warehouse_handovers (
@@ -310,9 +345,103 @@ CREATE TABLE IF NOT EXISTS warehouse_handovers (
   KEY idx_warehouse_handovers_status (status, handed_over_at)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 006: Finance periods and NetSuite Inventory Adjustment batches
--- All requests are non-returnable. Adjustment quantity equals actual handed-over quantity.
+-- ================================================================
+-- 006_returns_validation_override.sql
+-- ================================================================
+-- Pilarweb migration 006: strict return obligation + department restriction override
+USE pilarweb;
 
+CREATE TABLE IF NOT EXISTS returns (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  return_number VARCHAR(80) NOT NULL,
+  request_id VARCHAR(36) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'PENDING_REQUESTER',
+  due_date DATE NOT NULL,
+  requester_submitted_by_user_id VARCHAR(36) DEFAULT NULL,
+  requester_submitted_by_name VARCHAR(255) DEFAULT NULL,
+  requester_submitted_at DATETIME DEFAULT NULL,
+  completed_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_returns_number (return_number),
+  UNIQUE KEY uq_returns_request (request_id),
+  KEY idx_returns_status_due (status, due_date)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS return_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  return_id BIGINT UNSIGNED NOT NULL,
+  request_item_id BIGINT UNSIGNED NOT NULL,
+  item_code VARCHAR(100) NOT NULL,
+  item_name VARCHAR(255) NOT NULL,
+  expected_qty DECIMAL(18,4) NOT NULL,
+  requester_return_qty DECIMAL(18,4) DEFAULT NULL,
+  warehouse_received_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
+  note VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_return_items_request_item (return_id, request_item_id),
+  KEY idx_return_items_return (return_id),
+  KEY idx_return_items_request_item (request_item_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS return_receipts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  receipt_number VARCHAR(80) NOT NULL,
+  return_id BIGINT UNSIGNED NOT NULL,
+  received_by_user_id VARCHAR(36) NOT NULL,
+  received_by_name VARCHAR(255) DEFAULT NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  note VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_return_receipts_number (receipt_number),
+  KEY idx_return_receipts_return (return_id, received_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS return_receipt_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  return_receipt_id BIGINT UNSIGNED NOT NULL,
+  return_item_id BIGINT UNSIGNED NOT NULL,
+  received_qty DECIMAL(18,4) NOT NULL,
+  note VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_return_receipt_items_receipt (return_receipt_id),
+  KEY idx_return_receipt_items_return_item (return_item_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS validation_overrides (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  validation_code VARCHAR(80) NOT NULL,
+  scope_type VARCHAR(50) NOT NULL DEFAULT 'DEPARTMENT',
+  department_id INT NOT NULL,
+  department_name VARCHAR(255) DEFAULT NULL,
+  request_id VARCHAR(36) DEFAULT NULL,
+  reason TEXT NOT NULL,
+  valid_from DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  valid_until DATETIME DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_by_user_id VARCHAR(36) NOT NULL,
+  created_by_name VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_by_user_id VARCHAR(36) DEFAULT NULL,
+  revoked_by_name VARCHAR(255) DEFAULT NULL,
+  revoked_at DATETIME DEFAULT NULL,
+  revoke_reason TEXT DEFAULT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_validation_overrides_department (department_id, is_active, valid_from, valid_until),
+  KEY idx_validation_overrides_request (request_id, is_active),
+  KEY idx_validation_overrides_code (validation_code, is_active)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 007_financial_closing.sql
+-- ================================================================
+-- Pilarweb migration 007: Finance periods + signed issue/return movements
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS financial_periods (
@@ -356,26 +485,33 @@ CREATE TABLE IF NOT EXISTS inventory_adjustment_batches (
 CREATE TABLE IF NOT EXISTS inventory_adjustment_batch_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   batch_id BIGINT UNSIGNED NOT NULL,
+  movement_type ENUM('ISSUE','RETURN') NOT NULL,
+  movement_at DATETIME NOT NULL,
   request_id VARCHAR(36) NOT NULL,
   request_number VARCHAR(80) NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,
+  return_receipt_item_id BIGINT UNSIGNED DEFAULT NULL,
   item_code VARCHAR(100) NOT NULL,
   item_name VARCHAR(255) NOT NULL,
-  actual_issued_qty DECIMAL(18,4) NOT NULL,
+  movement_qty DECIMAL(18,4) NOT NULL,
+  source_warehouse_internal_id BIGINT UNSIGNED DEFAULT NULL,
   source_warehouse_code VARCHAR(80) DEFAULT NULL,
-  destination_warehouse_code VARCHAR(80) NOT NULL DEFAULT 'LOAN',
+  destination_warehouse_code VARCHAR(80) DEFAULT NULL,
   inventory_transfer_number VARCHAR(100) DEFAULT NULL,
-  adjustment_qty DECIMAL(18,4) NOT NULL,
+  adjustment_qty DECIMAL(18,4) NOT NULL COMMENT 'ISSUE positive, RETURN negative',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_adjustment_batch_items_batch (batch_id),
   KEY idx_adjustment_batch_items_request (request_id),
-  KEY idx_adjustment_batch_items_item_code (item_code)
+  KEY idx_adjustment_batch_items_item_code (item_code),
+  KEY idx_adjustment_batch_items_movement (movement_type, movement_at)
 ) ENGINE=InnoDB;
 
--- Pilarweb migration 007: comments and append-only business activity log
-
+-- ================================================================
+-- 008_activity_audit.sql
+-- ================================================================
+-- Pilarweb migration 008: comments + append-only activity log
 USE pilarweb;
 
 CREATE TABLE IF NOT EXISTS request_comments (
@@ -407,4 +543,3 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   KEY idx_activity_logs_entity (entity_type, entity_id),
   KEY idx_activity_logs_action (action_code, created_at)
 ) ENGINE=InnoDB;
-

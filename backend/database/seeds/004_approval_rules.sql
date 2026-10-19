@@ -2,7 +2,6 @@ USE pilarweb;
 
 -- Staff = 1, Ass. Manager = 3, Manager = 4, Senior Manager = 5, President Director = 6.
 -- Ass. Manager and above cannot create requests.
--- Default approver is Manager or higher in the same department.
 INSERT INTO approval_rules (
   code, name, department_id, department_name,
   requester_block_min_job_level_value,
@@ -23,7 +22,6 @@ ON DUPLICATE KEY UPDATE
   priority = VALUES(priority),
   is_active = VALUES(is_active);
 
--- Product department (13) has no Manager; Ass. Manager is the minimum approver.
 INSERT INTO approval_rules (
   code, name, department_id, department_name,
   requester_block_min_job_level_value,

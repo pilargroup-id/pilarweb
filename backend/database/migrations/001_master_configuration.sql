@@ -1,6 +1,5 @@
 -- Pilarweb migration 001: master configuration
--- Target: MariaDB 10.11+
--- Rule: no foreign-key constraints.
+-- Clean development baseline. MariaDB 10.11+.
 
 CREATE DATABASE IF NOT EXISTS pilarweb
   CHARACTER SET utf8mb4
@@ -13,17 +12,20 @@ CREATE TABLE IF NOT EXISTS master_request_purposes (
   code VARCHAR(50) NOT NULL,
   name VARCHAR(150) NOT NULL,
   description VARCHAR(500) DEFAULT NULL,
+  return_type ENUM('NON_RETURNABLE','RETURNABLE') NOT NULL DEFAULT 'NON_RETURNABLE',
   sort_order INT NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_master_request_purposes_code (code),
-  KEY idx_master_request_purposes_active_sort (is_active, sort_order)
+  KEY idx_master_request_purposes_active_sort (is_active, sort_order),
+  KEY idx_master_request_purposes_return_type (return_type, is_active)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS warehouse_locations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  internal_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'Optional NetSuite Location Internal ID',
   code VARCHAR(80) NOT NULL,
   name VARCHAR(150) NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -31,6 +33,7 @@ CREATE TABLE IF NOT EXISTS warehouse_locations (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_warehouse_locations_code (code),
+  UNIQUE KEY uq_warehouse_locations_internal_id (internal_id),
   KEY idx_warehouse_locations_active (is_active)
 ) ENGINE=InnoDB;
 
