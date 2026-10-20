@@ -13,6 +13,23 @@ function createAuthError(message, statusCode, code) {
   return err;
 }
 
+const NETWORK_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ECONNRESET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isUpstreamNetworkError(err) {
+  return (
+    NETWORK_ERROR_CODES.has(err?.code) ||
+    NETWORK_ERROR_CODES.has(err?.cause?.code) ||
+    err?.message === 'fetch failed'
+  );
+}
+
 function verifyAccessToken(token) {
   try {
     const payload = jwt.verify(token, config.auth.jwtSecret);
@@ -125,6 +142,14 @@ async function fetchTokenFromPilargroup(username, password) {
       timeoutError.code = 'AUTH_UPSTREAM_TIMEOUT';
 
       throw timeoutError;
+    }
+
+    if (isUpstreamNetworkError(err)) {
+      throw createAuthError(
+        'Unable to reach PilarGroup login service',
+        503,
+        'AUTH_UPSTREAM_UNREACHABLE'
+      );
     }
 
     throw err;
@@ -277,6 +302,14 @@ async function fetchCurrentUser(token) {
       timeoutError.code = 'AUTH_UPSTREAM_TIMEOUT';
 
       throw timeoutError;
+    }
+
+    if (isUpstreamNetworkError(err)) {
+      throw createAuthError(
+        'Unable to reach PilarGroup authentication service',
+        503,
+        'AUTH_UPSTREAM_UNREACHABLE'
+      );
     }
 
     throw err;

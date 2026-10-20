@@ -1,5 +1,17 @@
 const R = require('../utils/response.util');
 
+const DB_CONNECTION_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EHOSTUNREACH',
+  'PROTOCOL_CONNECTION_LOST',
+  'ER_ACCESS_DENIED_ERROR',
+  'ER_DBACCESS_DENIED_ERROR',
+  'ER_BAD_DB_ERROR',
+  'POOL_CLOSED',
+]);
+
 function notFound(req, res) {
   return R.notFound(res, `Route ${req.method} ${req.originalUrl} not found`);
 }
@@ -10,6 +22,20 @@ function errorHandler(err, req, res, next) {
   if (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062) {
     return R.error(res, 'Data already exists', 409, {
       code: 'DUPLICATE_ENTRY',
+    });
+  }
+
+  if (DB_CONNECTION_ERROR_CODES.has(err?.code)) {
+    console.error('[db] connection error:', err);
+    return R.error(res, 'Database is currently unreachable', 503, {
+      code: 'DATABASE_UNAVAILABLE',
+    });
+  }
+
+  if (err?.code === 'ER_NO_SUCH_TABLE' || err?.code === 'ER_BAD_FIELD_ERROR') {
+    console.error('[db] schema error:', err);
+    return R.error(res, 'Database schema is out of date', 500, {
+      code: 'DATABASE_SCHEMA_ERROR',
     });
   }
 
