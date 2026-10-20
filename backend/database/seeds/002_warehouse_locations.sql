@@ -1,5 +1,33 @@
 USE pilarweb;
 
+-- Defensive guard: database/migrations/001_master_configuration.sql creates this table with
+-- `CREATE TABLE IF NOT EXISTS`, so a database that already had warehouse_locations before
+-- internal_id was added to that migration never received the column, which makes the INSERT
+-- below fail with "Unknown column 'internal_id'". Add it (and its unique key) here if missing.
+SET @col_exists = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'warehouse_locations' AND COLUMN_NAME = 'internal_id'
+);
+SET @ddl = IF(@col_exists = 0,
+  'ALTER TABLE warehouse_locations ADD COLUMN internal_id BIGINT UNSIGNED DEFAULT NULL COMMENT ''Optional NetSuite Location Internal ID'' AFTER code',
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @key_exists = (
+  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'warehouse_locations' AND INDEX_NAME = 'uq_warehouse_locations_internal_id'
+);
+SET @ddl = IF(@key_exists = 0,
+  'ALTER TABLE warehouse_locations ADD UNIQUE KEY uq_warehouse_locations_internal_id (internal_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Source: warehouse.xlsx / Locations. internal_id is optional and represents NetSuite Location Internal ID.
 INSERT INTO warehouse_locations (internal_id, code, name, is_active)
 VALUES
