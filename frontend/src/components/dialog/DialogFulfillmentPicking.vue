@@ -36,23 +36,42 @@
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <div v-else class="flex flex-col gap-5">
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-                  IWT No. <span v-if="isPicking" class="text-error-500">*</span>
-                </span>
-                <input
-                  v-if="isPicking"
-                  v-model="iwtNumber"
-                  @input="iwtNumber = iwtNumber.toUpperCase()"
-                  type="text"
-                  placeholder="e.g. IT2604868"
-                  class="dark:bg-dark-900 w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
-                />
-                <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ iwtNumber || '-' }}</span>
-                <span v-if="iwtRecordedAt" class="text-theme-xs text-gray-400 dark:text-gray-500">
-                  {{ formatDateTime(iwtRecordedAt) }}
-                </span>
+            <div class="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+              <div class="flex flex-wrap items-start gap-6">
+                <div class="flex flex-col gap-1.5">
+                  <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+                    IWT No. <span v-if="isPicking" class="text-error-500">*</span>
+                  </span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <input
+                      v-if="isPicking"
+                      v-model="iwtNumber"
+                      @input="iwtNumber = iwtNumber.toUpperCase()"
+                      type="text"
+                      placeholder="e.g. IT2604868"
+                      class="dark:bg-dark-900 w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                    />
+                    <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ iwtNumber || '-' }}</span>
+                    <span v-if="iwtRecordedAt" class="text-theme-xs text-gray-400 dark:text-gray-500">
+                      {{ formatDateTime(iwtRecordedAt) }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+                    Source Warehouse <span v-if="isPicking" class="text-error-500">*</span>
+                  </span>
+                  <div v-if="isPicking" class="w-72">
+                    <SearchableSelect
+                      v-model="sourceWarehouseId"
+                      :options="warehouseOptions"
+                      placeholder="Select warehouse"
+                      search-in-field
+                    />
+                  </div>
+                  <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ sourceWarehouseDisplay || '-' }}</span>
+                </div>
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
@@ -75,9 +94,6 @@
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved (Finance)</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                       Actual Qty <span v-if="isPicking" class="text-error-500">*</span>
-                    </th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                      Source Warehouse <span v-if="isPicking" class="text-error-500">*</span>
                     </th>
                     <th class="rounded-tr-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
                   </tr>
@@ -110,15 +126,6 @@
                       <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(row.actual_qty) }}</span>
                     </td>
                     <td class="px-4 py-3 align-top">
-                      <SearchableSelect
-                        v-if="isPicking"
-                        v-model="row.source_warehouse_code"
-                        :options="warehouseOptions"
-                        placeholder="Select warehouse"
-                      />
-                      <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.source_warehouse_code || '-' }}</span>
-                    </td>
-                    <td class="px-4 py-3 align-top">
                       <input
                         v-if="isPicking"
                         v-model="row.note"
@@ -130,7 +137,7 @@
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
-                    <td colspan="6" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="5" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                       No items on this fulfillment.
                     </td>
                   </tr>
@@ -215,6 +222,7 @@
       :company-name="queueItem?.company_name"
       :requester-name="queueItem?.requester_name"
       :department-name="queueItem?.department_name"
+      :source-warehouse-name="sourceWarehouseDisplay"
       :note="doNote"
       :printed-at="doPrintedAt"
       :rows="printDoRows"
@@ -268,16 +276,23 @@ const doNote = ref('')
 const iwtNumber = ref('')
 const iwtRecordedAt = ref(null)
 const warehouseLocations = ref([])
+const sourceWarehouseId = ref('')
 let hasChanges = false
 
 const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
 
 const warehouseOptions = computed(() =>
   warehouseLocations.value.map((opt) => ({
-    id: opt.code,
+    id: opt.id,
     name: `${opt.name} (${opt.code})`,
   }))
 )
+
+const sourceWarehouseDisplay = computed(() => {
+  const f = fulfillment.value
+  if (!f?.source_warehouse_name) return ''
+  return f.source_warehouse_code ? `${f.source_warehouse_name} (${f.source_warehouse_code})` : f.source_warehouse_name
+})
 
 const printPickingRows = computed(() =>
   rows.value.map((row) => ({
@@ -295,7 +310,6 @@ const printDoRows = computed(() =>
     item_name: row.item_name,
     item_code: row.item_code,
     actual_qty: row.actual_qty,
-    source_warehouse_code: row.source_warehouse_code,
     inventory_transfer_number: iwtNumber.value,
   }))
 )
@@ -322,6 +336,7 @@ function reset() {
   doNote.value = ''
   iwtNumber.value = ''
   iwtRecordedAt.value = null
+  sourceWarehouseId.value = ''
   hasChanges = false
 }
 
@@ -345,11 +360,11 @@ function applyFulfillment(data) {
     requested_qty: Number(item.requested_qty_snapshot ?? 0),
     approved_qty: Number(item.finance_approved_qty_snapshot ?? 0),
     actual_qty: item.actual_qty === null || item.actual_qty === undefined ? null : Number(item.actual_qty),
-    source_warehouse_code: item.source_warehouse_code || '',
     note: item.note || '',
   }))
-  iwtNumber.value = items[0]?.inventory_transfer_number || ''
-  iwtRecordedAt.value = items[0]?.inventory_transfer_recorded_at || null
+  iwtNumber.value = data?.inventory_transfer_number || ''
+  iwtRecordedAt.value = data?.inventory_transfer_recorded_at || null
+  sourceWarehouseId.value = data?.source_warehouse_id ?? ''
 }
 
 function sanitizeActualQty(row) {
@@ -382,14 +397,19 @@ function close() {
 }
 
 function buildItemsPayload() {
-  const transferNumber = iwtNumber.value?.trim() || null
   return rows.value.map((row) => ({
     fulfillment_item_id: row.id,
     actual_qty: row.actual_qty === null || row.actual_qty === '' ? null : Number(row.actual_qty),
-    source_warehouse_code: row.source_warehouse_code || null,
-    inventory_transfer_number: transferNumber,
     note: row.note?.trim() || null,
   }))
+}
+
+function buildPayload() {
+  return {
+    source_warehouse_id: sourceWarehouseId.value || null,
+    inventory_transfer_number: iwtNumber.value?.trim() || null,
+    items: buildItemsPayload(),
+  }
 }
 
 function validateQuantities() {
@@ -410,9 +430,9 @@ function validateForComplete() {
   const qtyError = validateQuantities()
   if (qtyError) return qtyError
   if (!iwtNumber.value?.trim()) return 'IWT No. is required.'
+  if (!sourceWarehouseId.value) return 'Source warehouse is required.'
   for (const row of rows.value) {
     if (row.actual_qty === null) return `Actual qty is required for "${row.item_name}".`
-    if (!row.source_warehouse_code) return `Source warehouse is required for "${row.item_name}".`
   }
   return ''
 }
@@ -428,7 +448,7 @@ async function handleSaveProgress() {
   errorMessage.value = ''
   isSaving.value = true
   try {
-    const res = await saveFulfillmentProgress(fulfillment.value.id, { items: buildItemsPayload() })
+    const res = await saveFulfillmentProgress(fulfillment.value.id, buildPayload())
     applyFulfillment(res?.data)
     hasChanges = true
     infoMessage.value = 'Picking progress saved.'
@@ -450,7 +470,7 @@ async function handleCompletePicking() {
   errorMessage.value = ''
   isCompleting.value = true
   try {
-    const res = await completeFulfillmentPicking(fulfillment.value.id, { items: buildItemsPayload() })
+    const res = await completeFulfillmentPicking(fulfillment.value.id, buildPayload())
     applyFulfillment(res?.data)
     hasChanges = true
     infoMessage.value = 'Picking completed. Ready for Delivery.'

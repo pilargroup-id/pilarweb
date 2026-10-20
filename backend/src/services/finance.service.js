@@ -5,7 +5,7 @@ const RequestService = require('./request.service');
 const WarehouseService = require('./warehouse.service');
 const ReportService = require('./report.service');
 const UserUtil = require('../utils/user.util');
-const { createError, optionalText, nonNegativeNumber, parsePositiveInt } = require('../utils/business.util');
+const { createError, optionalText, nonNegativeNumber, parsePositiveInt, normalizeDate } = require('../utils/business.util');
 
 async function listQueue(user, query = {}) {
   await AccessService.requireModuleAccess(user, 'FINANCE');
@@ -29,7 +29,13 @@ async function listHistory(user, query = {}) {
   await AccessService.requireModuleAccess(user, 'FINANCE');
   const db=requireDatabase();const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;const params=[];let where="WHERE fr.status IN ('APPROVED','REJECTED')";
   const status=String(query.status||'').trim().toUpperCase();if(['APPROVED','REJECTED'].includes(status)){where+=' AND fr.status=?';params.push(status);}
+  if(query.department_id){where+=' AND r.department_id=?';params.push(Number(query.department_id));}
+  if(query.purpose_id){where+=' AND r.request_purpose_id=?';params.push(Number(query.purpose_id));}
+  if(query.return_type){where+=' AND r.purpose_return_type=?';params.push(String(query.return_type).trim().toUpperCase());}
+  if(query.date_from){where+=' AND DATE(fr.reviewed_at)>=?';params.push(normalizeDate(query.date_from,'date_from',true));}
+  if(query.date_to){where+=' AND DATE(fr.reviewed_at)<=?';params.push(normalizeDate(query.date_to,'date_to',true));}
   if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR r.request_purpose_name LIKE ? OR r.target_department_name LIKE ?)';params.push(s,s,s,s);}
+  const sortOrder=String(query.sort_order||'').trim().toUpperCase()==='ASC'?'ASC':'DESC';
   const [countRows]=await db.query(`SELECT COUNT(*) AS total FROM finance_reviews fr INNER JOIN requests r ON r.id=fr.request_id ${where}`,params);
   const [rows]=await db.query(`
     SELECT fr.id AS finance_review_id,fr.status AS finance_review_status,fr.reviewer_name,fr.reviewed_at,fr.note AS review_note,
@@ -38,7 +44,7 @@ async function listHistory(user, query = {}) {
            (SELECT COALESCE(SUM(fri.rejected_qty),0) FROM finance_review_items fri WHERE fri.finance_review_id=fr.id) AS total_rejected_qty
     FROM finance_reviews fr INNER JOIN requests r ON r.id=fr.request_id
     ${where}
-    ORDER BY fr.reviewed_at DESC LIMIT ? OFFSET ?
+    ORDER BY fr.reviewed_at ${sortOrder} LIMIT ? OFFSET ?
   `,[...params,limit,offset]);
   const total=Number(countRows[0]?.total||0);return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
 }

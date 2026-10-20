@@ -52,9 +52,13 @@ import UndoIcon from "./UndoIcon.vue";
 import PrinterIcon from "./PrinterIcon.vue";
 import SaveIcon from "./SaveIcon.vue";
 import FileCheckIcon from "./FileCheckIcon.vue";
+import DownloadIcon from "./DownloadIcon.vue";
+import FilterIcon from "./FilterIcon.vue";
 
 export {
   FileCheckIcon,
+  DownloadIcon,
+  FilterIcon,
   EyeIcon,
   PencilIcon,
   CloseIcon,

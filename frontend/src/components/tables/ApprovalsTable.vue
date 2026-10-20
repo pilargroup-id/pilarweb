@@ -43,24 +43,27 @@
         <TableHeadCell>Request No</TableHeadCell>
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
+        <TableHeadCell>Target Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Return Type</TableHeadCell>
         <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Return Due Date</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading approvals...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!approvals.length">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No pending approvals.</p>
         </td>
       </tr>
@@ -125,7 +128,16 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.department_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.target_department_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge v-if="item.purpose_return_type" :color="returnTypeColor(item.purpose_return_type)" size="sm">
+            {{ formatReturnType(item.purpose_return_type) }}
+          </Badge>
+          <p v-else class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
         </td>
         <td class="px-5 py-4 sm:px-6">
           <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="item.reason || ''">
@@ -137,6 +149,9 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.return_due_date) }}</p>
         </td>
       </tr>
 
@@ -216,6 +231,10 @@ const STATUS_BADGE_COLOR = {
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
+
+const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
+
+const formatReturnType = (returnType) => (returnType === 'RETURNABLE' ? 'Returnable' : 'Non-returnable')
 
 const formatStatusLabel = (status) => {
   if (!status) return '-'

@@ -28,6 +28,10 @@
       </div>
       <div class="fdo-meta-col">
         <div class="fdo-meta-row">
+          <span class="fdo-meta-label">Source WH</span>
+          <span class="fdo-meta-value">{{ sourceWarehouseName || '-' }}</span>
+        </div>
+        <div class="fdo-meta-row">
           <span class="fdo-meta-label">Note</span>
           <span class="fdo-meta-value">{{ note || '-' }}</span>
         </div>
@@ -44,7 +48,6 @@
           <th class="fdo-col-no">No</th>
           <th>Item</th>
           <th class="fdo-col-qty">Actual Qty</th>
-          <th>Source Warehouse</th>
           <th>IWT No.</th>
         </tr>
       </thead>
@@ -56,11 +59,10 @@
             <span class="fdo-item-code">{{ row.item_code }}</span>
           </td>
           <td class="fdo-col-qty">{{ formatQty(row.actual_qty) }}</td>
-          <td>{{ row.source_warehouse_code || '-' }}</td>
           <td>{{ row.inventory_transfer_number || '-' }}</td>
         </tr>
         <tr v-if="!rows.length">
-          <td colspan="5" class="fdo-empty">No items on this fulfillment.</td>
+          <td colspan="4" class="fdo-empty">No items on this fulfillment.</td>
         </tr>
       </tbody>
     </table>
@@ -88,6 +90,7 @@ defineProps({
   companyName: { type: String, default: '' },
   requesterName: { type: String, default: '' },
   departmentName: { type: String, default: '' },
+  sourceWarehouseName: { type: String, default: '' },
   note: { type: String, default: '' },
   printedAt: { type: [String, Date], default: null },
   rows: { type: Array, default: () => [] },

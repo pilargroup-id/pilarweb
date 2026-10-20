@@ -28,6 +28,14 @@
             class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-11 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
           />
         </div>
+        <select
+          v-model="statusFilter"
+          @change="fetchQueue(1)"
+          class="dark:bg-dark-900 h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+        >
+          <option value="">All statuses</option>
+          <option v-for="opt in STATUS_OPTIONS" :key="opt" :value="opt">{{ formatStatusLabel(opt) }}</option>
+        </select>
         <button
           @click="fetchQueue(meta.page)"
           :disabled="isLoading"
@@ -44,23 +52,24 @@
         <TableHeadCell>Request No</TableHeadCell>
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
-        <TableHeadCell>Submitted</TableHeadCell>
+        <TableHeadCell>Due Date</TableHeadCell>
+        <TableHeadCell>Outstanding Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading returns...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No returns have been submitted yet.</p>
+        <td colspan="8" class="px-5 py-10 text-center sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No returns found.</p>
         </td>
       </tr>
       <tr
@@ -70,25 +79,26 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <button
-            v-if="item.status === 'SUBMITTED'"
-            @click="openReceiveDialog(item)"
-            type="button"
-            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-          >
-            <CheckIcon class="h-4 w-4" />
-            Receive
-          </button>
-          <button
-            v-else-if="item.status === 'RECEIVED'"
-            @click="openInspectDialog(item)"
-            type="button"
-            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-          >
-            <CheckIcon class="h-4 w-4" />
-            Inspect
-          </button>
-          <span v-else class="text-gray-400 text-theme-sm dark:text-gray-600">-</span>
+          <div class="flex items-center gap-2">
+            <button
+              @click="openDetailDialog(item)"
+              type="button"
+              title="Detail"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+            >
+              <EyeIcon class="h-4 w-4" />
+              Detail
+            </button>
+            <button
+              v-if="item.status === 'SUBMITTED' || item.status === 'PARTIALLY_RECEIVED'"
+              @click="openReceiveDialog(item)"
+              type="button"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              <CheckIcon class="h-4 w-4" />
+              Receive
+            </button>
+          </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -105,7 +115,10 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.department_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.returned_at || item.created_at) }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.due_date) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.outstanding_qty ?? '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
@@ -132,11 +145,10 @@
       @received="handleChanged"
     />
 
-    <DialogInspectReturn
-      :is-open="isInspectDialogOpen"
-      :return-item="returnToProcess"
-      @close="closeInspectDialog"
-      @inspected="handleChanged"
+    <DialogReturnDetail
+      :is-open="isDetailDialogOpen"
+      :return-id="returnToView?.id"
+      @close="closeDetailDialog"
     />
   </div>
 </template>
@@ -149,19 +161,23 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogReceiveReturn from '@/components/dialog/DialogReceiveReturn.vue'
-import DialogInspectReturn from '@/components/dialog/DialogInspectReturn.vue'
-import { RefreshIcon, CheckIcon } from '@/icons'
+import DialogReturnDetail from '@/components/dialog/DialogReturnDetail.vue'
+import { RefreshIcon, CheckIcon, EyeIcon } from '@/icons'
+
+const STATUS_OPTIONS = ['PENDING_REQUESTER', 'SUBMITTED', 'PARTIALLY_RECEIVED', 'COMPLETED']
 
 const queue = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
+const statusFilter = ref('')
 let searchTimer = null
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
 const isReceiveDialogOpen = ref(false)
-const isInspectDialogOpen = ref(false)
 const returnToProcess = ref(null)
+const isDetailDialogOpen = ref(false)
+const returnToView = ref(null)
 
 function openReceiveDialog(item) {
   returnToProcess.value = item
@@ -173,25 +189,26 @@ function closeReceiveDialog() {
   returnToProcess.value = null
 }
 
-function openInspectDialog(item) {
-  returnToProcess.value = item
-  isInspectDialogOpen.value = true
+function openDetailDialog(item) {
+  returnToView.value = item
+  isDetailDialogOpen.value = true
 }
 
-function closeInspectDialog() {
-  isInspectDialogOpen.value = false
-  returnToProcess.value = null
+function closeDetailDialog() {
+  isDetailDialogOpen.value = false
+  returnToView.value = null
 }
 
 async function handleChanged() {
   await fetchQueue(meta.page)
 }
 
-// Section 13: a return's own lifecycle is SUBMITTED -> RECEIVED -> COMPLETED,
-// separate from the parent request's RETURN_PENDING / PARTIALLY_RETURNED status.
+// A return's own lifecycle is PENDING_REQUESTER -> SUBMITTED -> PARTIALLY_RECEIVED -> COMPLETED,
+// separate from the parent request's RETURN_PENDING / RETURN_SUBMITTED / RETURN_PARTIAL status.
 const STATUS_BADGE_COLOR = {
+  PENDING_REQUESTER: 'light',
   SUBMITTED: 'warning',
-  RECEIVED: 'info',
+  PARTIALLY_RECEIVED: 'info',
   COMPLETED: 'success',
 }
 
@@ -220,6 +237,7 @@ async function fetchQueue(page = 1) {
       page,
       limit: meta.limit,
       ...(search.value ? { search: search.value } : {}),
+      ...(statusFilter.value ? { status: statusFilter.value } : {}),
     })
     queue.value = res?.data ?? []
     meta.page = res?.meta?.page ?? page

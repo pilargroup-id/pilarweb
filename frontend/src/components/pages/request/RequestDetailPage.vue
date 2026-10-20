@@ -25,7 +25,7 @@
               <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Reason</dt>
               <dd class="text-theme-sm text-gray-800 dark:text-white/90">{{ requestDetail.reason || '-' }}</dd>
             </div>
-            <div v-if="requestDetail.requires_return">
+            <div v-if="isReturnable">
               <dt class="text-theme-xs text-gray-500 dark:text-gray-400">Return Due Date</dt>
               <dd class="text-theme-sm text-gray-800 dark:text-white/90">{{ formatDate(requestDetail.return_due_date) }}</dd>
             </div>
@@ -137,11 +137,26 @@
         <p v-if="receiveError" class="mt-3 text-sm text-error-600 dark:text-error-500">{{ receiveError }}</p>
       </ComponentCard>
 
-      <ComponentCard v-if="requestDetail?.requires_return" title="Returns">
-        <div class="flex flex-col gap-5">
-          <div v-if="returnBalance > 0" class="flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-800 dark:bg-brand-500/5">
+      <ComponentCard v-if="isReturnable" title="Returns">
+        <div v-if="!requestDetail.return" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          No return obligation yet. It is created automatically once goods are handed over.
+        </div>
+        <div v-else class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ requestDetail.return.return_number }}</span>
+            <Badge :color="statusColor(requestDetail.return.status)" size="sm">{{ formatStatusLabel(requestDetail.return.status) }}</Badge>
+          </div>
+          <p class="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
+            Due {{ formatDate(requestDetail.return.due_date) }}
+            <span v-if="requestDetail.return.requester_submitted_at"> &middot; Submitted {{ formatDate(requestDetail.return.requester_submitted_at) }}</span>
+          </p>
+
+          <div
+            v-if="requestDetail.return.status === 'PENDING_REQUESTER'"
+            class="mb-3 flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-800 dark:bg-brand-500/5"
+          >
             <p class="text-theme-sm text-gray-600 dark:text-gray-300">
-              {{ returnBalance }} unit(s) are still eligible to be returned.
+              This return is awaiting your declaration.
             </p>
             <button
               @click="isSubmitReturnDialogOpen = true"
@@ -152,49 +167,28 @@
             </button>
           </div>
 
-          <div v-if="!requestDetail.returns?.length" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            No returns have been submitted yet.
-          </div>
-          <div
-            v-for="ret in requestDetail.returns"
-            :key="ret.id"
-            v-else
-            class="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
-          >
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span class="text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ ret.return_number }}</span>
-              <Badge :color="statusColor(ret.status)" size="sm">{{ formatStatusLabel(ret.status) }}</Badge>
-            </div>
-            <p class="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
-              Submitted {{ formatDate(ret.returned_at) }}
-              <span v-if="ret.note"> &middot; {{ ret.note }}</span>
-            </p>
-            <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-                <thead class="bg-gray-50 dark:bg-white/[0.02]">
-                  <tr>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Returned Qty</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Condition</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-                  <tr v-for="ri in ret.items" :key="ri.id">
-                    <td class="px-4 py-3 align-top">
-                      <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ ri.item_name }}</span>
-                      <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ ri.item_code }}</span>
-                    </td>
-                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ ri.returned_qty }}</td>
-                    <td class="px-4 py-3 align-top">
-                      <Badge v-if="ri.condition_code !== 'PENDING'" :color="ri.condition_code === 'GOOD' ? 'success' : 'error'" size="sm">
-                        {{ ri.condition_code }}
-                      </Badge>
-                      <span v-else class="text-gray-400 text-theme-sm dark:text-gray-600">Awaiting inspection</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+              <thead class="bg-gray-50 dark:bg-white/[0.02]">
+                <tr>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Expected Qty</th>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Declared Qty</th>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Warehouse Received</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                <tr v-for="ri in requestDetail.return.items" :key="ri.id">
+                  <td class="px-4 py-3 align-top">
+                    <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ ri.item_name }}</span>
+                    <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ ri.item_code }}</span>
+                  </td>
+                  <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ ri.expected_qty }}</td>
+                  <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ ri.requester_return_qty ?? '-' }}</td>
+                  <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ ri.warehouse_received_qty }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </ComponentCard>
@@ -202,7 +196,8 @@
 
     <DialogSubmitReturn
       :is-open="isSubmitReturnDialogOpen"
-      :request="requestDetail"
+      :return-data="requestDetail?.return"
+      :request-number="requestDetail?.request_number"
       @close="isSubmitReturnDialogOpen = false"
       @submitted="loadRequest"
     />
@@ -243,9 +238,10 @@ const STATUS_BADGE_COLOR = {
   HANDED_OVER: 'primary',
   PARTIALLY_FULFILLED: 'warning',
   RETURN_PENDING: 'warning',
-  PARTIALLY_RETURNED: 'warning',
-  RETURNED: 'info',
-  RETURN_INSPECTION: 'info',
+  RETURN_SUBMITTED: 'info',
+  RETURN_PARTIAL: 'warning',
+  PENDING_REQUESTER: 'light',
+  PARTIALLY_RECEIVED: 'warning',
   COMPLETED: 'success',
   RECEIVED: 'success',
   REJECTED: 'error',
@@ -269,31 +265,7 @@ const formatDate = (value) => {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
-// Section 13: same issued-minus-returned balance DialogSubmitReturn.vue
-// computes, used here only to decide whether the Submit Return action shows.
-const returnBalance = computed(() => {
-  if (!requestDetail.value) return 0
-  const issuedByItem = new Map()
-  for (const fulfillment of requestDetail.value.fulfillments || []) {
-    if (fulfillment.handover?.status !== 'RECEIVED') continue
-    for (const fi of fulfillment.items || []) {
-      const id = Number(fi.request_item_id)
-      issuedByItem.set(id, (issuedByItem.get(id) || 0) + Number(fi.actual_qty || 0))
-    }
-  }
-  const usedByItem = new Map()
-  for (const ret of requestDetail.value.returns || []) {
-    for (const ri of ret.items || []) {
-      const id = Number(ri.request_item_id)
-      usedByItem.set(id, (usedByItem.get(id) || 0) + Number(ri.returned_qty || 0))
-    }
-  }
-  let total = 0
-  for (const [id, issued] of issuedByItem) {
-    total += Math.max(0, issued - (usedByItem.get(id) || 0))
-  }
-  return Math.round(total * 100) / 100
-})
+const isReturnable = computed(() => requestDetail.value?.purpose_return_type === 'RETURNABLE')
 
 async function loadRequest() {
   isLoading.value = true

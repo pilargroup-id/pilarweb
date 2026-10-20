@@ -3,7 +3,7 @@ const AccessService = require('./access.service');
 const ActivityService = require('./activity.service');
 const UserUtil = require('../utils/user.util');
 const SequenceUtil = require('../utils/sequence.util');
-const { createError, optionalText, nonNegativeNumber, parsePositiveInt } = require('../utils/business.util');
+const { createError, optionalText, nonNegativeNumber, parsePositiveInt, normalizeDate } = require('../utils/business.util');
 
 async function createFromFinance(connection, requestId, actor) {
   const [existingRows] = await connection.query('SELECT id FROM warehouse_fulfillments WHERE request_id=? LIMIT 1', [requestId]);
@@ -46,15 +46,21 @@ async function listFulfillments(user, query = {}) {
   const db = requireDatabase();
   const page = parsePositiveInt(query.page, 1, 100000); const limit = parsePositiveInt(query.limit, 20, 100); const offset=(page-1)*limit;
   const params=[]; let where='WHERE 1=1';
-  if(query.status){where+=' AND wf.status=?';params.push(String(query.status).trim().toUpperCase());}
+  if(query.status){
+    const statuses=String(query.status).split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+    if(statuses.length){where+=` AND wf.status IN (${statuses.map(()=>'?').join(',')})`;params.push(...statuses);}
+  }
   if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (wf.fulfillment_number LIKE ? OR r.request_number LIKE ? OR r.requester_name LIKE ? OR wf.inventory_transfer_number LIKE ?)';params.push(s,s,s,s);}
   const from=`FROM warehouse_fulfillments wf INNER JOIN requests r ON r.id=wf.request_id ${where}`;
   const [countRows]=await db.query(`SELECT COUNT(*) AS total ${from}`,params);
   const [rows]=await db.query(`
     SELECT wf.*, r.request_number, r.requester_name, r.department_name, r.target_department_name,
            r.request_purpose_name, r.purpose_return_type, r.return_due_date, r.status AS request_status,
+           r.submitted_at,
            (SELECT COUNT(*) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id=wf.id) AS item_count,
-           (SELECT COALESCE(SUM(wfi.actual_qty),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id=wf.id) AS total_actual_qty
+           (SELECT COALESCE(SUM(wfi.actual_qty),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id=wf.id) AS total_actual_qty,
+           (SELECT COALESCE(SUM(wfi.finance_approved_qty_snapshot),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id=wf.id) AS total_approved_qty,
+           (SELECT COALESCE(SUM(wfi.finance_rejected_qty_snapshot),0) FROM warehouse_fulfillment_items wfi WHERE wfi.fulfillment_id=wf.id) AS total_rejected_qty
     ${from}
     ORDER BY wf.updated_at DESC LIMIT ? OFFSET ?
   `,[...params,limit,offset]);
@@ -236,10 +242,17 @@ async function printDo(user, fulfillmentId, payload={}){
 
 async function handovers(user, query={}){
   await requireWarehouseAccess(user);const db=requireDatabase();const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;const params=[];let where='WHERE 1=1';
+  const status=String(query.status||'').trim().toUpperCase();if(['HANDED_OVER','RETURN_PENDING','RETURN_SUBMITTED','RETURN_PARTIAL','COMPLETED'].includes(status)){where+=' AND r.status=?';params.push(status);}
+  if(query.department_id){where+=' AND r.department_id=?';params.push(Number(query.department_id));}
+  if(query.purpose_id){where+=' AND r.request_purpose_id=?';params.push(Number(query.purpose_id));}
+  if(query.return_type){where+=' AND r.purpose_return_type=?';params.push(String(query.return_type).trim().toUpperCase());}
+  if(query.date_from){where+=' AND DATE(wh.handed_over_at)>=?';params.push(normalizeDate(query.date_from,'date_from',true));}
+  if(query.date_to){where+=' AND DATE(wh.handed_over_at)<=?';params.push(normalizeDate(query.date_to,'date_to',true));}
   if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR wf.fulfillment_number LIKE ? OR wf.inventory_transfer_number LIKE ?)';params.push(s,s,s,s);}
+  const sortOrder=String(query.sort_order||'').trim().toUpperCase()==='ASC'?'ASC':'DESC';
   const from=`FROM warehouse_handovers wh INNER JOIN warehouse_fulfillments wf ON wf.id=wh.fulfillment_id INNER JOIN requests r ON r.id=wh.request_id ${where}`;
   const [countRows]=await db.query(`SELECT COUNT(*) AS total ${from}`,params);
-  const [rows]=await db.query(`SELECT wh.*,wf.fulfillment_number,wf.source_warehouse_internal_id,wf.source_warehouse_code,wf.source_warehouse_name,wf.inventory_transfer_number,wf.inventory_transfer_recorded_at,r.request_number,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name,r.purpose_return_type,r.return_due_date,r.status AS request_status ${from} ORDER BY wh.handed_over_at DESC LIMIT ? OFFSET ?`,[...params,limit,offset]);
+  const [rows]=await db.query(`SELECT wh.*,wf.fulfillment_number,wf.source_warehouse_internal_id,wf.source_warehouse_code,wf.source_warehouse_name,wf.inventory_transfer_number,wf.inventory_transfer_recorded_at,r.request_number,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name,r.purpose_return_type,r.return_due_date,r.status AS request_status ${from} ORDER BY wh.handed_over_at ${sortOrder} LIMIT ? OFFSET ?`,[...params,limit,offset]);
   const total=Number(countRows[0]?.total||0);return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
 }
 

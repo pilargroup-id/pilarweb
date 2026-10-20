@@ -21,57 +21,52 @@
           </button>
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Submit Return</h4>
-          <p class="pr-12 text-sm text-white/70">{{ request?.request_number }}</p>
+          <p class="pr-12 text-sm text-white/70">
+            {{ returnData?.return_number }}
+            <span v-if="requestNumber">&middot; {{ requestNumber }}</span>
+          </p>
         </div>
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
+          <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            Declare the goods you are returning. Quantity must match the full amount issued by Warehouse for each item.
+          </p>
+
           <form class="flex flex-col gap-5" @submit.prevent="submit">
             <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
                 <thead class="bg-gray-50 dark:bg-white/[0.02]">
                   <tr>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Available to Return</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Return Qty</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Qty to Return</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-                  <tr v-for="row in rows" :key="row.request_item_id">
+                  <tr v-for="row in rows" :key="row.return_item_id">
                     <td class="px-4 py-3 align-top">
                       <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ row.item_name }}</span>
                       <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ row.item_code }}</span>
                     </td>
-                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ row.remaining }}</td>
+                    <td class="px-4 py-3 align-top text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                      {{ row.expected_qty }}
+                    </td>
                     <td class="px-4 py-3 align-top">
                       <input
-                        v-model.number="row.returned_qty"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        :max="row.remaining"
-                        class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                        v-model="row.note"
+                        type="text"
+                        placeholder="Optional note"
+                        class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                       />
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
                     <td colspan="3" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                      No items are currently eligible for return.
+                      No items on this return.
                     </td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Note
-              </label>
-              <textarea
-                v-model="note"
-                rows="2"
-                placeholder="Optional note for Warehouse"
-                class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              ></textarea>
             </div>
 
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">
@@ -104,16 +99,20 @@
 <script setup>
 import { ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
-import { createReturn } from '@/service/api'
+import { submitReturn } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false,
   },
-  request: {
+  returnData: {
     type: Object,
     default: null,
+  },
+  requestNumber: {
+    type: String,
+    default: '',
   },
 })
 
@@ -121,15 +120,13 @@ const emit = defineEmits(['close', 'submitted'])
 
 const isSubmitting = ref(false)
 const errorMessage = ref('')
-const note = ref('')
 const rows = ref([])
 
 watch(
   () => props.isOpen,
   (open) => {
-    if (open && props.request) {
-      rows.value = buildRows(props.request)
-      note.value = ''
+    if (open && props.returnData) {
+      rows.value = buildRows(props.returnData)
       errorMessage.value = ''
     } else if (!open) {
       rows.value = []
@@ -137,41 +134,16 @@ watch(
   }
 )
 
-// Section 13: return obligation is based on actual issued qty (from a
-// RECEIVED handover), less qty already covered by any existing return —
-// mirrors issuedByRequestItem/returnedOrPendingByRequestItem in
-// backend/src/services/return.service.js so the balance shown here matches
-// what the create endpoint will accept.
-function buildRows(request) {
-  const issuedByItem = new Map()
-  for (const fulfillment of request.fulfillments || []) {
-    if (fulfillment.handover?.status !== 'RECEIVED') continue
-    for (const fi of fulfillment.items || []) {
-      const id = Number(fi.request_item_id)
-      issuedByItem.set(id, (issuedByItem.get(id) || 0) + Number(fi.actual_qty || 0))
-    }
-  }
-  const usedByItem = new Map()
-  for (const ret of request.returns || []) {
-    for (const ri of ret.items || []) {
-      const id = Number(ri.request_item_id)
-      usedByItem.set(id, (usedByItem.get(id) || 0) + Number(ri.returned_qty || 0))
-    }
-  }
-  return (request.items || [])
-    .map((item) => {
-      const issued = issuedByItem.get(Number(item.id)) || 0
-      const used = usedByItem.get(Number(item.id)) || 0
-      const remaining = Math.max(0, Math.round((issued - used) * 100) / 100)
-      return {
-        request_item_id: item.id,
-        item_name: item.item_name,
-        item_code: item.item_code,
-        remaining,
-        returned_qty: 0,
-      }
-    })
-    .filter((row) => row.remaining > 0.0001)
+// Submit requires requester_return_qty to exactly equal expected_qty (the
+// actual Warehouse-issued quantity), so the qty shown here is fixed, not editable.
+function buildRows(returnData) {
+  return (returnData.items || []).map((item) => ({
+    return_item_id: item.id,
+    item_name: item.item_name,
+    item_code: item.item_code,
+    expected_qty: Number(item.expected_qty || 0),
+    note: '',
+  }))
 }
 
 function close() {
@@ -180,30 +152,16 @@ function close() {
 }
 
 async function submit() {
-  if (!props.request) return
-
-  const selected = rows.value.filter((row) => Number(row.returned_qty) > 0)
-  if (!selected.length) {
-    errorMessage.value = 'Enter a return quantity for at least one item.'
-    return
-  }
-  for (const row of selected) {
-    const qty = Number(row.returned_qty)
-    if (Number.isNaN(qty) || qty > row.remaining + 0.0001) {
-      errorMessage.value = `Return qty for "${row.item_name}" cannot exceed ${row.remaining}.`
-      return
-    }
-  }
+  if (!props.returnData || !rows.value.length) return
 
   errorMessage.value = ''
   isSubmitting.value = true
   try {
-    await createReturn({
-      request_id: props.request.id,
-      note: note.value.trim() || null,
-      items: selected.map((row) => ({
-        request_item_id: row.request_item_id,
-        returned_qty: Number(row.returned_qty),
+    await submitReturn(props.returnData.id, {
+      items: rows.value.map((row) => ({
+        return_item_id: row.return_item_id,
+        requester_return_qty: row.expected_qty,
+        note: row.note.trim() || null,
       })),
     })
     emit('submitted')

@@ -42,19 +42,48 @@
           </div>
 
           <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
-            <div>
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Request Purpose <span class="text-error-500">*</span>
-              </label>
-              <SearchableSelect
-                v-model="form.request_purpose_id"
-                :options="purposeOptions"
-                :disabled="isLoadingMaster"
-                placeholder="Select request purpose"
-              />
-              <p v-if="hasPurposeError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
-                Request Purpose is required.
-              </p>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Request Purpose <span class="text-error-500">*</span>
+                </label>
+                <SearchableSelect
+                  v-model="form.request_purpose_id"
+                  :options="purposeOptions"
+                  :disabled="isLoadingMaster"
+                  placeholder="Select request purpose"
+                />
+                <p v-if="hasPurposeError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
+                  Request Purpose is required.
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Destination Target
+                </label>
+                <SearchableSelect
+                  v-model="form.target_department_id"
+                  :options="departmentOptions"
+                  :disabled="isLoadingDepartments"
+                  placeholder="Select destination department"
+                />
+                <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                  Leave blank to use your own department.
+                </p>
+              </div>
+            </div>
+
+            <div v-if="requiresReturn" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Return Due Date <span class="text-error-500">*</span>
+                </label>
+                <DateField v-model="form.return_due_date" />
+                <p v-if="hasReturnDateError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
+                  Return Due Date is required for this purpose.
+                </p>
+              </div>
             </div>
 
             <div>
@@ -153,12 +182,14 @@ import { ref, reactive, computed, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import Alert from '@/components/ui/Alert.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
+import DateField from '@/components/forms/FormElements/DateField.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import RequestItemRow from '@/components/tables/Request/RequestItemRow.vue'
 import { PlusIcon } from '@/icons'
 import {
   getMasterBootstrap,
+  getDepartments,
   getRequestById,
   createRequest,
   updateRequest,
@@ -188,13 +219,27 @@ const masterError = ref('')
 const purposes = ref([])
 let masterLoaded = false
 
+const isLoadingDepartments = ref(false)
+const departments = ref([])
+let departmentsLoaded = false
+
+function getDeptId(item) {
+  return item?.id ?? item?.department_id ?? item?.code ?? ''
+}
+
+function getDeptLabel(item) {
+  return item?.name || item?.department_name || item?.display_name || String(getDeptId(item))
+}
+
 const isLoadingRequest = ref(false)
 const loadError = ref('')
 const requestDetail = ref(null)
 
 const form = reactive({
   request_purpose_id: '',
+  target_department_id: '',
   reason: '',
+  return_due_date: '',
 })
 
 let rowKeySeed = 0
@@ -225,8 +270,26 @@ const purposeOptions = computed(() =>
   purposes.value.map((purpose) => ({
     id: purpose.id,
     name: purpose.name,
+    badge: purpose.return_type === 'RETURNABLE' ? 'Returnable' : 'Non-returnable',
+    badgeColor: purpose.return_type === 'RETURNABLE' ? 'success' : 'light',
   }))
 )
+
+const departmentOptions = computed(() =>
+  departments.value.map((dept) => ({
+    id: getDeptId(dept),
+    name: getDeptLabel(dept),
+  }))
+)
+
+const selectedPurpose = computed(() =>
+  purposes.value.find((purpose) => String(purpose.id) === String(form.request_purpose_id)) ?? null
+)
+const requiresReturn = computed(() => selectedPurpose.value?.return_type === 'RETURNABLE')
+
+watch(requiresReturn, (value) => {
+  if (!value) form.return_due_date = ''
+})
 
 const submitAttempted = ref(false)
 const validationErrors = ref([])
@@ -235,11 +298,15 @@ const isSubmitting = ref(false)
 
 const hasPurposeError = computed(() => submitAttempted.value && !form.request_purpose_id)
 const hasReasonError = computed(() => submitAttempted.value && !form.reason.trim())
+const hasReturnDateError = computed(
+  () => submitAttempted.value && requiresReturn.value && !form.return_due_date
+)
 
 function validate() {
   const errors = []
   if (!form.request_purpose_id) errors.push('Request Purpose is required.')
   if (!form.reason.trim()) errors.push('Reason is required.')
+  if (requiresReturn.value && !form.return_due_date) errors.push('Return Due Date is required for this purpose.')
 
   const firstRowIndexByItemId = new Map()
   items.value.forEach((row, index) => {
@@ -264,7 +331,9 @@ function validate() {
 function buildPayload() {
   return {
     request_purpose_id: form.request_purpose_id,
+    ...(form.target_department_id ? { target_department_id: form.target_department_id } : {}),
     reason: form.reason.trim(),
+    ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
     items: items.value.map((row) => ({
       itembase_item_id: row.item_id,
       requested_qty: Number(row.qty),
@@ -279,7 +348,9 @@ function populateForm() {
 
   if (requestDetail.value) {
     form.request_purpose_id = requestDetail.value.request_purpose_id ?? ''
+    form.target_department_id = requestDetail.value.target_department_id ?? ''
     form.reason = requestDetail.value.reason ?? ''
+    form.return_due_date = requestDetail.value.return_due_date ?? ''
 
     const requestItems = requestDetail.value.items ?? []
     items.value = requestItems.length
@@ -300,7 +371,9 @@ function populateForm() {
       : [createEmptyRow()]
   } else {
     form.request_purpose_id = ''
+    form.target_department_id = ''
     form.reason = ''
+    form.return_due_date = ''
     items.value = [createEmptyRow()]
   }
 
@@ -340,6 +413,20 @@ async function loadMaster() {
   }
 }
 
+async function loadDepartments() {
+  if (departmentsLoaded) return
+  isLoadingDepartments.value = true
+  try {
+    const res = await getDepartments()
+    departments.value = Array.isArray(res?.data) ? res.data : []
+    departmentsLoaded = true
+  } catch {
+    departments.value = []
+  } finally {
+    isLoadingDepartments.value = false
+  }
+}
+
 watch(
   () => props.isOpen,
   (open) => {
@@ -355,6 +442,7 @@ watch(
       populateForm()
     }
     loadMaster()
+    loadDepartments()
   }
 )
 
@@ -367,7 +455,9 @@ async function submitEdit() {
 
   await updateRequest(requestId, {
     request_purpose_id: form.request_purpose_id,
+    target_department_id: form.target_department_id || undefined,
     reason: form.reason.trim(),
+    ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
   })
 
   if (removedItemIds.value.length) {

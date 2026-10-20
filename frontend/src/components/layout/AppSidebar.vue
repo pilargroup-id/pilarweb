@@ -278,6 +278,7 @@ const rawMenuGroups = [
           // { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
           { name: "Hand Over", path: "/warehouse/handover", pro: false },
+          { name: "Returns", path: "/returns", pro: false },
         ],
       },
             {

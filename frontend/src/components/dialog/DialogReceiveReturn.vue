@@ -2,7 +2,7 @@
   <Modal v-if="isOpen" full-screen-backdrop @close="close">
     <template #body>
       <div
-        class="relative flex max-h-[90vh] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl bg-white dark:bg-gray-900"
+        class="relative flex max-h-[90vh] w-full max-w-[860px] flex-col overflow-hidden rounded-3xl bg-white dark:bg-gray-900"
       >
         <div class="sidebar-gradient-bg relative shrink-0 rounded-t-3xl px-6 py-6 lg:px-8">
           <button
@@ -28,47 +28,88 @@
         </div>
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
-          <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            Confirm the physical goods for
-            <span class="font-medium text-gray-700 dark:text-gray-300">{{ returnItem?.return_number }}</span>
-            have been received by Warehouse. Inspection can be recorded afterward.
-          </p>
-
-          <div class="mb-4">
-            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-              Note
-            </label>
-            <textarea
-              v-model="note"
-              rows="2"
-              placeholder="Optional note"
-              class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-            ></textarea>
+          <div v-if="isLoading" class="py-10 text-center">
+            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading return...</p>
           </div>
-
-          <p v-if="errorMessage" class="mb-4 text-sm text-error-600 dark:text-error-500">
-            {{ errorMessage }}
-          </p>
-
-          <div class="flex items-center justify-end gap-3">
-            <button
-              @click="close"
-              type="button"
-              :disabled="isSubmitting"
-              class="flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-            >
-              Cancel
-            </button>
-            <button
-              @click="submit"
-              type="button"
-              :disabled="isSubmitting"
-              class="flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <CheckIcon class="h-4 w-4" />
-              {{ isSubmitting ? 'Receiving...' : 'Receive' }}
-            </button>
+          <div v-else-if="loadError" class="py-10 text-center">
+            <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
+          <form v-else class="flex flex-col gap-5" @submit.prevent="submit">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Record the physical quantity received for each item. This can be done across multiple partial receipts.
+            </p>
+
+            <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                <thead class="bg-gray-50 dark:bg-white/[0.02]">
+                  <tr>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Outstanding</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Received Qty</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                  <tr v-for="row in rows" :key="row.return_item_id">
+                    <td class="px-4 py-3 align-top">
+                      <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ row.item_name }}</span>
+                      <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ row.item_code }}</span>
+                    </td>
+                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ row.outstanding }}</td>
+                    <td class="px-4 py-3 align-top">
+                      <input
+                        v-model.number="row.received_qty"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        :max="row.outstanding"
+                        class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                      />
+                    </td>
+                  </tr>
+                  <tr v-if="!rows.length">
+                    <td colspan="3" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                      Nothing is outstanding on this return.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                Note
+              </label>
+              <textarea
+                v-model="note"
+                rows="2"
+                placeholder="Optional note"
+                class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              ></textarea>
+            </div>
+
+            <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">
+              {{ errorMessage }}
+            </p>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+              <button
+                @click="close"
+                type="button"
+                :disabled="isSubmitting"
+                class="flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                :disabled="isSubmitting || !rows.length"
+                class="flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <CheckIcon class="h-4 w-4" />
+                {{ isSubmitting ? 'Receiving...' : 'Receive' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </template>
@@ -79,7 +120,7 @@
 import { ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import { CheckIcon } from '@/icons'
-import { receiveReturn } from '@/service/api'
+import { getReturnById, receiveReturn } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
@@ -94,19 +135,57 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'received'])
 
+const isLoading = ref(false)
+const loadError = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const note = ref('')
+const rows = ref([])
 
 watch(
   () => props.isOpen,
   (open) => {
-    if (open) {
-      errorMessage.value = ''
+    if (open && props.returnItem?.id) {
+      loadReturn(props.returnItem.id)
+    } else if (!open) {
+      rows.value = []
       note.value = ''
+      errorMessage.value = ''
+      loadError.value = ''
     }
   }
 )
+
+async function loadReturn(returnId) {
+  isLoading.value = true
+  loadError.value = ''
+  errorMessage.value = ''
+  note.value = ''
+  try {
+    const res = await getReturnById(returnId)
+    const detail = res?.data
+    rows.value = (detail?.items || [])
+      .map((item) => {
+        const outstanding = Math.max(
+          0,
+          Math.round((Number(item.expected_qty || 0) - Number(item.warehouse_received_qty || 0)) * 100) / 100
+        )
+        return {
+          return_item_id: item.id,
+          item_name: item.item_name,
+          item_code: item.item_code,
+          outstanding,
+          received_qty: 0,
+        }
+      })
+      .filter((row) => row.outstanding > 0.0001)
+  } catch (err) {
+    rows.value = []
+    loadError.value = err?.message || 'Failed to load return detail.'
+  } finally {
+    isLoading.value = false
+  }
+}
 
 function close() {
   if (isSubmitting.value) return
@@ -116,12 +195,31 @@ function close() {
 async function submit() {
   if (!props.returnItem) return
 
+  const selected = rows.value.filter((row) => Number(row.received_qty) > 0)
+  if (!selected.length) {
+    errorMessage.value = 'Enter a received quantity for at least one item.'
+    return
+  }
+  for (const row of selected) {
+    const qty = Number(row.received_qty)
+    if (Number.isNaN(qty) || qty > row.outstanding + 0.0001) {
+      errorMessage.value = `Received qty for "${row.item_name}" cannot exceed ${row.outstanding}.`
+      return
+    }
+  }
+
   errorMessage.value = ''
   isSubmitting.value = true
   try {
-    await receiveReturn(props.returnItem.id, { note: note.value.trim() || null })
+    await receiveReturn(props.returnItem.id, {
+      note: note.value.trim() || null,
+      items: selected.map((row) => ({
+        return_item_id: row.return_item_id,
+        received_qty: Number(row.received_qty),
+      })),
+    })
     emit('received', props.returnItem.id)
-    emit('close')
+    close()
   } catch (err) {
     errorMessage.value = err?.message || `Failed to receive return ${props.returnItem?.return_number}.`
   } finally {

@@ -1,4 +1,5 @@
 import { getToken, clearToken } from './auth'
+import { filenameFromDisposition } from '@/utils/download'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -439,7 +440,18 @@ export interface FinanceHistoryItem extends AnyRecord {
 }
 
 export function getFinanceHistory(
-  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    department_id?: number | string
+    purpose_id?: number | string
+    return_type?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<FinanceHistoryItem[]>> {
   return request('/api/finance/requests/history', { params })
 }
@@ -461,6 +473,53 @@ export function submitFinanceReview(
   payload: FinanceReviewPayload,
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/finance/requests/${requestId}/review`, { method: 'POST', body: payload })
+}
+
+export interface FinanceReportExportParams extends AnyRecord {
+  date_from?: string
+  date_to?: string
+  department_id?: number | string
+  target_department_id?: number | string
+  purpose_id?: number | string
+  return_type?: 'RETURNABLE' | 'NON_RETURNABLE'
+  status?: string
+  sku?: string
+  search?: string
+}
+
+export async function exportFinanceRequestsReport(
+  params: FinanceReportExportParams = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await fetch(`${API_BASE_URL}/api/finance/reports/requests/export${buildQuery(params)}`, {
+    method: 'GET',
+    headers,
+  })
+
+  if (response.status === 401) {
+    clearToken()
+  }
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`
+    try {
+      const payload = await response.json()
+      message = payload?.message || message
+    } catch {
+      // response body wasn't JSON; keep the default message
+    }
+    throw new ApiError(message, response.status)
+  }
+
+  const blob = await response.blob()
+  const filename = filenameFromDisposition(
+    response.headers.get('content-disposition'),
+    'finance-requests-report.xlsx',
+  )
+  return { blob, filename }
 }
 
 // ---------------------------------------------------------------------------
@@ -488,6 +547,7 @@ export interface HandoverRecord extends AnyRecord {
   request_id: string
   request_number: string
   request_purpose_name: string | null
+  purpose_return_type: 'RETURNABLE' | 'NON_RETURNABLE' | null
   requester_name: string | null
   department_name: string | null
   fulfillment_id: number
@@ -499,7 +559,18 @@ export interface HandoverRecord extends AnyRecord {
 }
 
 export function getWarehouseHandovers(
-  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    department_id?: number | string
+    purpose_id?: number | string
+    return_type?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<HandoverRecord[]>> {
   return request('/api/warehouse/handovers', { params })
 }
@@ -534,12 +605,12 @@ export function printPickingForm(fulfillmentId: string | number): Promise<ApiRes
 export interface FulfillmentProgressItemPayload {
   fulfillment_item_id: number | string
   actual_qty?: number | null
-  source_warehouse_code?: string | null
-  inventory_transfer_number?: string | null
   note?: string | null
 }
 
 export interface FulfillmentProgressPayload {
+  source_warehouse_id?: number | string | null
+  inventory_transfer_number?: string | null
   items: FulfillmentProgressItemPayload[]
 }
 
@@ -668,7 +739,11 @@ export interface ReturnQueueItem extends AnyRecord {
   request_number?: string
   requester_name?: string
   department_name?: string
-  status: 'SUBMITTED' | 'RECEIVED' | 'COMPLETED'
+  due_date?: string | null
+  expected_qty?: number
+  warehouse_received_qty?: number
+  outstanding_qty?: number
+  status: 'PENDING_REQUESTER' | 'SUBMITTED' | 'PARTIALLY_RECEIVED' | 'COMPLETED'
 }
 
 export function getReturns(
@@ -677,49 +752,43 @@ export function getReturns(
   return request('/api/returns', { params })
 }
 
-export interface CreateReturnItemPayload {
-  request_item_id: number | string
-  returned_qty: number
-}
-
-export interface CreateReturnPayload {
-  request_id: string
-  note?: string | null
-  items: CreateReturnItemPayload[]
-}
-
-export function createReturn(payload: CreateReturnPayload): Promise<ApiResponse<AnyRecord>> {
-  return request('/api/returns', { method: 'POST', body: payload })
-}
-
 export function getReturnById(id: string | number): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/returns/${id}`)
 }
 
+export interface SubmitReturnItemPayload {
+  return_item_id: number | string
+  requester_return_qty: number
+  note?: string | null
+}
+
+export interface SubmitReturnPayload {
+  items: SubmitReturnItemPayload[]
+}
+
+export function submitReturn(
+  id: string | number,
+  payload: SubmitReturnPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/returns/${id}/submit`, { method: 'POST', body: payload })
+}
+
+export interface ReceiveReturnItemPayload {
+  return_item_id: number | string
+  received_qty: number
+  note?: string | null
+}
+
+export interface ReceiveReturnPayload {
+  note?: string | null
+  items: ReceiveReturnItemPayload[]
+}
+
 export function receiveReturn(
   id: string | number,
-  payload: { note?: string | null } = {},
+  payload: ReceiveReturnPayload,
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/returns/${id}/receive`, { method: 'POST', body: payload })
-}
-
-export interface ReturnInspectionItemPayload {
-  return_item_id: number | string
-  condition_code: 'GOOD' | 'DAMAGED' | 'MISSING' | 'OTHER'
-  condition_note?: string | null
-  stock_returned_qty: number
-}
-
-export interface InspectReturnPayload {
-  note?: string | null
-  items: ReturnInspectionItemPayload[]
-}
-
-export function inspectReturn(
-  id: string | number,
-  payload: InspectReturnPayload,
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/returns/${id}/inspect`, { method: 'POST', body: payload })
 }
 
 // ---------------------------------------------------------------------------

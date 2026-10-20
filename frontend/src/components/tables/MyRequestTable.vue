@@ -66,23 +66,24 @@
         <TableHeadCell>Action</TableHeadCell>
         <TableHeadCell>Request No</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Destination Target</TableHeadCell>
         <TableHeadCell>Reason</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading requests...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!requests.length">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">You haven't submitted any requests yet.</p>
           <button
             @click="isNewRequestOpen = true"
@@ -141,6 +142,17 @@
               <TrashIcon class="h-4 w-4" />
               Cancel
             </button>
+            <button
+              v-if="isReturnPending(item.status)"
+              @click="handleReturnRequest(item)"
+              :disabled="loadingReturnId === item.id"
+              type="button"
+              title="Submit Return"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-warning-300 bg-white px-3 py-2 text-theme-sm font-medium text-warning-600 shadow-theme-xs hover:bg-warning-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warning-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              <UndoIcon class="h-4 w-4" />
+              {{ loadingReturnId === item.id ? 'Loading...' : 'Return' }}
+            </button>
           </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -150,6 +162,9 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.target_department_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 sm:px-6">
           <p class="max-w-xs truncate text-gray-500 text-theme-sm dark:text-gray-400" :title="item.reason || ''">
@@ -203,13 +218,21 @@
       @close="isDetailOpen = false"
       @changed="fetchRequests(meta.page)"
     />
+
+    <DialogSubmitReturn
+      :is-open="isSubmitReturnOpen"
+      :return-data="returnData"
+      :request-number="returnRequestNumber"
+      @close="isSubmitReturnOpen = false"
+      @submitted="handleReturnSubmitted"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getMyRequests, submitRequest } from '@/service/api'
+import { getMyRequests, getRequestById, submitRequest } from '@/service/api'
 import { getDisplayName } from '@/service/auth'
 import { useNotificationCenter } from '@/composables/useNotificationCenter'
 import Alert from '@/components/ui/Alert.vue'
@@ -220,7 +243,8 @@ import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogNewRequest from '@/components/dialog/DialogNewRequest.vue'
 import DialogCancelRequest from '@/components/dialog/DialogCancelRequest.vue'
 import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
-import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon } from '@/icons'
+import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
+import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon, UndoIcon } from '@/icons'
 
 const route = useRoute()
 const { pushNotification } = useNotificationCenter()
@@ -249,6 +273,10 @@ const isCancelRequestOpen = ref(false)
 const cancelingRequest = ref(null)
 const isDetailOpen = ref(false)
 const viewingRequestId = ref(null)
+const isSubmitReturnOpen = ref(false)
+const returnData = ref(null)
+const returnRequestNumber = ref('')
+const loadingReturnId = ref('')
 
 const requests = ref([])
 const isLoading = ref(false)
@@ -287,6 +315,7 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
 const isEditable = (status) => EDITABLE_STATUSES.has(status)
 const isCancellable = (status) => CANCELLABLE_STATUSES.has(status)
+const isReturnPending = (status) => status === 'RETURN_PENDING'
 
 function handleEditRequest(item) {
   submitError.value = ''
@@ -312,6 +341,31 @@ function handleCancelRequest(item) {
 
 function handleRequestCanceled() {
   isCancelRequestOpen.value = false
+  fetchRequests(meta.page)
+}
+
+async function handleReturnRequest(item) {
+  submitError.value = ''
+  loadingReturnId.value = item.id
+  try {
+    const res = await getRequestById(item.id)
+    const detail = res?.data
+    if (!detail?.return) {
+      submitError.value = `No return record found for ${item.request_number}.`
+      return
+    }
+    returnData.value = detail.return
+    returnRequestNumber.value = detail.request_number
+    isSubmitReturnOpen.value = true
+  } catch (err) {
+    submitError.value = err?.message || `Failed to load return for ${item.request_number}.`
+  } finally {
+    loadingReturnId.value = ''
+  }
+}
+
+function handleReturnSubmitted() {
+  isSubmitReturnOpen.value = false
   fetchRequests(meta.page)
 }
 
