@@ -21,3 +21,4 @@ export function usePolling(callback: () => void | Promise<void>, intervalMs = 15
     if (timerId) clearInterval(timerId)
   })
 }
+s

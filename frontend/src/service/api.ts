@@ -283,7 +283,17 @@ export function createRequest(payload: CreateRequestPayload): Promise<ApiRespons
 }
 
 export function getMyRequests(
-  params: { page?: number; limit?: number; search?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    purpose_id?: number | string
+    target_department_id?: number | string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<PilarwebRequest[]>> {
   return request('/api/requests', { params })
 }
@@ -377,7 +387,18 @@ export interface ApprovalQueueItem extends AnyRecord {
 }
 
 export function getApprovals(
-  params: { page?: number; limit?: number; search?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    target_department_id?: number | string
+    purpose_id?: number | string
+    return_type?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<ApprovalQueueItem[]>> {
   return request('/api/approvals', { params })
 }
@@ -420,7 +441,17 @@ export interface FinanceQueueItem extends AnyRecord {
 }
 
 export function getFinanceRequests(
-  params: { page?: number; limit?: number; search?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    department_id?: number | string
+    purpose_id?: number | string
+    return_type?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<FinanceQueueItem[]>> {
   return request('/api/finance/requests', { params })
 }
@@ -533,7 +564,17 @@ export interface WarehouseQueueItem extends AnyRecord {
 }
 
 export function getWarehouseQueue(
-  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    department_id?: number | string
+    purpose_id?: number | string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<WarehouseQueueItem[]>> {
   return request('/api/warehouse/requests', { params })
 }
@@ -589,7 +630,17 @@ export interface WarehouseFulfillmentListItem extends AnyRecord {
 }
 
 export function getWarehouseFulfillments(
-  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    department_id?: number | string
+    purpose_id?: number | string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<WarehouseFulfillmentListItem[]>> {
   return request('/api/warehouse/fulfillments', { params })
 }
@@ -747,7 +798,16 @@ export interface ReturnQueueItem extends AnyRecord {
 }
 
 export function getReturns(
-  params: { page?: number; limit?: number; search?: string; status?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    department_id?: number | string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<ReturnQueueItem[]>> {
   return request('/api/returns', { params })
 }
@@ -837,7 +897,15 @@ export interface FinancialPeriodDetail extends FinancialPeriod {
 }
 
 export function getFinancialClosingPeriods(
-  params: { page?: number; limit?: number; status?: string; search?: string } = {},
+  params: {
+    page?: number
+    limit?: number
+    status?: string
+    search?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
 ): Promise<PaginatedResponse<FinancialPeriod[]>> {
   return request('/api/financial-closing/periods', { params })
 }
