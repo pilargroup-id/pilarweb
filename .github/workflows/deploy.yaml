@@ -78,9 +78,9 @@ jobs:
             "
 
       # -------------------------
-      # 8. Run DB migrations
+      # 8. Run DB migrations & seeds
       # -------------------------
-      - name: Run DB migrations on VM
+      - name: Run DB migrations & seeds on VM
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
@@ -90,6 +90,10 @@ jobs:
               . ./.env
               set +a
               for f in database/migrations/*.sql; do
+                echo \"Applying \$f\"
+                mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
+              done
+              for f in database/seeds/*.sql; do
                 echo \"Applying \$f\"
                 mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
               done
