@@ -65,6 +65,7 @@ import { ref, watch } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import { CheckIcon } from '@/icons'
 import { acceptWarehouseRequest } from '@/service/api'
+// import { acceptWarehouseRequest } from '@/service/api'
 
 const props = defineProps({
   isOpen: {
