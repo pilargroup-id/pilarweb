@@ -1,7 +1,7 @@
 -- Pilarweb 002: access, approval, validation policy
 USE pilarweb;
 
-CREATE TABLE module_access_rules (
+CREATE TABLE IF NOT EXISTS module_access_rules (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   module_code VARCHAR(80) NOT NULL,
   user_id VARCHAR(36) DEFAULT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE module_access_rules (
   KEY idx_module_access_rules_department (department_id, is_active)
 ) ENGINE=InnoDB;
 
-CREATE TABLE approval_rules (
+CREATE TABLE IF NOT EXISTS approval_rules (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(100) NOT NULL,
   name VARCHAR(150) NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE approval_rules (
   KEY idx_approval_rules_department (department_id, is_active, priority)
 ) ENGINE=InnoDB;
 
-CREATE TABLE validation_override_users (
+CREATE TABLE IF NOT EXISTS validation_override_users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id VARCHAR(36) NOT NULL,
   name VARCHAR(255) NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE validation_override_users (
   KEY idx_validation_override_users_active (is_active)
 ) ENGINE=InnoDB;
 
-CREATE TABLE validation_rules (
+CREATE TABLE IF NOT EXISTS validation_rules (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(80) NOT NULL,
   name VARCHAR(150) NOT NULL,

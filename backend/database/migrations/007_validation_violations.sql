@@ -1,7 +1,7 @@
 -- Pilarweb 007: dynamic requester/user/department restriction + audited override
 USE pilarweb;
 
-CREATE TABLE validation_violations (
+CREATE TABLE IF NOT EXISTS validation_violations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   validation_rule_id BIGINT UNSIGNED NOT NULL,
   validation_code VARCHAR(80) NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE validation_violations (
   KEY idx_validation_violations_return (return_id, status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE validation_overrides (
+CREATE TABLE IF NOT EXISTS validation_overrides (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   violation_id BIGINT UNSIGNED NOT NULL,
   reason TEXT NOT NULL,

@@ -1,7 +1,7 @@
 -- Pilarweb 006: one final return cycle + automatic non-returnable PB shortfall
 USE pilarweb;
 
-CREATE TABLE returns (
+CREATE TABLE IF NOT EXISTS returns (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   return_number VARCHAR(32) NOT NULL COMMENT 'RB[yy][mm][xxxxx]',
   request_id VARCHAR(36) NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE returns (
   KEY idx_returns_status_due (status, due_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE return_items (
+CREATE TABLE IF NOT EXISTS return_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   return_id BIGINT UNSIGNED NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,

@@ -1,7 +1,7 @@
 -- Pilarweb 004: manager approval + Finance per-SKU/per-quantity review
 USE pilarweb;
 
-CREATE TABLE request_approvals (
+CREATE TABLE IF NOT EXISTS request_approvals (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   approval_rule_id BIGINT UNSIGNED DEFAULT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE request_approvals (
   KEY idx_request_approvals_department_status (department_id, status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE finance_reviews (
+CREATE TABLE IF NOT EXISTS finance_reviews (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
@@ -46,7 +46,7 @@ CREATE TABLE finance_reviews (
   KEY idx_finance_reviews_status (status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE finance_review_items (
+CREATE TABLE IF NOT EXISTS finance_review_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   finance_review_id BIGINT UNSIGNED NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,

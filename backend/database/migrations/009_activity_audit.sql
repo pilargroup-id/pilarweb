@@ -1,7 +1,7 @@
 -- Pilarweb 009: comments + append-only activity log
 USE pilarweb;
 
-CREATE TABLE request_comments (
+CREATE TABLE IF NOT EXISTS request_comments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   comment_text TEXT NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE request_comments (
   KEY idx_request_comments_request (request_id, created_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE activity_logs (
+CREATE TABLE IF NOT EXISTS activity_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) DEFAULT NULL,
   entity_type VARCHAR(80) NOT NULL,

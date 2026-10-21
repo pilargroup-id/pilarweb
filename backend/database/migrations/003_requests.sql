@@ -1,7 +1,7 @@
 -- Pilarweb 003: PB request header + SKU snapshots
 USE pilarweb;
 
-CREATE TABLE requests (
+CREATE TABLE IF NOT EXISTS requests (
   id VARCHAR(36) NOT NULL,
   request_number VARCHAR(32) NOT NULL COMMENT 'PB[yy][mm][xxxxx]',
   request_origin ENUM('NORMAL','RETURN_SHORTFALL') NOT NULL DEFAULT 'NORMAL',
@@ -51,7 +51,7 @@ CREATE TABLE requests (
   KEY idx_requests_return_due (purpose_return_type, return_due_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE request_items (
+CREATE TABLE IF NOT EXISTS request_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   source_return_item_id BIGINT UNSIGNED DEFAULT NULL,

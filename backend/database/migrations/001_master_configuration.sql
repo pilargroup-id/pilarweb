@@ -2,7 +2,7 @@
 CREATE DATABASE IF NOT EXISTS pilarweb CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE pilarweb;
 
-CREATE TABLE master_request_purposes (
+CREATE TABLE IF NOT EXISTS master_request_purposes (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code VARCHAR(50) NOT NULL,
   name VARCHAR(150) NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE master_request_purposes (
   KEY idx_master_request_purposes_active_sort (is_active, sort_order)
 ) ENGINE=InnoDB;
 
-CREATE TABLE warehouse_locations (
+CREATE TABLE IF NOT EXISTS warehouse_locations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   internal_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'Optional NetSuite Location Internal ID',
   code VARCHAR(80) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE warehouse_locations (
   KEY idx_warehouse_locations_active (is_active)
 ) ENGINE=InnoDB;
 
-CREATE TABLE request_policy_settings (
+CREATE TABLE IF NOT EXISTS request_policy_settings (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   receipt_confirmation_days INT UNSIGNED NOT NULL DEFAULT 2,
   discrepancy_resolution_days INT UNSIGNED NOT NULL DEFAULT 2,
@@ -49,7 +49,7 @@ CREATE TABLE request_policy_settings (
   KEY idx_request_policy_settings_active (is_active)
 ) ENGINE=InnoDB;
 
-CREATE TABLE financial_closing_settings (
+CREATE TABLE IF NOT EXISTS financial_closing_settings (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   closing_day TINYINT UNSIGNED NOT NULL DEFAULT 7,
   timezone VARCHAR(100) NOT NULL DEFAULT 'Asia/Jakarta',
@@ -62,7 +62,7 @@ CREATE TABLE financial_closing_settings (
   KEY idx_financial_closing_settings_active (is_active)
 ) ENGINE=InnoDB;
 
-CREATE TABLE number_sequences (
+CREATE TABLE IF NOT EXISTS number_sequences (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   sequence_key VARCHAR(80) NOT NULL,
   period_key VARCHAR(20) NOT NULL,

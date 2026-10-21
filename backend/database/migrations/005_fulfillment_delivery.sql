@@ -1,7 +1,7 @@
 -- Pilarweb 005: Warehouse fulfillment, dispatch, requester receipt and discrepancy
 USE pilarweb;
 
-CREATE TABLE warehouse_fulfillments (
+CREATE TABLE IF NOT EXISTS warehouse_fulfillments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   parent_fulfillment_id BIGINT UNSIGNED DEFAULT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE warehouse_fulfillments (
   KEY idx_warehouse_fulfillments_status (status, updated_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE warehouse_fulfillment_items (
+CREATE TABLE IF NOT EXISTS warehouse_fulfillment_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   fulfillment_id BIGINT UNSIGNED NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE warehouse_fulfillment_items (
   KEY idx_warehouse_fulfillment_items_request_item (request_item_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE delivery_receipts (
+CREATE TABLE IF NOT EXISTS delivery_receipts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   fulfillment_id BIGINT UNSIGNED NOT NULL,
@@ -81,7 +81,7 @@ CREATE TABLE delivery_receipts (
   KEY idx_delivery_receipts_deadline (status, confirmation_deadline_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE delivery_receipt_items (
+CREATE TABLE IF NOT EXISTS delivery_receipt_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   delivery_receipt_id BIGINT UNSIGNED NOT NULL,
   fulfillment_item_id BIGINT UNSIGNED NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE delivery_receipt_items (
   KEY idx_delivery_receipt_items_request_item (request_item_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE delivery_discrepancies (
+CREATE TABLE IF NOT EXISTS delivery_discrepancies (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   fulfillment_id BIGINT UNSIGNED NOT NULL,
@@ -128,7 +128,7 @@ CREATE TABLE delivery_discrepancies (
   KEY idx_delivery_discrepancies_warehouse (fulfillment_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE warehouse_sla_violations (
+CREATE TABLE IF NOT EXISTS warehouse_sla_violations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   violation_type VARCHAR(80) NOT NULL,
   warehouse_department_id INT DEFAULT NULL,

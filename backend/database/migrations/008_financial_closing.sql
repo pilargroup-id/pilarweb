@@ -1,7 +1,7 @@
 -- Pilarweb 008: Finance periods + inventory movement batches
 USE pilarweb;
 
-CREATE TABLE financial_periods (
+CREATE TABLE IF NOT EXISTS financial_periods (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   period_key VARCHAR(20) NOT NULL,
   period_start DATE NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE financial_periods (
   KEY idx_financial_periods_status (status, closing_date)
 ) ENGINE=InnoDB;
 
-CREATE TABLE inventory_adjustment_batches (
+CREATE TABLE IF NOT EXISTS inventory_adjustment_batches (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   financial_period_id BIGINT UNSIGNED NOT NULL,
   batch_number VARCHAR(80) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE inventory_adjustment_batches (
   KEY idx_inventory_adjustment_batches_status (status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE inventory_adjustment_batch_items (
+CREATE TABLE IF NOT EXISTS inventory_adjustment_batch_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   batch_id BIGINT UNSIGNED NOT NULL,
   movement_type ENUM('ISSUE','RETURN') NOT NULL,
