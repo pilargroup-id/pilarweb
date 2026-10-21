@@ -91,14 +91,6 @@ const router = createRouter({
       },
     },
     {
-      path: '/warehouse/requests',
-      name: 'Warehouse Request Queue',
-      component: () => import('../components/pages/werehouse/RequestQueuePage.vue'),
-      meta: {
-        title: 'Warehouse Request Queue',
-      },
-    },
-    {
       path: '/warehouse/fulfillments',
       name: 'Warehouse Fulfillment Picking',
       component: () => import('../components/pages/werehouse/FullfilmentPage.vue'),

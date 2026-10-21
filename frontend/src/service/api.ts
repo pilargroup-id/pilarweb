@@ -336,14 +336,6 @@ export function updateRequest(
   return request(`/api/requests/${id}`, { method: 'PUT', body: payload })
 }
 
-export function cancelRequestItem(
-  requestId: string,
-  itemId: string | number,
-  payload: { reason: string },
-): Promise<ApiResponse<PilarwebRequest>> {
-  return request(`/api/requests/${requestId}/items/${itemId}/cancel`, { method: 'POST', body: payload })
-}
-
 export function addRequestItem(
   requestId: string,
   payload: CreateRequestItemPayload,
@@ -554,30 +546,8 @@ export async function exportFinanceRequestsReport(
 }
 
 // ---------------------------------------------------------------------------
-// Warehouse Queue and Fulfillment (section 10)
+// Warehouse Handovers
 // ---------------------------------------------------------------------------
-
-export interface WarehouseQueueItem extends AnyRecord {
-  id: string
-  request_number: string
-  status: string
-}
-
-export function getWarehouseQueue(
-  params: {
-    page?: number
-    limit?: number
-    search?: string
-    status?: string
-    department_id?: number | string
-    purpose_id?: number | string
-    date_from?: string
-    date_to?: string
-    sort_order?: 'asc' | 'desc'
-  } = {},
-): Promise<PaginatedResponse<WarehouseQueueItem[]>> {
-  return request('/api/warehouse/requests', { params })
-}
 
 export interface HandoverRecord extends AnyRecord {
   handover_id: number
@@ -684,99 +654,6 @@ export function printFulfillmentDeliveryOrder(
   payload: { note?: string | null } = {},
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/warehouse/fulfillments/${fulfillmentId}/print-do`, { method: 'POST', body: payload })
-}
-
-export function acceptWarehouseRequest(requestId: string): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/requests/${requestId}/accept`, { method: 'POST' })
-}
-
-export function printFulfillment(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/print`, { method: 'POST' })
-}
-
-export interface UpdateFulfillmentItemPayload {
-  actual_qty: number
-  shortage_reason_code?: string | null
-  remainder_disposition?: string | null
-  shortage_note?: string | null
-}
-
-export function updateFulfillmentItem(
-  fulfillmentId: string | number,
-  fulfillmentItemId: string | number,
-  payload: UpdateFulfillmentItemPayload,
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/items/${fulfillmentItemId}`, {
-    method: 'PUT',
-    body: payload,
-  })
-}
-
-export function confirmFulfillmentPicking(fulfillmentId: string | number): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/confirm-picking`, { method: 'POST' })
-}
-
-// ---------------------------------------------------------------------------
-// NetSuite Inventory Transfer (section 11)
-// ---------------------------------------------------------------------------
-
-export interface InventoryTransferItemPayload {
-  fulfillment_item_id: string | number
-  transferred_qty: number
-}
-
-export interface InventoryTransferPayload {
-  inventory_transfer_number: string
-  source_warehouse_code: string
-  transfer_date: string
-  note?: string | null
-  items: InventoryTransferItemPayload[]
-}
-
-export function createInventoryTransfer(
-  fulfillmentId: string | number,
-  payload: InventoryTransferPayload,
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/inventory-transfers`, {
-    method: 'POST',
-    body: payload,
-  })
-}
-
-export interface UpdateInventoryTransferPayload {
-  inventory_transfer_number?: string
-  source_warehouse_code?: string
-  transfer_date?: string
-  note?: string | null
-}
-
-export function updateInventoryTransfer(
-  transferId: string | number,
-  payload: UpdateInventoryTransferPayload,
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/inventory-transfers/${transferId}`, { method: 'PUT', body: payload })
-}
-
-export function deleteInventoryTransfer(transferId: string | number): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/inventory-transfers/${transferId}`, { method: 'DELETE' })
-}
-
-// ---------------------------------------------------------------------------
-// Handover (section 12)
-// ---------------------------------------------------------------------------
-
-export function handoverFulfillment(
-  fulfillmentId: string | number,
-  payload: { note?: string | null } = {},
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/handover`, { method: 'POST', body: payload })
-}
-
-export function receiveHandover(
-  handoverId: string | number,
-  payload: { note?: string | null } = {},
-): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/handovers/${handoverId}/receive`, { method: 'POST', body: payload })
 }
 
 // ---------------------------------------------------------------------------
