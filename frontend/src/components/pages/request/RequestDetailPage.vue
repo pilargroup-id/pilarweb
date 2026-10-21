@@ -104,18 +104,30 @@
               </table>
             </div>
 
-            <div v-if="fulfillment.handover" class="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-white/[0.02]">
+            <div v-if="fulfillment.delivery_receipt" class="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-white/[0.02]">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <p class="text-theme-sm text-gray-600 dark:text-gray-300">
-                  Handed over {{ formatDate(fulfillment.handover.handed_over_at) }}
+                  Dispatched {{ formatDate(fulfillment.dispatched_at) }}
                 </p>
-                <Badge :color="fulfillment.handover.status === 'RECEIVED' ? 'success' : 'warning'" size="sm">
-                  {{ formatStatusLabel(fulfillment.handover.status) }}
+                <Badge :color="fulfillment.delivery_receipt.status === 'RECEIVED' ? 'success' : 'warning'" size="sm">
+                  {{ formatStatusLabel(fulfillment.delivery_receipt.status) }}
                 </Badge>
               </div>
-              <p v-if="fulfillment.handover.note" class="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-                {{ fulfillment.handover.note }}
-              </p>
+              <div
+                v-if="fulfillment.delivery_receipt.status === 'PENDING'"
+                class="mt-2 flex flex-wrap items-center justify-between gap-2"
+              >
+                <p class="text-theme-xs text-gray-500 dark:text-gray-400">
+                  Confirm before {{ formatDate(fulfillment.delivery_receipt.confirmation_deadline_at) }}
+                </p>
+                <button
+                  @click="openConfirmDeliveryDialog(fulfillment.delivery_receipt)"
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-theme-xs font-medium text-white hover:bg-brand-600"
+                >
+                  Confirm Receipt
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -185,6 +197,13 @@
       @close="isSubmitReturnDialogOpen = false"
       @submitted="loadRequest"
     />
+
+    <DialogConfirmDelivery
+      :is-open="isConfirmDeliveryDialogOpen"
+      :delivery-item="deliveryToConfirm"
+      @close="isConfirmDeliveryDialogOpen = false"
+      @confirmed="loadRequest"
+    />
   </AdminLayout>
 </template>
 
@@ -196,6 +215,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import Badge from '@/components/ui/Badge.vue'
 import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
+import DialogConfirmDelivery from '@/components/dialog/DialogConfirmDelivery.vue'
 import { getRequestById } from '@/service/api'
 
 const route = useRoute()
@@ -205,26 +225,27 @@ const isLoading = ref(false)
 const loadError = ref('')
 const requestDetail = ref(null)
 const isSubmitReturnDialogOpen = ref(false)
+const isConfirmDeliveryDialogOpen = ref(false)
+const deliveryToConfirm = ref(null)
+
+function openConfirmDeliveryDialog(deliveryReceipt) {
+  deliveryToConfirm.value = { id: deliveryReceipt.id, request_number: requestDetail.value?.request_number }
+  isConfirmDeliveryDialogOpen.value = true
+}
 
 const STATUS_BADGE_COLOR = {
-  DRAFT: 'light',
-  SUBMITTED: 'warning',
-  REVERTED_TO_REQUESTER: 'warning',
   PENDING_DEPARTMENT_APPROVAL: 'warning',
+  REVERTED_TO_REQUESTER: 'warning',
   PENDING_FINANCE_REVIEW: 'warning',
-  READY_FOR_WAREHOUSE: 'info',
   PICKING: 'info',
-  PENDING_INVENTORY_TRANSFER: 'info',
-  READY_FOR_HANDOVER: 'info',
-  HANDED_OVER: 'primary',
-  PARTIALLY_FULFILLED: 'warning',
-  RETURN_PENDING: 'warning',
-  RETURN_SUBMITTED: 'info',
-  RETURN_PARTIAL: 'warning',
-  PENDING_REQUESTER: 'light',
+  ADMINISTRATIVE_FULFILLMENT: 'info',
+  READY_FOR_DISPATCH: 'info',
+  DISPATCHED: 'primary',
   PARTIALLY_RECEIVED: 'warning',
+  RETURN_PENDING: 'warning',
+  PENDING_REQUESTER: 'light',
+  SUBMITTED: 'info',
   COMPLETED: 'success',
-  RECEIVED: 'success',
   REJECTED: 'error',
   CANCELED: 'error',
 }

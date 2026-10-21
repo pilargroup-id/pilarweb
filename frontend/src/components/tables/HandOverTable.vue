@@ -91,7 +91,7 @@
       <tr
         v-for="item in queue"
         v-else
-        :key="item.handover_id"
+        :key="item.id"
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -107,11 +107,11 @@
             <button
               @click="handlePrintDO(item)"
               type="button"
-              :disabled="printingId === item.handover_id"
+              :disabled="printingId === item.id"
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
             >
               <PrinterIcon class="h-4 w-4" />
-              {{ printingId === item.handover_id ? 'Printing...' : 'Reprint DO' }}
+              {{ printingId === item.id ? 'Printing...' : 'Reprint DO' }}
             </button>
           </div>
         </td>
@@ -145,10 +145,10 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatQty(item.total_actual_qty) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.handed_over_by_name || '-' }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.last_do_printed_by_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.handed_over_at) }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.dispatched_at) }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.do_print_count ?? '-' }}</p>
@@ -314,7 +314,7 @@
 
 <script setup>
 import { reactive, ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { getWarehouseHandovers, getWarehouseFulfillmentDetail, getDepartments, getRequestPurposes } from '@/service/api'
+import { getWarehouseFulfillments, getWarehouseFulfillmentDetail, getDepartments, getRequestPurposes } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
@@ -346,10 +346,9 @@ const viewingRequestId = ref(null)
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
   { id: '', name: 'All statuses' },
-  { id: 'HANDED_OVER', name: 'Handed Over' },
+  { id: 'DISPATCHED', name: 'Dispatched' },
+  { id: 'PARTIALLY_RECEIVED', name: 'Partially Received' },
   { id: 'RETURN_PENDING', name: 'Return Pending' },
-  { id: 'RETURN_SUBMITTED', name: 'Return Submitted' },
-  { id: 'RETURN_PARTIAL', name: 'Return Partial' },
   { id: 'COMPLETED', name: 'Completed' },
 ]
 const returnTypeFilterOptions = [
@@ -488,9 +487,9 @@ const printDoRows = computed(() =>
 // Section 18/19: Handover is a history list, not an action queue. Reprinting
 // the DO only needs the fulfillment detail -- fetched directly by its own id.
 async function handlePrintDO(item) {
-  printingId.value = item.handover_id
+  printingId.value = item.id
   try {
-    const res = await getWarehouseFulfillmentDetail(item.fulfillment_id)
+    const res = await getWarehouseFulfillmentDetail(item.id)
     const fulfillment = res?.data
     if (!fulfillment) {
       window.alert('Fulfillment data was not found for this handover.')
@@ -514,10 +513,9 @@ async function handlePrintDO(item) {
 }
 
 const STATUS_BADGE_COLOR = {
-  HANDED_OVER: 'primary',
-  RETURN_PENDING: 'warning',
-  RETURN_SUBMITTED: 'info',
-  RETURN_PARTIAL: 'warning',
+  DISPATCHED: 'primary',
+  PARTIALLY_RECEIVED: 'warning',
+  RETURN_PENDING: 'info',
   COMPLETED: 'success',
 }
 
@@ -554,17 +552,21 @@ const formatDateTime = (value) => {
   }).format(date)
 }
 
-// Section 15: Handover menu lists all handover records visible to Warehouse,
-// rather than deriving the list from the Warehouse Request Queue.
+// Section 9/15/22: There is no dedicated Handover endpoint anymore -- a
+// "handover" is simply a PHYSICAL fulfillment that has reached DISPATCHED
+// (DO printed). This list reuses the warehouse fulfillments endpoint scoped
+// to that status, with request_status used to track what happened since.
 async function fetchQueue(page = 1) {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getWarehouseHandovers({
+    const res = await getWarehouseFulfillments({
       page,
       limit: meta.limit,
+      status: 'DISPATCHED',
+      mode: 'PHYSICAL',
       ...(search.value ? { search: search.value } : {}),
-      ...(statusFilter.value ? { status: statusFilter.value } : {}),
+      ...(statusFilter.value ? { request_status: statusFilter.value } : {}),
       ...(departmentFilter.value ? { department_id: departmentFilter.value } : {}),
       ...(purposeFilter.value ? { purpose_id: purposeFilter.value } : {}),
       ...(returnTypeFilter.value ? { return_type: returnTypeFilter.value } : {}),

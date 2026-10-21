@@ -14,6 +14,13 @@
       :message="submitError"
     />
 
+    <Alert
+      v-if="confirmNotice"
+      variant="info"
+      title="Nothing to confirm yet"
+      :message="confirmNotice"
+    />
+
     <BaseTable max-height>
       <template #toolbar>
         <div class="flex w-full items-center gap-3 sm:max-w-[280px]">
@@ -162,6 +169,17 @@
               <UndoIcon class="h-4 w-4" />
               {{ loadingReturnId === item.id ? 'Loading...' : 'Return' }}
             </button>
+            <button
+              v-if="isDispatched(item.status)"
+              @click="handleConfirmDelivery(item)"
+              :disabled="loadingConfirmId === item.id"
+              type="button"
+              title="Confirm Receipt"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-theme-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckIcon class="h-4 w-4" />
+              {{ loadingConfirmId === item.id ? 'Loading...' : 'Confirm Receipt' }}
+            </button>
           </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -227,6 +245,13 @@
       :request-number="returnRequestNumber"
       @close="isSubmitReturnOpen = false"
       @submitted="handleReturnSubmitted"
+    />
+
+    <DialogConfirmDelivery
+      :is-open="isConfirmDeliveryOpen"
+      :delivery-item="deliveryToConfirm"
+      @close="isConfirmDeliveryOpen = false"
+      @confirmed="handleDeliveryConfirmed"
     />
 
     <Teleport to="body">
@@ -355,9 +380,10 @@ import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogNewRequest from '@/components/dialog/DialogNewRequest.vue'
 import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
 import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
+import DialogConfirmDelivery from '@/components/dialog/DialogConfirmDelivery.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
-import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, UndoIcon, FilterIcon, CloseIcon } from '@/icons'
+import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, UndoIcon, CheckIcon, FilterIcon, CloseIcon } from '@/icons'
 
 const route = useRoute()
 const { pushNotification } = useNotificationCenter()
@@ -388,11 +414,15 @@ const isSubmitReturnOpen = ref(false)
 const returnData = ref(null)
 const returnRequestNumber = ref('')
 const loadingReturnId = ref('')
+const isConfirmDeliveryOpen = ref(false)
+const deliveryToConfirm = ref(null)
+const loadingConfirmId = ref('')
 
 const requests = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const submitError = ref('')
+const confirmNotice = ref('')
 const submittingId = ref('')
 const search = ref('')
 let searchTimer = null
@@ -401,19 +431,15 @@ const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
   { id: '', name: 'All statuses' },
-  { id: 'DRAFT', name: 'Draft' },
-  { id: 'REVERTED_TO_REQUESTER', name: 'Reverted to Requester' },
   { id: 'PENDING_DEPARTMENT_APPROVAL', name: 'Pending Department Approval' },
+  { id: 'REVERTED_TO_REQUESTER', name: 'Reverted to Requester' },
   { id: 'PENDING_FINANCE_REVIEW', name: 'Pending Finance Review' },
-  { id: 'READY_FOR_WAREHOUSE', name: 'Ready for Warehouse' },
   { id: 'PICKING', name: 'Picking' },
-  { id: 'PENDING_INVENTORY_TRANSFER', name: 'Pending Inventory Transfer' },
-  { id: 'READY_FOR_HANDOVER', name: 'Ready for Handover' },
-  { id: 'HANDED_OVER', name: 'Handed Over' },
+  { id: 'ADMINISTRATIVE_FULFILLMENT', name: 'Administrative Fulfillment' },
+  { id: 'READY_FOR_DISPATCH', name: 'Ready for Dispatch' },
+  { id: 'DISPATCHED', name: 'Dispatched' },
+  { id: 'PARTIALLY_RECEIVED', name: 'Partially Received' },
   { id: 'RETURN_PENDING', name: 'Return Pending' },
-  { id: 'PARTIALLY_RETURNED', name: 'Partially Returned' },
-  { id: 'RETURNED', name: 'Returned' },
-  { id: 'RETURN_INSPECTION', name: 'Return Inspection' },
   { id: 'COMPLETED', name: 'Completed' },
   { id: 'REJECTED', name: 'Rejected' },
   { id: 'CANCELED', name: 'Canceled' },
@@ -528,19 +554,15 @@ const SUBMITTABLE_STATUSES = new Set(['DRAFT', 'REVERTED_TO_REQUESTER'])
 const EDITABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER'])
 
 const STATUS_BADGE_COLOR = {
-  DRAFT: 'light',
-  REVERTED_TO_REQUESTER: 'warning',
   PENDING_DEPARTMENT_APPROVAL: 'warning',
+  REVERTED_TO_REQUESTER: 'warning',
   PENDING_FINANCE_REVIEW: 'warning',
-  READY_FOR_WAREHOUSE: 'info',
   PICKING: 'info',
-  PENDING_INVENTORY_TRANSFER: 'info',
-  READY_FOR_HANDOVER: 'info',
-  HANDED_OVER: 'primary',
+  ADMINISTRATIVE_FULFILLMENT: 'info',
+  READY_FOR_DISPATCH: 'info',
+  DISPATCHED: 'primary',
+  PARTIALLY_RECEIVED: 'warning',
   RETURN_PENDING: 'warning',
-  PARTIALLY_RETURNED: 'warning',
-  RETURNED: 'info',
-  RETURN_INSPECTION: 'info',
   COMPLETED: 'success',
   REJECTED: 'error',
   CANCELED: 'error',
@@ -551,6 +573,10 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
 const isEditable = (status) => EDITABLE_STATUSES.has(status)
 const isReturnPending = (status) => status === 'RETURN_PENDING'
+// A resend shipment keeps the parent request at PARTIALLY_RECEIVED (see
+// warehouse.service.js printDo: only fulfillment_type=NORMAL sets DISPATCHED),
+// so both statuses must offer the Confirm Receipt shortcut.
+const isDispatched = (status) => status === 'DISPATCHED' || status === 'PARTIALLY_RECEIVED'
 
 function handleEditRequest(item) {
   submitError.value = ''
@@ -570,6 +596,7 @@ function handleViewRequest(item) {
 
 async function handleReturnRequest(item) {
   submitError.value = ''
+  confirmNotice.value = ''
   loadingReturnId.value = item.id
   try {
     const res = await getRequestById(item.id)
@@ -593,8 +620,49 @@ function handleReturnSubmitted() {
   fetchRequests(meta.page)
 }
 
+async function handleConfirmDelivery(item) {
+  submitError.value = ''
+  confirmNotice.value = ''
+  loadingConfirmId.value = item.id
+  try {
+    const res = await getRequestById(item.id)
+    const detail = res?.data
+    const fulfillment = (detail?.fulfillments || [])
+      .slice()
+      .reverse()
+      .find((f) => f.delivery_receipt && f.delivery_receipt.status === 'PENDING')
+    if (!fulfillment?.delivery_receipt) {
+      // PARTIALLY_RECEIVED covers the window where a discrepancy is still
+      // waiting on Warehouse (not yet resolved, or resolved via RESEND but
+      // not yet dispatched) -- there is genuinely nothing to confirm yet,
+      // so this is informational rather than a failure (see section 12).
+      confirmNotice.value =
+        item.status === 'PARTIALLY_RECEIVED'
+          ? `${item.request_number} is waiting on Warehouse to resolve the delivery discrepancy. You'll be able to confirm again once the replacement shipment is dispatched.`
+          : `No pending delivery found for ${item.request_number}.`
+      return
+    }
+    deliveryToConfirm.value = {
+      id: fulfillment.delivery_receipt.id,
+      request_number: detail.request_number,
+      fulfillment_number: fulfillment.fulfillment_number,
+    }
+    isConfirmDeliveryOpen.value = true
+  } catch (err) {
+    submitError.value = err?.message || `Failed to load delivery for ${item.request_number}.`
+  } finally {
+    loadingConfirmId.value = ''
+  }
+}
+
+function handleDeliveryConfirmed() {
+  isConfirmDeliveryOpen.value = false
+  fetchRequests(meta.page)
+}
+
 async function handleSubmitRequest(item) {
   submitError.value = ''
+  confirmNotice.value = ''
   submittingId.value = item.id
   try {
     await submitRequest(item.id)

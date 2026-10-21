@@ -242,6 +242,12 @@ const rawMenuGroups = [
         hideForManager: true,
       },
       {
+        icon: BoxIcon,
+        name: "Delivery Confirmation",
+        path: "/deliveries",
+        hideForManager: true,
+      },
+      {
         icon: CheckIcon,
         name: "Approvals",
         path: "/approvals",
@@ -263,6 +269,7 @@ const rawMenuGroups = [
         capability: "warehouse_access",
         subItems: [
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
+          { name: "Delivery Discrepancies", path: "/warehouse/discrepancies", pro: false },
           { name: "Returns", path: "/returns", pro: false },
           { name: "Hand Over", path: "/warehouse/handover", pro: false },
         ],

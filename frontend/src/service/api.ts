@@ -546,57 +546,26 @@ export async function exportFinanceRequestsReport(
 }
 
 // ---------------------------------------------------------------------------
-// Warehouse Handovers
-// ---------------------------------------------------------------------------
-
-export interface HandoverRecord extends AnyRecord {
-  handover_id: number
-  handover_status: 'HANDED_OVER'
-  handed_over_by_name: string | null
-  handed_over_at: string | null
-  note: string | null
-  request_id: string
-  request_number: string
-  request_purpose_name: string | null
-  purpose_return_type: 'RETURNABLE' | 'NON_RETURNABLE' | null
-  requester_name: string | null
-  department_name: string | null
-  fulfillment_id: number
-  fulfillment_number: string
-  do_print_count: number
-  last_do_printed_at: string | null
-  item_count: number
-  total_actual_qty: number
-}
-
-export function getWarehouseHandovers(
-  params: {
-    page?: number
-    limit?: number
-    search?: string
-    status?: string
-    department_id?: number | string
-    purpose_id?: number | string
-    return_type?: string
-    date_from?: string
-    date_to?: string
-    sort_order?: 'asc' | 'desc'
-  } = {},
-): Promise<PaginatedResponse<HandoverRecord[]>> {
-  return request('/api/warehouse/handovers', { params })
-}
-
-// ---------------------------------------------------------------------------
-// Warehouse Fulfillment lifecycle (sections 11-18 of the integration guide):
-// Picking -> Ready for Delivery -> Print DO / Handed Over.
+// Warehouse Fulfillment lifecycle (section 9 of the integration guide):
+// Picking -> Ready for Dispatch -> Print DO / Dispatched.
 // ---------------------------------------------------------------------------
 
 export interface WarehouseFulfillmentListItem extends AnyRecord {
   id: number | string
   fulfillment_number: string
-  status: 'PICKING' | 'READY_FOR_DELIVERY' | 'HANDED_OVER'
+  status: 'PICKING' | 'ADMINISTRATIVE_PENDING' | 'READY_FOR_DISPATCH' | 'DISPATCHED' | 'COMPLETED'
   request_id: string
   request_number: string
+  request_status?: string
+  total_actual_qty?: number
+  dispatched_at?: string | null
+  do_print_count?: number
+  last_do_printed_at?: string | null
+  last_do_printed_by_name?: string | null
+  purpose_return_type?: 'RETURNABLE' | 'NON_RETURNABLE' | null
+  request_purpose_name?: string | null
+  requester_name?: string | null
+  department_name?: string | null
 }
 
 export function getWarehouseFulfillments(
@@ -605,8 +574,11 @@ export function getWarehouseFulfillments(
     limit?: number
     search?: string
     status?: string
+    mode?: string
     department_id?: number | string
     purpose_id?: number | string
+    return_type?: string
+    request_status?: string
     date_from?: string
     date_to?: string
     sort_order?: 'asc' | 'desc'
@@ -646,7 +618,7 @@ export function completeFulfillmentPicking(
   fulfillmentId: string | number,
   payload: FulfillmentProgressPayload,
 ): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/fulfillments/${fulfillmentId}/complete-picking`, { method: 'POST', body: payload })
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/complete`, { method: 'POST', body: payload })
 }
 
 export function printFulfillmentDeliveryOrder(
@@ -654,6 +626,99 @@ export function printFulfillmentDeliveryOrder(
   payload: { note?: string | null } = {},
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/warehouse/fulfillments/${fulfillmentId}/print-do`, { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Requester Physical Receipt / Delivery Confirmation (section 10)
+// ---------------------------------------------------------------------------
+
+export interface DeliveryReceiptListItem extends AnyRecord {
+  id: number | string
+  request_id: string
+  request_number?: string
+  request_purpose_name?: string
+  purpose_return_type?: 'NON_RETURNABLE' | 'RETURNABLE'
+  fulfillment_number?: string
+  fulfillment_type?: string
+  dispatched_at?: string | null
+  confirmation_deadline_at?: string | null
+  status: 'PENDING' | 'PARTIAL' | 'RECEIVED'
+  confirmation_method?: 'MANUAL' | 'AUTO' | null
+}
+
+export function getMyDeliveries(
+  params: { page?: number; limit?: number; status?: string } = {},
+): Promise<PaginatedResponse<DeliveryReceiptListItem[]>> {
+  return request('/api/deliveries/my', { params })
+}
+
+export function getDeliveryById(id: string | number): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/deliveries/${id}`)
+}
+
+export interface ConfirmDeliveryItemPayload {
+  delivery_receipt_item_id: number | string
+  received_qty: number
+}
+
+export interface ConfirmDeliveryPayload {
+  items: ConfirmDeliveryItemPayload[]
+}
+
+export function confirmDelivery(
+  id: string | number,
+  payload: ConfirmDeliveryPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/deliveries/${id}/confirm`, { method: 'POST', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Warehouse Delivery Discrepancy (section 12)
+// ---------------------------------------------------------------------------
+
+export interface WarehouseDiscrepancyListItem extends AnyRecord {
+  id: number | string
+  request_id: string
+  request_number?: string
+  requester_name?: string
+  department_name?: string
+  fulfillment_id?: number | string
+  fulfillment_number?: string
+  item_code?: string
+  item_name?: string
+  expected_qty: number
+  received_qty: number
+  difference_qty: number
+  status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED' | 'RESOLVED'
+  resolution_type?: 'RESEND' | 'CLOSE_WITH_REASON' | null
+  resolution_due_at?: string | null
+  escalation_due_at?: string | null
+  supervisor_lock_at?: string | null
+  resolved_at?: string | null
+}
+
+export function getWarehouseDiscrepancies(
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+  } = {},
+): Promise<PaginatedResponse<WarehouseDiscrepancyListItem[]>> {
+  return request('/api/warehouse/discrepancies', { params })
+}
+
+export interface ResolveDiscrepancyPayload {
+  resolution_type: 'RESEND' | 'CLOSE_WITH_REASON'
+  resolution_note?: string | null
+  late_resolution_reason?: string | null
+}
+
+export function resolveWarehouseDiscrepancy(
+  id: string | number,
+  payload: ResolveDiscrepancyPayload,
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/discrepancies/${id}/resolve`, { method: 'POST', body: payload })
 }
 
 // ---------------------------------------------------------------------------
@@ -671,7 +736,7 @@ export interface ReturnQueueItem extends AnyRecord {
   expected_qty?: number
   warehouse_received_qty?: number
   outstanding_qty?: number
-  status: 'PENDING_REQUESTER' | 'SUBMITTED' | 'PARTIALLY_RECEIVED' | 'COMPLETED'
+  status: 'PENDING_REQUESTER' | 'SUBMITTED' | 'COMPLETED'
 }
 
 export function getReturns(
@@ -712,7 +777,7 @@ export function submitReturn(
 
 export interface ReceiveReturnItemPayload {
   return_item_id: number | string
-  received_qty: number
+  warehouse_received_qty: number
   note?: string | null
 }
 

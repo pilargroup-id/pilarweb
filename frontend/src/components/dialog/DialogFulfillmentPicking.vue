@@ -180,7 +180,7 @@
 
             <div v-else-if="fulfillment" class="flex items-center justify-end gap-3 pt-2">
               <input
-                v-if="fulfillment.status === 'READY_FOR_DELIVERY'"
+                v-if="fulfillment.status === 'READY_FOR_DISPATCH'"
                 v-model="doNote"
                 type="text"
                 placeholder="Optional dispatch note"
@@ -193,7 +193,7 @@
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <PrinterIcon class="h-4 w-4" />
-                {{ isPrintingDo ? 'Printing...' : (fulfillment.status === 'HANDED_OVER' ? 'Reprint Delivery Order' : 'Print Delivery Order') }}
+                {{ isPrintingDo ? 'Printing...' : (fulfillment.status === 'DISPATCHED' ? 'Reprint Delivery Order' : 'Print Delivery Order') }}
               </button>
             </div>
           </div>
@@ -531,8 +531,8 @@ async function handlePrintDo() {
 
 const STATUS_BADGE_COLOR = {
   PICKING: 'info',
-  READY_FOR_DELIVERY: 'warning',
-  HANDED_OVER: 'success',
+  READY_FOR_DISPATCH: 'warning',
+  DISPATCHED: 'success',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'

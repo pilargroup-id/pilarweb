@@ -293,7 +293,7 @@ const isFilterOpen = ref(false)
 const statusFilterOptions = [
   { id: '', name: 'Picking & Ready for Delivery' },
   { id: 'PICKING', name: 'Picking only' },
-  { id: 'READY_FOR_DELIVERY', name: 'Ready for Delivery only' },
+  { id: 'READY_FOR_DISPATCH', name: 'Ready for Dispatch only' },
 ]
 const sortOrderOptions = [
   { id: 'desc', name: 'Newest submitted first' },
@@ -416,7 +416,7 @@ function closePickingDialog() {
 // the next step inside it will be (pick vs. print DO).
 const PROCESS_LABEL = {
   PICKING: 'Pick Process',
-  READY_FOR_DELIVERY: 'DO Process',
+  READY_FOR_DISPATCH: 'DO Process',
 }
 
 const processLabel = (status) => PROCESS_LABEL[status] || 'Process'
@@ -426,7 +426,7 @@ const PROCESS_BUTTON_OUTLINE_BASE =
 
 const PROCESS_BUTTON_COLOR_CLASS = {
   PICKING: 'border-blue-light-300 text-blue-light-500 hover:bg-blue-light-50 dark:border-blue-light-800 dark:hover:bg-white/[0.03]',
-  READY_FOR_DELIVERY: 'border-warning-300 text-warning-600 hover:bg-warning-50 dark:border-warning-800 dark:hover:bg-white/[0.03]',
+  READY_FOR_DISPATCH: 'border-warning-300 text-warning-600 hover:bg-warning-50 dark:border-warning-800 dark:hover:bg-white/[0.03]',
 }
 
 const processButtonClass = (status) =>
@@ -434,7 +434,7 @@ const processButtonClass = (status) =>
 
 const STATUS_BADGE_COLOR = {
   PICKING: 'info',
-  READY_FOR_DELIVERY: 'warning',
+  READY_FOR_DISPATCH: 'warning',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
@@ -477,7 +477,7 @@ async function fetchQueue(page = 1) {
     const res = await getWarehouseFulfillments({
       page,
       limit: meta.limit,
-      status: statusFilter.value || 'PICKING,READY_FOR_DELIVERY',
+      status: statusFilter.value || 'PICKING,READY_FOR_DISPATCH',
       ...(search.value ? { search: search.value } : {}),
       ...(departmentFilter.value ? { department_id: departmentFilter.value } : {}),
       ...(purposeFilter.value ? { purpose_id: purposeFilter.value } : {}),

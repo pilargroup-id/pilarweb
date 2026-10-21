@@ -50,6 +50,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/deliveries',
+      name: 'Delivery Confirmation',
+      component: () => import('../components/pages/request/DeliveryConfirmationPage.vue'),
+      meta: {
+        title: 'Delivery Confirmation',
+      },
+    },
+    {
       path: '/request/:id',
       name: 'Request Detail',
       component: () => import('../components/pages/request/RequestDetailPage.vue'),
@@ -104,6 +112,14 @@ const router = createRouter({
       component: () => import('../components/pages/werehouse/HandOverPage.vue'),
       meta: {
         title: 'Handover',
+      },
+    },
+    {
+      path: '/warehouse/discrepancies',
+      name: 'Warehouse Discrepancies',
+      component: () => import('../components/pages/werehouse/DiscrepancyPage.vue'),
+      meta: {
+        title: 'Delivery Discrepancies',
       },
     },
     {

@@ -308,24 +308,18 @@ const requestDetail = ref(null)
 const isSubmitReturnDialogOpen = ref(false)
 
 const STATUS_BADGE_COLOR = {
-  DRAFT: 'light',
-  SUBMITTED: 'warning',
-  REVERTED_TO_REQUESTER: 'warning',
   PENDING_DEPARTMENT_APPROVAL: 'warning',
+  REVERTED_TO_REQUESTER: 'warning',
   PENDING_FINANCE_REVIEW: 'warning',
-  READY_FOR_WAREHOUSE: 'info',
   PICKING: 'info',
-  PENDING_INVENTORY_TRANSFER: 'info',
-  READY_FOR_HANDOVER: 'info',
-  HANDED_OVER: 'primary',
-  PARTIALLY_FULFILLED: 'warning',
-  RETURN_PENDING: 'warning',
-  RETURN_SUBMITTED: 'info',
-  RETURN_PARTIAL: 'warning',
-  PENDING_REQUESTER: 'light',
+  ADMINISTRATIVE_FULFILLMENT: 'info',
+  READY_FOR_DISPATCH: 'info',
+  DISPATCHED: 'primary',
   PARTIALLY_RECEIVED: 'warning',
+  RETURN_PENDING: 'warning',
+  PENDING_REQUESTER: 'light',
+  SUBMITTED: 'info',
   COMPLETED: 'success',
-  RECEIVED: 'success',
   REJECTED: 'error',
   CANCELED: 'error',
 }
@@ -452,11 +446,10 @@ const timelineSteps = computed(() => {
     })
   }
 
-  if (req.fulfillment) {
-    const f = req.fulfillment
+  for (const f of req.fulfillments || []) {
     steps.push({
-      key: 'picking',
-      title: 'Picked by Warehouse',
+      key: `picking-${f.id}`,
+      title: `Picked by Warehouse${f.fulfillment_number ? ` (${f.fulfillment_number})` : ''}`,
       status: f.picking_completed_at ? 'done' : 'pending',
       badge: f.picking_completed_at ? 'Completed' : 'In Progress',
       extra: f.inventory_transfer_number ? `IWT ${f.inventory_transfer_number}` : null,
@@ -465,15 +458,27 @@ const timelineSteps = computed(() => {
       pendingLabel: 'Picking in progress',
     })
 
-    if (f.handover) {
+    if (f.dispatched_at) {
       steps.push({
-        key: 'handover',
-        title: 'Handed Over',
+        key: `dispatched-${f.id}`,
+        title: `Dispatched${f.fulfillment_number ? ` (${f.fulfillment_number})` : ''}`,
         status: 'done',
-        badge: 'Handed Over',
-        by: f.handover.handed_over_by_name,
-        at: f.handover.handed_over_at,
-        note: f.handover.note,
+        badge: 'Dispatched',
+        by: f.last_do_printed_by_name,
+        at: f.dispatched_at,
+      })
+    }
+
+    if (f.delivery_receipt) {
+      const dr = f.delivery_receipt
+      steps.push({
+        key: `receipt-${f.id}`,
+        title: 'Delivery Receipt Confirmed',
+        status: dr.status === 'PENDING' ? 'pending' : 'done',
+        badge: dr.status === 'PARTIAL' ? 'Partial' : dr.status === 'RECEIVED' ? 'Received' : 'Pending',
+        by: dr.confirmation_method === 'AUTO' ? 'Auto-accepted' : dr.confirmed_by_name,
+        at: dr.confirmed_at,
+        pendingLabel: 'Awaiting requester confirmation',
       })
     }
   }

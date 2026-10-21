@@ -195,14 +195,14 @@ function close() {
 async function submit() {
   if (!props.returnItem) return
 
-  const selected = rows.value.filter((row) => Number(row.received_qty) > 0)
-  if (!selected.length) {
+  const hasAnyQty = rows.value.some((row) => Number(row.received_qty) > 0)
+  if (!hasAnyQty) {
     errorMessage.value = 'Enter a received quantity for at least one item.'
     return
   }
-  for (const row of selected) {
+  for (const row of rows.value) {
     const qty = Number(row.received_qty)
-    if (Number.isNaN(qty) || qty > row.outstanding + 0.0001) {
+    if (Number.isNaN(qty) || qty < 0 || qty > row.outstanding + 0.0001) {
       errorMessage.value = `Received qty for "${row.item_name}" cannot exceed ${row.outstanding}.`
       return
     }
@@ -213,13 +213,13 @@ async function submit() {
   try {
     await receiveReturn(props.returnItem.id, {
       note: note.value.trim() || null,
-      items: selected.map((row) => ({
+      items: rows.value.map((row) => ({
         return_item_id: row.return_item_id,
-        received_qty: Number(row.received_qty),
+        warehouse_received_qty: Number(row.received_qty) || 0,
       })),
     })
     emit('received', props.returnItem.id)
-    close()
+    emit('close')
   } catch (err) {
     errorMessage.value = err?.message || `Failed to receive return ${props.returnItem?.return_number}.`
   } finally {

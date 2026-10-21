@@ -101,7 +101,7 @@
               Detail
             </button>
             <button
-              v-if="item.status === 'SUBMITTED' || item.status === 'PARTIALLY_RECEIVED'"
+              v-if="item.status === 'SUBMITTED'"
               @click="openReceiveDialog(item)"
               type="button"
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
@@ -294,7 +294,6 @@ const statusFilterOptions = [
   { id: '', name: 'All statuses' },
   { id: 'PENDING_REQUESTER', name: 'Pending Requester' },
   { id: 'SUBMITTED', name: 'Submitted' },
-  { id: 'PARTIALLY_RECEIVED', name: 'Partially Received' },
   { id: 'COMPLETED', name: 'Completed' },
 ]
 const sortOrderOptions = [
@@ -408,12 +407,11 @@ async function handleChanged() {
   await fetchQueue(meta.page)
 }
 
-// A return's own lifecycle is PENDING_REQUESTER -> SUBMITTED -> PARTIALLY_RECEIVED -> COMPLETED,
-// separate from the parent request's RETURN_PENDING / RETURN_SUBMITTED / RETURN_PARTIAL status.
+// A return's own lifecycle is PENDING_REQUESTER -> SUBMITTED -> COMPLETED,
+// separate from the parent request's status.
 const STATUS_BADGE_COLOR = {
   PENDING_REQUESTER: 'light',
   SUBMITTED: 'warning',
-  PARTIALLY_RECEIVED: 'info',
   COMPLETED: 'success',
 }
 
