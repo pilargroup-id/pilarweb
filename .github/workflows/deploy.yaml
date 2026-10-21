@@ -78,9 +78,14 @@ jobs:
             "
 
       # -------------------------
-      # 8. Run DB migrations & seeds
+      # 8. Reset & load DB schema + seeds
       # -------------------------
-      - name: Run DB migrations & seeds on VM
+      # NOTE: this is still a pre-production baseline (see .docs database guide),
+      # so every deploy drops and reloads the DB from the consolidated schema
+      # instead of applying migrations/ incrementally. Once real data needs to be
+      # preserved, replace this with real, additive ALTER migrations and stop
+      # dropping the database here.
+      - name: Reset & load DB schema + seeds on VM
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
@@ -89,10 +94,8 @@ jobs:
               set -a
               . ./.env
               set +a
-              for f in database/migrations/*.sql; do
-                echo \"Applying \$f\"
-                mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
-              done
+              mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" -e 'DROP DATABASE IF EXISTS pilarweb;'
+              mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < database/schema/pilarweb-schema.sql
               for f in database/seeds/*.sql; do
                 echo \"Applying \$f\"
                 mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
