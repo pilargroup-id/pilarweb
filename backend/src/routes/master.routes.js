@@ -11,13 +11,16 @@ router.get('/request-purposes',MasterController.requestPurposes);
 router.get('/approval-rules',MasterController.approvalRules);
 router.get('/warehouse-locations',MasterController.warehouseLocations);
 router.get('/financial-closing',MasterController.financialClosing);
+router.get('/request-policy',MasterController.requestPolicy);
 router.get('/job-levels',DirectoryController.jobLevels);
 async function requireAdmin(req,res,next){try{await AccessService.requireModuleAccess(req.user,'ADMIN');return next();}catch(e){return next(e);}}
 router.get('/module-access-rules',requireAdmin,MasterController.moduleAccessRules);
 router.get('/validation-override-users',requireAdmin,MasterController.validationOverrideUsers);
+router.get('/validation-rules',requireAdmin,MasterController.validationRules);
 router.post('/approval-rules',requireAdmin,MasterController.createApprovalRule);
 router.put('/approval-rules/:id',requireAdmin,MasterController.updateApprovalRule);
 router.put('/financial-closing',requireAdmin,MasterController.updateFinancialClosing);
+router.put('/request-policy',requireAdmin,MasterController.updateRequestPolicy);
 router.post('/module-access-rules',requireAdmin,MasterController.createModuleAccessRule);
 router.put('/module-access-rules/:id',requireAdmin,MasterController.updateModuleAccessRule);
 router.post('/request-purposes',requireAdmin,MasterController.createRequestPurpose);
@@ -27,4 +30,5 @@ router.post('/warehouse-locations',requireAdmin,MasterController.createWarehouse
 router.put('/warehouse-locations/:id',requireAdmin,MasterController.updateWarehouseLocation);
 router.post('/validation-override-users',requireAdmin,MasterController.createValidationOverrideUser);
 router.put('/validation-override-users/:id',requireAdmin,MasterController.updateValidationOverrideUser);
+router.put('/validation-rules/:id',requireAdmin,MasterController.updateValidationRule);
 module.exports=router;

@@ -1,17 +1,15 @@
-const express = require('express');
-const config = require('../config');
-const WarehouseController = require('../controllers/warehouse.controller');
-const { authenticate, requireApp } = require('../middleware/auth.middleware');
-
-const router = express.Router();
-router.use(authenticate, requireApp(config.app.slug));
-
-router.get('/fulfillments', WarehouseController.fulfillments);
-router.get('/fulfillments/:fulfillmentId', WarehouseController.showFulfillment);
-router.post('/fulfillments/:fulfillmentId/print-picking', WarehouseController.printPicking);
-router.put('/fulfillments/:fulfillmentId/progress', WarehouseController.saveProgress);
-router.post('/fulfillments/:fulfillmentId/complete-picking', WarehouseController.completePicking);
-router.post('/fulfillments/:fulfillmentId/print-do', WarehouseController.printDo);
-router.get('/handovers', WarehouseController.handovers);
-
-module.exports = router;
+const express=require('express');
+const config=require('../config');
+const WarehouseController=require('../controllers/warehouse.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/fulfillments',WarehouseController.fulfillments);
+router.get('/fulfillments/:fulfillmentId',WarehouseController.showFulfillment);
+router.post('/fulfillments/:fulfillmentId/print-picking',WarehouseController.printPicking);
+router.put('/fulfillments/:fulfillmentId/progress',WarehouseController.saveProgress);
+router.post('/fulfillments/:fulfillmentId/complete',WarehouseController.complete);
+router.post('/fulfillments/:fulfillmentId/print-do',WarehouseController.printDo);
+router.get('/discrepancies',WarehouseController.discrepancies);
+router.post('/discrepancies/:id/resolve',WarehouseController.resolveDiscrepancy);
+module.exports=router;

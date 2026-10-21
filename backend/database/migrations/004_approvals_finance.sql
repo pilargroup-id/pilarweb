@@ -1,7 +1,7 @@
--- Pilarweb migration 004: manager approval + Finance per-SKU/per-quantity review
+-- Pilarweb 004: manager approval + Finance per-SKU/per-quantity review
 USE pilarweb;
 
-CREATE TABLE IF NOT EXISTS request_approvals (
+CREATE TABLE request_approvals (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   approval_rule_id BIGINT UNSIGNED DEFAULT NULL,
@@ -27,11 +27,10 @@ CREATE TABLE IF NOT EXISTS request_approvals (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_request_approvals_request_order (request_id, approval_order),
-  KEY idx_request_approvals_status (status),
   KEY idx_request_approvals_department_status (department_id, status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS finance_reviews (
+CREATE TABLE finance_reviews (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
@@ -47,12 +46,12 @@ CREATE TABLE IF NOT EXISTS finance_reviews (
   KEY idx_finance_reviews_status (status)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS finance_review_items (
+CREATE TABLE finance_review_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   finance_review_id BIGINT UNSIGNED NOT NULL,
   request_item_id BIGINT UNSIGNED NOT NULL,
   requested_qty_snapshot DECIMAL(18,4) NOT NULL,
-  decision VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+  decision ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
   approved_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   rejected_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
   note VARCHAR(500) DEFAULT NULL,
@@ -61,6 +60,5 @@ CREATE TABLE IF NOT EXISTS finance_review_items (
   PRIMARY KEY (id),
   UNIQUE KEY uq_finance_review_items_request_item (finance_review_id, request_item_id),
   KEY idx_finance_review_items_review (finance_review_id),
-  KEY idx_finance_review_items_request_item (request_item_id),
-  KEY idx_finance_review_items_decision (decision)
+  KEY idx_finance_review_items_request_item (request_item_id)
 ) ENGINE=InnoDB;

@@ -103,7 +103,7 @@ function mapRecentRow(row) {
     module: row.entity_type,
     action: row.action_code,
     status: 'SUCCESS',
-    user_name_snapshot: row.actor_name,
+    name: row.actor_name,
     entity_type: row.entity_type,
     entity_reference: row.request_number || row.entity_id,
     entity_name_snapshot: row.request_number || null,

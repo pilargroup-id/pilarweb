@@ -1,0 +1,10 @@
+const express=require('express');
+const config=require('../config');
+const DeliveryController=require('../controllers/delivery.controller');
+const {authenticate,requireApp}=require('../middleware/auth.middleware');
+const router=express.Router();
+router.use(authenticate,requireApp(config.app.slug));
+router.get('/my',DeliveryController.mine);
+router.get('/:id',DeliveryController.show);
+router.post('/:id/confirm',DeliveryController.confirm);
+module.exports=router;

@@ -40,8 +40,12 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err?.statusCode && err.statusCode >= 400 && err.statusCode < 600) {
+    const details = err?.errors && typeof err.errors === 'object' && !Array.isArray(err.errors)
+      ? err.errors
+      : (err?.errors ? { details: err.errors } : {});
     return R.error(res, err.message || 'Request failed', err.statusCode, {
       code: err.code || 'REQUEST_FAILED',
+      ...details,
     });
   }
 

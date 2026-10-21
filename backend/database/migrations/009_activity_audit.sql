@@ -1,24 +1,22 @@
--- Pilarweb migration 007: comments and append-only business activity log
-
+-- Pilarweb 009: comments + append-only activity log
 USE pilarweb;
 
-CREATE TABLE IF NOT EXISTS request_comments (
+CREATE TABLE request_comments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) NOT NULL,
   comment_text TEXT NOT NULL,
   created_by_user_id VARCHAR(36) NOT NULL,
   created_by_name VARCHAR(255) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_request_comments_request (request_id, created_at)
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS activity_logs (
+CREATE TABLE activity_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   request_id VARCHAR(36) DEFAULT NULL,
   entity_type VARCHAR(80) NOT NULL,
-  entity_id VARCHAR(100) DEFAULT NULL,
+  entity_id VARCHAR(80) DEFAULT NULL,
   action_code VARCHAR(100) NOT NULL,
   actor_user_id VARCHAR(36) DEFAULT NULL,
   actor_name VARCHAR(255) DEFAULT NULL,

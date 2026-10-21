@@ -1,118 +1,38 @@
-const { requireDatabase } = require('../config/database.config');
-const AccessService = require('./access.service');
-const ActivityService = require('./activity.service');
-const UserUtil = require('../utils/user.util');
-const SequenceUtil = require('../utils/sequence.util');
-const { createError, optionalText, positiveNumber, parsePositiveInt } = require('../utils/business.util');
+const crypto=require('crypto');
+const {requireDatabase}=require('../config/database.config');
+const AccessService=require('./access.service');
+const ActivityService=require('./activity.service');
+const ValidationService=require('./validation.service');
+const SequenceUtil=require('../utils/sequence.util');
+const UserUtil=require('../utils/user.util');
+const {createError,nonNegativeNumber,optionalText,parsePositiveInt}=require('../utils/business.util');
 
-async function canView(user, row, connection=null){
-  if(String(row.requester_user_id)===String(user.id))return true;
-  if(await AccessService.hasModuleAccess(user,'ADMIN',connection))return true;
-  if(await AccessService.hasModuleAccess(user,'WAREHOUSE',connection))return true;
-  if(await AccessService.hasModuleAccess(user,'FINANCE',connection))return true;
-  if(await AccessService.hasValidationOverrideAccess(user,connection))return true;
-  return false;
+async function list(user,query={}){const db=requireDatabase();const isWarehouse=await AccessService.hasModuleAccess(user,'WAREHOUSE');const isAdmin=await AccessService.hasModuleAccess(user,'ADMIN');const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;const params=[];let where='WHERE 1=1';if(!isWarehouse&&!isAdmin){where+=' AND r.requester_user_id=?';params.push(String(user.id));}if(query.status){where+=' AND rt.status=?';params.push(String(query.status).toUpperCase());}if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (rt.return_number LIKE ? OR r.request_number LIKE ? OR r.requester_name LIKE ?)';params.push(s,s,s);}const[count]=await db.query(`SELECT COUNT(*) AS total FROM returns rt INNER JOIN requests r ON r.id=rt.request_id ${where}`,params);const[rows]=await db.query(`SELECT rt.*,r.request_number,r.requester_user_id,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name FROM returns rt INNER JOIN requests r ON r.id=rt.request_id ${where} ORDER BY rt.created_at DESC,rt.id DESC LIMIT ? OFFSET ?`,[...params,limit,offset]);const total=Number(count[0]?.total||0);return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};}
+
+async function getById(user,id){const db=requireDatabase();const[rows]=await db.query(`SELECT rt.*,r.request_number,r.requester_user_id,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name,r.status AS request_status FROM returns rt INNER JOIN requests r ON r.id=rt.request_id WHERE rt.id=? LIMIT 1`,[Number(id)]);const rt=rows[0];if(!rt)throw createError('Return not found',404,'RETURN_NOT_FOUND');if(String(rt.requester_user_id)!==String(user.id)&&!(await AccessService.hasModuleAccess(user,'WAREHOUSE'))&&!(await AccessService.hasModuleAccess(user,'ADMIN')))throw createError('Return is not accessible',403,'RETURN_ACCESS_FORBIDDEN');const[items]=await db.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id',[rt.id]);return{...rt,items};}
+
+async function submit(user,id,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();const[rows]=await c.query(`SELECT rt.*,r.requester_user_id,r.request_number FROM returns rt INNER JOIN requests r ON r.id=rt.request_id WHERE rt.id=? LIMIT 1 FOR UPDATE`,[Number(id)]);const rt=rows[0];if(!rt)throw createError('Return not found',404,'RETURN_NOT_FOUND');if(String(rt.requester_user_id)!==String(user.id))throw createError('Only the requester can submit this return',403,'REQUEST_OWNER_REQUIRED');if(rt.status!=='PENDING_REQUESTER')throw createError('This return already used its one final requester submission',409,'RETURN_FINAL_CYCLE_ALREADY_SUBMITTED');const inputs=Array.isArray(payload.items)?payload.items:[];const map=new Map(inputs.map(x=>[Number(x.return_item_id),x]));const[itemRows]=await c.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id FOR UPDATE',[rt.id]);let total=0;for(const item of itemRows){const input=map.get(Number(item.id));if(!input)throw createError(`requester_return_qty is required for return item ${item.id}`,422,'RETURN_QTY_REQUIRED');const qty=nonNegativeNumber(input.requester_return_qty,'requester_return_qty');if(qty>Number(item.expected_qty)+0.000001)throw createError(`requester_return_qty for ${item.item_code} cannot exceed expected_qty`,422,'RETURN_QTY_EXCEEDS_EXPECTED');total+=qty;await c.query('UPDATE return_items SET requester_return_qty=?,note=? WHERE id=?',[qty,input.note!==undefined?optionalText(input.note,500):item.note,item.id]);}
+    await c.query("UPDATE returns SET status='SUBMITTED',requester_declared_total_qty=?,requester_submitted_by_user_id=?,requester_submitted_by_name=?,requester_submitted_at=NOW() WHERE id=?",[total,user.id,user.name||null,rt.id]);await ActivityService.log(c,{request_id:rt.request_id,entity_type:'RETURN',entity_id:rt.id,action_code:'RETURN_FINAL_CYCLE_SUBMITTED',actor_user_id:user.id,actor_name:user.name,after:{return_number:rt.return_number,requester_declared_total_qty:total}});await c.commit();return getById(user,rt.id);}catch(e){await c.rollback();throw e;}finally{c.release();}}
+
+async function createShortfallRequest(c,original,rt,shortfallItems,actor){
+  const[purposeRows]=await c.query("SELECT * FROM master_request_purposes WHERE code='RETURN_SHORTFALL' AND is_active=1 AND is_system=1 LIMIT 1");const purpose=purposeRows[0];if(!purpose)throw createError('RETURN_SHORTFALL purpose is not configured',500,'RETURN_SHORTFALL_PURPOSE_MISSING');const number=await SequenceUtil.nextNumber(c,'PB',SequenceUtil.yearMonthPeriod(),'PB',5,'');const id=crypto.randomUUID();
+  await c.query(`INSERT INTO requests (
+    id,request_number,request_origin,source_request_id,source_return_id,request_purpose_id,request_purpose_code,request_purpose_name,purpose_return_type,status,
+    requester_user_id,requester_internal_id,requester_name,requester_job_level_value,requester_job_level_name,department_id,department_name,target_department_id,target_department_name,company_id,company_name,reason,
+    receipt_confirmation_days_snapshot,discrepancy_resolution_days_snapshot,discrepancy_escalation_days_snapshot,discrepancy_supervisor_lock_days_snapshot,return_due_days_snapshot,policy_timezone_snapshot,submitted_at
+  ) VALUES (?,?, 'RETURN_SHORTFALL',?,?,?,?,?,?, 'PENDING_FINANCE_REVIEW',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,[
+    id,number,original.id,rt.id,purpose.id,purpose.code,purpose.name,purpose.return_type,
+    original.requester_user_id,original.requester_internal_id,original.requester_name,original.requester_job_level_value,original.requester_job_level_name,original.department_id,original.department_name,original.target_department_id,original.target_department_name,original.company_id,original.company_name,`Automatic PB from return shortfall ${rt.return_number} referencing ${original.request_number}`,
+    original.receipt_confirmation_days_snapshot,original.discrepancy_resolution_days_snapshot,original.discrepancy_escalation_days_snapshot,original.discrepancy_supervisor_lock_days_snapshot,original.return_due_days_snapshot,original.policy_timezone_snapshot
+  ]);
+  const requestItems=[];for(const s of shortfallItems){const[origItems]=await c.query('SELECT * FROM request_items WHERE id=? LIMIT 1',[s.request_item_id]);const oi=origItems[0];const[result]=await c.query(`INSERT INTO request_items (request_id,source_return_item_id,itembase_item_id,item_code,item_name,selling_name,parent_id,parent_name,variant_name,uom_code,item_kind,requested_qty,notes) VALUES (?,?,?,?,?,?,?,?,?,?, 'regular',?,?)`,[id,s.return_item_id,oi.itembase_item_id,oi.item_code,oi.item_name,oi.selling_name,oi.parent_id,oi.parent_name,oi.variant_name,oi.uom_code,s.shortfall_qty,`Auto-generated from ${rt.return_number}`]);requestItems.push({id:result.insertId,qty:s.shortfall_qty});}
+  const[fr]=await c.query("INSERT INTO finance_reviews (request_id,status) VALUES (?,'PENDING')",[id]);for(const item of requestItems)await c.query(`INSERT INTO finance_review_items (finance_review_id,request_item_id,requested_qty_snapshot,decision,approved_qty,rejected_qty) VALUES (?,?,?,'PENDING',0,0)`,[fr.insertId,item.id,item.qty]);
+  await c.query('UPDATE returns SET generated_shortfall_request_id=? WHERE id=?',[id,rt.id]);await ActivityService.log(c,{request_id:id,entity_type:'REQUEST',entity_id:id,action_code:'RETURN_SHORTFALL_PB_CREATED',actor_user_id:actor.user_id,actor_name:actor.name,after:{request_number:number,source_request_number:original.request_number,source_return_number:rt.return_number,request_origin:'RETURN_SHORTFALL',purpose:'RETURN_SHORTFALL'}});return id;
 }
 
-async function list(user, query={}){
-  const db=requireDatabase();
-  const privileged=(await AccessService.hasModuleAccess(user,'WAREHOUSE'))||(await AccessService.hasModuleAccess(user,'ADMIN'))||(await AccessService.hasModuleAccess(user,'FINANCE'))||(await AccessService.hasValidationOverrideAccess(user));
-  const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;const params=[];let where='WHERE 1=1';
-  if(!privileged){where+=' AND r.requester_user_id=?';params.push(String(user.id));}
-  if(query.status){where+=' AND rt.status=?';params.push(String(query.status).trim().toUpperCase());}
-  if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (rt.return_number LIKE ? OR r.request_number LIKE ? OR r.requester_name LIKE ?)';params.push(s,s,s);}
-  const from=`FROM returns rt INNER JOIN requests r ON r.id=rt.request_id ${where}`;
-  const [countRows]=await db.query(`SELECT COUNT(*) AS total ${from}`,params);
-  const [rows]=await db.query(`
-    SELECT rt.*,r.request_number,r.requester_user_id,r.requester_name,r.department_id,r.department_name,r.target_department_id,r.target_department_name,r.request_purpose_name,r.purpose_return_type,r.status AS request_status,
-      (SELECT COALESCE(SUM(ri.expected_qty),0) FROM return_items ri WHERE ri.return_id=rt.id) AS expected_qty,
-      (SELECT COALESCE(SUM(ri.warehouse_received_qty),0) FROM return_items ri WHERE ri.return_id=rt.id) AS warehouse_received_qty,
-      (SELECT COALESCE(SUM(ri.expected_qty-ri.warehouse_received_qty),0) FROM return_items ri WHERE ri.return_id=rt.id) AS outstanding_qty
-    ${from}
-    ORDER BY rt.due_date ASC,rt.created_at DESC LIMIT ? OFFSET ?
-  `,[...params,limit,offset]);
-  const total=Number(countRows[0]?.total||0);return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
-}
+async function receive(user,id,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'WAREHOUSE',c);const[rows]=await c.query(`SELECT rt.*,r.id AS original_request_id,r.request_number AS original_request_number,r.requester_user_id,r.requester_internal_id,r.requester_name,r.requester_job_level_value,r.requester_job_level_name,r.department_id,r.department_name,r.target_department_id,r.target_department_name,r.company_id,r.company_name,r.receipt_confirmation_days_snapshot,r.discrepancy_resolution_days_snapshot,r.discrepancy_escalation_days_snapshot,r.discrepancy_supervisor_lock_days_snapshot,r.return_due_days_snapshot,r.policy_timezone_snapshot FROM returns rt INNER JOIN requests r ON r.id=rt.request_id WHERE rt.id=? LIMIT 1 FOR UPDATE`,[Number(id)]);const rt=rows[0];if(!rt)throw createError('Return not found',404,'RETURN_NOT_FOUND');if(rt.status!=='SUBMITTED')throw createError('Return is not ready for Warehouse final receipt',409,'RETURN_NOT_SUBMITTED');const inputs=Array.isArray(payload.items)?payload.items:[];const map=new Map(inputs.map(x=>[Number(x.return_item_id),x]));const[itemRows]=await c.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id FOR UPDATE',[rt.id]);let receivedTotal=0;let shortfallTotal=0;const shortfallItems=[];for(const item of itemRows){const input=map.get(Number(item.id));if(!input)throw createError(`warehouse_received_qty is required for return item ${item.id}`,422,'RETURN_RECEIVED_QTY_REQUIRED');const qty=nonNegativeNumber(input.warehouse_received_qty,'warehouse_received_qty');const expected=Number(item.expected_qty||0);if(qty>expected+0.000001)throw createError(`warehouse_received_qty for ${item.item_code} cannot exceed expected_qty`,422,'RETURN_RECEIVED_EXCEEDS_EXPECTED');const shortfall=Math.max(0,expected-qty);receivedTotal+=qty;shortfallTotal+=shortfall;await c.query('UPDATE return_items SET warehouse_received_qty=?,shortfall_qty=?,note=? WHERE id=?',[qty,shortfall,input.note!==undefined?optionalText(input.note,500):item.note,item.id]);if(shortfall>0)shortfallItems.push({return_item_id:item.id,request_item_id:item.request_item_id,shortfall_qty:shortfall});}
+    const actor=UserUtil.snapshot(user);await c.query(`UPDATE returns SET status='COMPLETED',warehouse_received_total_qty=?,shortfall_total_qty=?,warehouse_received_by_user_id=?,warehouse_received_by_name=?,warehouse_received_at=NOW(),completed_at=NOW() WHERE id=?`,[receivedTotal,shortfallTotal,actor.user_id,actor.name,rt.id]);await c.query("UPDATE requests SET status='COMPLETED',completed_at=NOW() WHERE id=?",[rt.request_id]);await ValidationService.resolveViolations(c,"validation_code='RETURN_OVERDUE' AND return_id=?",[rt.id],'Return final cycle completed');let shortfallRequestId=null;if(shortfallTotal>0){shortfallRequestId=await createShortfallRequest(c,{...rt,id:rt.original_request_id,request_number:rt.original_request_number},rt,shortfallItems,actor);await ValidationService.ensureViolation(c,{validation_code:'RETURN_SHORTFALL',request_id:rt.request_id,return_id:rt.id,user_id:rt.requester_user_id,name:rt.requester_name,department_id:rt.department_id,department_name:rt.department_name});}
+    await ActivityService.log(c,{request_id:rt.request_id,entity_type:'RETURN',entity_id:rt.id,action_code:'RETURN_FINAL_RECEIPT_COMPLETED',actor_user_id:actor.user_id,actor_name:actor.name,after:{warehouse_received_total_qty:receivedTotal,shortfall_total_qty:shortfallTotal,generated_shortfall_request_id:shortfallRequestId}});await c.commit();return getById(user,rt.id);
+  }catch(e){await c.rollback();throw e;}finally{c.release();}}
 
-async function getById(user, returnId){
-  const db=requireDatabase();const c=await db.getConnection();
-  try{
-    const [rows]=await c.query(`SELECT rt.*,r.request_number,r.requester_user_id,r.requester_name,r.department_id,r.department_name,r.target_department_id,r.target_department_name,r.request_purpose_name,r.status AS request_status FROM returns rt INNER JOIN requests r ON r.id=rt.request_id WHERE rt.id=? LIMIT 1`,[Number(returnId)]);
-    const row=rows[0];if(!row)throw createError('Return not found',404,'RETURN_NOT_FOUND');
-    if(!(await canView(user,row,c)))throw createError('Return is not accessible',403,'RETURN_ACCESS_FORBIDDEN');
-    const [items]=await c.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id ASC',[row.id]);
-    const [receipts]=await c.query('SELECT * FROM return_receipts WHERE return_id=? ORDER BY received_at ASC,id ASC',[row.id]);
-    for(const receipt of receipts){
-      const [receiptItems]=await c.query(`SELECT rri.*,ri.request_item_id,ri.item_code,ri.item_name FROM return_receipt_items rri INNER JOIN return_items ri ON ri.id=rri.return_item_id WHERE rri.return_receipt_id=? ORDER BY rri.id ASC`,[receipt.id]);
-      receipt.items=receiptItems;
-    }
-    return{...row,items,receipts};
-  }finally{c.release();}
-}
-
-async function submit(user, returnId, payload={}){
-  const db=requireDatabase();const c=await db.getConnection();
-  try{
-    await c.beginTransaction();
-    const [rows]=await c.query(`SELECT rt.*,r.requester_user_id,r.id AS request_id FROM returns rt INNER JOIN requests r ON r.id=rt.request_id WHERE rt.id=? LIMIT 1 FOR UPDATE`,[Number(returnId)]);
-    const rt=rows[0];if(!rt)throw createError('Return not found',404,'RETURN_NOT_FOUND');
-    if(String(rt.requester_user_id)!==String(user.id))throw createError('Only requester can submit this return',403,'RETURN_REQUESTER_REQUIRED');
-    if(rt.status!=='PENDING_REQUESTER')throw createError('Return has already been submitted',409,'RETURN_NOT_PENDING_REQUESTER');
-    const inputs=Array.isArray(payload.items)?payload.items:[];
-    const byId=new Map(inputs.map(i=>[Number(i.return_item_id),i]));
-    const [items]=await c.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id ASC FOR UPDATE',[rt.id]);
-    if(!items.length)throw createError('Return has no items',409,'RETURN_ITEMS_MISSING');
-    for(const item of items){
-      const input=byId.get(Number(item.id));
-      if(!input)throw createError(`Return quantity is required for ${item.item_code}`,422,'RETURN_QTY_REQUIRED');
-      const qty=positiveNumber(input.requester_return_qty,'requester_return_qty');
-      if(Math.abs(qty-Number(item.expected_qty))>0.000001)throw createError(`requester_return_qty for ${item.item_code} must equal actual issued quantity ${item.expected_qty}`,422,'RETURN_QTY_MUST_MATCH_ISSUED');
-      await c.query('UPDATE return_items SET requester_return_qty=?,note=? WHERE id=?',[qty,optionalText(input.note,500),item.id]);
-    }
-    const actor=UserUtil.snapshot(user);
-    await c.query(`UPDATE returns SET status='SUBMITTED',requester_submitted_by_user_id=?,requester_submitted_by_name=?,requester_submitted_at=NOW() WHERE id=?`,[actor.user_id,actor.name,rt.id]);
-    await c.query("UPDATE requests SET status='RETURN_SUBMITTED' WHERE id=?",[rt.request_id]);
-    await ActivityService.log(c,{request_id:rt.request_id,entity_type:'RETURN',entity_id:rt.id,action_code:'RETURN_SUBMITTED',actor_user_id:actor.user_id,actor_name:actor.name});
-    await c.commit();return getById(user,rt.id);
-  }catch(e){await c.rollback();throw e;}finally{c.release();}
-}
-
-async function receive(user, returnId, payload={}){
-  const db=requireDatabase();const c=await db.getConnection();
-  try{
-    await c.beginTransaction();
-    const isAdmin=await AccessService.hasModuleAccess(user,'ADMIN',c);if(!isAdmin)await AccessService.requireModuleAccess(user,'WAREHOUSE',c);
-    const [rows]=await c.query('SELECT * FROM returns WHERE id=? LIMIT 1 FOR UPDATE',[Number(returnId)]);
-    const rt=rows[0];if(!rt)throw createError('Return not found',404,'RETURN_NOT_FOUND');
-    if(!['SUBMITTED','PARTIALLY_RECEIVED'].includes(rt.status))throw createError('Return is not ready for Warehouse receipt',409,'RETURN_NOT_RECEIVABLE');
-    const inputs=Array.isArray(payload.items)?payload.items:[];if(!inputs.length)throw createError('At least one received item is required',422,'RETURN_RECEIPT_ITEMS_REQUIRED');
-    const actor=UserUtil.snapshot(user);
-    const receiptNumber=await SequenceUtil.nextNumber(c,'RETURN_RECEIPT',SequenceUtil.year2Period(),'RRC',5);
-    const [receiptResult]=await c.query(`INSERT INTO return_receipts (receipt_number,return_id,received_by_user_id,received_by_name,received_at,note) VALUES (?,?,?,?,NOW(),?)`,[receiptNumber,rt.id,actor.user_id,actor.name,optionalText(payload.note,500)]);
-    let receivedSomething=false;
-    for(const input of inputs){
-      const returnItemId=Number(input.return_item_id);const qty=positiveNumber(input.received_qty,'received_qty');
-      const [itemRows]=await c.query('SELECT * FROM return_items WHERE id=? AND return_id=? LIMIT 1 FOR UPDATE',[returnItemId,rt.id]);
-      const item=itemRows[0];if(!item)throw createError(`Return item ${input.return_item_id} not found`,404,'RETURN_ITEM_NOT_FOUND');
-      const remaining=Number(item.expected_qty)-Number(item.warehouse_received_qty||0);
-      if(qty>remaining+0.000001)throw createError(`received_qty for ${item.item_code} exceeds outstanding quantity ${remaining}`,422,'RETURN_RECEIVED_QTY_EXCEEDS_OUTSTANDING');
-      await c.query(`INSERT INTO return_receipt_items (return_receipt_id,return_item_id,received_qty,note) VALUES (?,?,?,?)`,[receiptResult.insertId,item.id,qty,optionalText(input.note,500)]);
-      await c.query('UPDATE return_items SET warehouse_received_qty=warehouse_received_qty+? WHERE id=?',[qty,item.id]);
-      receivedSomething=true;
-    }
-    if(!receivedSomething)throw createError('No received quantity was recorded',422,'RETURN_RECEIPT_ITEMS_REQUIRED');
-    const [aggRows]=await c.query(`SELECT COALESCE(SUM(expected_qty),0) AS expected,COALESCE(SUM(warehouse_received_qty),0) AS received FROM return_items WHERE return_id=?`,[rt.id]);
-    const expected=Number(aggRows[0]?.expected||0);const received=Number(aggRows[0]?.received||0);const completed=received>=expected-0.000001;
-    if(completed){
-      await c.query("UPDATE returns SET status='COMPLETED',completed_at=NOW() WHERE id=?",[rt.id]);
-      await c.query("UPDATE requests SET status='COMPLETED',completed_at=NOW() WHERE id=?",[rt.request_id]);
-    }else{
-      await c.query("UPDATE returns SET status='PARTIALLY_RECEIVED' WHERE id=?",[rt.id]);
-      await c.query("UPDATE requests SET status='RETURN_PARTIAL' WHERE id=?",[rt.request_id]);
-    }
-    await ActivityService.log(c,{request_id:rt.request_id,entity_type:'RETURN_RECEIPT',entity_id:receiptResult.insertId,action_code:completed?'RETURN_COMPLETED':'RETURN_PARTIALLY_RECEIVED',actor_user_id:actor.user_id,actor_name:actor.name,after:{receipt_number:receiptNumber,expected_qty:expected,warehouse_received_qty:received,outstanding_qty:Math.max(0,expected-received)}});
-    await c.commit();return getById(user,rt.id);
-  }catch(e){await c.rollback();throw e;}finally{c.release();}
-}
-
-module.exports={list,getById,submit,receive};
+module.exports={list,getById,submit,receive,createShortfallRequest};
