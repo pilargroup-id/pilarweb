@@ -235,19 +235,6 @@ const rawMenuGroups = [
         name: "Dashboard",
         path: "/",
       },
-      // {
-      //   icon: ChatIcon,
-      //   name: "AI Assistant",
-      //   path: "/chat",
-      // },
-      // {
-      //   icon: BoxIcon,
-      //   name: "Asset",
-      //   subItems: [
-      //     { name: "Asset Fixed", path: "/asset/fixed", pro: false },
-      //     { name: "Asset Consumeable", path: "/asset/consumeable", pro: false },
-      //   ],
-      // },
        {
         icon: BoxIcon,
         name: "My Request",
@@ -275,10 +262,9 @@ const rawMenuGroups = [
         name: "Warehouse",
         capability: "warehouse_access",
         subItems: [
-          // { name: "Request Queue", path: "/warehouse/requests", pro: false },
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
-          { name: "Hand Over", path: "/warehouse/handover", pro: false },
           { name: "Returns", path: "/returns", pro: false },
+          { name: "Hand Over", path: "/warehouse/handover", pro: false },
         ],
       },
             {

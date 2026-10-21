@@ -89,7 +89,6 @@
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Actual Qty</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Shortage</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -100,7 +99,6 @@
                     </td>
                     <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ fi.finance_approved_qty_snapshot }}</td>
                     <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ fi.actual_qty }}</td>
-                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ fi.shortage_qty }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -110,7 +108,6 @@
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <p class="text-theme-sm text-gray-600 dark:text-gray-300">
                   Handed over {{ formatDate(fulfillment.handover.handed_over_at) }}
-                  <span v-if="fulfillment.handover.received_at"> &middot; Received {{ formatDate(fulfillment.handover.received_at) }}</span>
                 </p>
                 <Badge :color="fulfillment.handover.status === 'RECEIVED' ? 'success' : 'warning'" size="sm">
                   {{ formatStatusLabel(fulfillment.handover.status) }}
@@ -119,22 +116,9 @@
               <p v-if="fulfillment.handover.note" class="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
                 {{ fulfillment.handover.note }}
               </p>
-
-              <div v-if="fulfillment.handover.status === 'HANDED_OVER'" class="mt-3 flex justify-end">
-                <button
-                  @click="handleReceive(fulfillment.handover)"
-                  type="button"
-                  :disabled="receivingId === fulfillment.handover.id"
-                  class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <CheckIcon class="h-4 w-4" />
-                  {{ receivingId === fulfillment.handover.id ? 'Confirming...' : 'Confirm Receipt' }}
-                </button>
-              </div>
             </div>
           </div>
         </div>
-        <p v-if="receiveError" class="mt-3 text-sm text-error-600 dark:text-error-500">{{ receiveError }}</p>
       </ComponentCard>
 
       <ComponentCard v-if="isReturnable" title="Returns">
@@ -212,8 +196,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import Badge from '@/components/ui/Badge.vue'
 import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
-import { CheckIcon } from '@/icons'
-import { getRequestById, receiveHandover } from '@/service/api'
+import { getRequestById } from '@/service/api'
 
 const route = useRoute()
 const currentPageTitle = ref('Request Detail')
@@ -221,8 +204,6 @@ const currentPageTitle = ref('Request Detail')
 const isLoading = ref(false)
 const loadError = ref('')
 const requestDetail = ref(null)
-const receivingId = ref('')
-const receiveError = ref('')
 const isSubmitReturnDialogOpen = ref(false)
 
 const STATUS_BADGE_COLOR = {
@@ -281,19 +262,6 @@ async function loadRequest() {
     loadError.value = err?.message || 'Failed to load request.'
   } finally {
     isLoading.value = false
-  }
-}
-
-async function handleReceive(handover) {
-  receiveError.value = ''
-  receivingId.value = handover.id
-  try {
-    await receiveHandover(handover.id)
-    await loadRequest()
-  } catch (err) {
-    receiveError.value = err?.message || 'Failed to confirm receipt.'
-  } finally {
-    receivingId.value = ''
   }
 }
 

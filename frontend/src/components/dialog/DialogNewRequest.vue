@@ -196,7 +196,6 @@ import {
   addRequestItem,
   updateRequestItem,
   removeRequestItem,
-  cancelRequestItem,
 } from '@/service/api'
 
 const props = defineProps({
@@ -460,21 +459,8 @@ async function submitEdit() {
     ...(requiresReturn.value ? { return_due_date: form.return_due_date } : {}),
   })
 
-  if (removedItemIds.value.length) {
-    let cancelReason = ''
-    if (requestDetail.value.status !== 'DRAFT') {
-      cancelReason = window.prompt('Please provide a reason for removing item(s) from this request:') || ''
-      if (!cancelReason.trim()) {
-        throw new Error('A reason is required to remove items from a submitted request.')
-      }
-    }
-    for (const itemId of removedItemIds.value) {
-      if (requestDetail.value.status === 'DRAFT') {
-        await removeRequestItem(requestId, itemId)
-      } else {
-        await cancelRequestItem(requestId, itemId, { reason: cancelReason.trim() })
-      }
-    }
+  for (const itemId of removedItemIds.value) {
+    await removeRequestItem(requestId, itemId)
   }
 
   for (const row of items.value) {

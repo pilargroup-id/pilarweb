@@ -152,16 +152,6 @@
               {{ submittingId === item.id ? 'Submitting...' : 'Submit for Approval' }}
             </button>
             <button
-              v-if="isCancellable(item.status)"
-              @click="handleCancelRequest(item)"
-              type="button"
-              title="Cancel"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-            >
-              <TrashIcon class="h-4 w-4" />
-              Cancel
-            </button>
-            <button
               v-if="isReturnPending(item.status)"
               @click="handleReturnRequest(item)"
               :disabled="loadingReturnId === item.id"
@@ -222,13 +212,6 @@
       :request-id="editingRequestId"
       @close="isEditRequestOpen = false"
       @updated="handleRequestUpdated"
-    />
-
-    <DialogCancelRequest
-      :is-open="isCancelRequestOpen"
-      :request="cancelingRequest"
-      @close="isCancelRequestOpen = false"
-      @canceled="handleRequestCanceled"
     />
 
     <DialogRequestDetail
@@ -370,12 +353,11 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogNewRequest from '@/components/dialog/DialogNewRequest.vue'
-import DialogCancelRequest from '@/components/dialog/DialogCancelRequest.vue'
 import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
 import DialogSubmitReturn from '@/components/dialog/DialogSubmitReturn.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
-import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, TrashIcon, UndoIcon, FilterIcon, CloseIcon } from '@/icons'
+import { PlusIcon, RefreshIcon, EyeIcon, PencilIcon, SendIcon, UndoIcon, FilterIcon, CloseIcon } from '@/icons'
 
 const route = useRoute()
 const { pushNotification } = useNotificationCenter()
@@ -400,8 +382,6 @@ if (createdNotice.value) {
 const isNewRequestOpen = ref(false)
 const isEditRequestOpen = ref(false)
 const editingRequestId = ref(null)
-const isCancelRequestOpen = ref(false)
-const cancelingRequest = ref(null)
 const isDetailOpen = ref(false)
 const viewingRequestId = ref(null)
 const isSubmitReturnOpen = ref(false)
@@ -546,7 +526,6 @@ function resetFilters() {
 
 const SUBMITTABLE_STATUSES = new Set(['DRAFT', 'REVERTED_TO_REQUESTER'])
 const EDITABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER'])
-const CANCELLABLE_STATUSES = new Set(['DRAFT', 'PENDING_DEPARTMENT_APPROVAL', 'REVERTED_TO_REQUESTER'])
 
 const STATUS_BADGE_COLOR = {
   DRAFT: 'light',
@@ -571,7 +550,6 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 
 const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
 const isEditable = (status) => EDITABLE_STATUSES.has(status)
-const isCancellable = (status) => CANCELLABLE_STATUSES.has(status)
 const isReturnPending = (status) => status === 'RETURN_PENDING'
 
 function handleEditRequest(item) {
@@ -588,17 +566,6 @@ function handleRequestUpdated() {
 function handleViewRequest(item) {
   viewingRequestId.value = item.id
   isDetailOpen.value = true
-}
-
-function handleCancelRequest(item) {
-  submitError.value = ''
-  cancelingRequest.value = item
-  isCancelRequestOpen.value = true
-}
-
-function handleRequestCanceled() {
-  isCancelRequestOpen.value = false
-  fetchRequests(meta.page)
 }
 
 async function handleReturnRequest(item) {
