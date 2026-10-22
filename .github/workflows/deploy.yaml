@@ -5,132 +5,320 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
+concurrency:
+  group: pilarweb-production
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     name: Build & Deploy Pilarweb
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      # -------------------------
+      # =========================================================
       # 1. Checkout
-      # -------------------------
+      # =========================================================
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # -------------------------
-      # 2. Setup Node
-      # -------------------------
+      # =========================================================
+      # 2. Setup Node.js
+      # =========================================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24.14.0
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
 
-      # -------------------------
-      # 3. Check Backend
-      # -------------------------
-      - name: Install & check backend
+      # =========================================================
+      # 3. Backend validation
+      # =========================================================
+      - name: Install backend dependencies
         working-directory: backend
-        run: |
-          npm install
-          npm run check
+        run: npm ci
 
-      # -------------------------
-      # 4. Build Frontend
-      # -------------------------
-      - name: Install & build frontend
+      - name: Check backend
+        working-directory: backend
+        run: npm run check
+
+      # =========================================================
+      # 4. Frontend build
+      # =========================================================
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
         working-directory: frontend
         run: |
-          echo "VITE_API_BASE_URL=" > .env.production
-          npm install
+          printf 'VITE_API_BASE_URL=\n' > .env.production
           npm run build
 
-      # -------------------------
-      # 5. Setup SSH
-      # -------------------------
+      # =========================================================
+      # 5. Safety check
+      #
+      # Deployment MUST NOT:
+      # - DROP database
+      # - execute consolidated schema
+      # - automatically execute seeds
+      #
+      # DB migrations are intentionally handled separately.
+      # =========================================================
+      - name: Deployment safety check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKFLOW=".github/workflows/deploy.yml"
+
+          if grep -Ei \
+            'DROP[[:space:]]+DATABASE|DROP[[:space:]]+SCHEMA|TRUNCATE[[:space:]]+TABLE' \
+            "$WORKFLOW"; then
+            echo "ERROR: Destructive database command found in deploy workflow."
+            exit 1
+          fi
+
+          echo "Deployment workflow safety check passed."
+
+      # =========================================================
+      # 6. Setup SSH
+      # =========================================================
       - name: Setup SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_KEY }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
+          set -euo pipefail
+
           mkdir -p ~/.ssh
+
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.GCP_HOST }} >> ~/.ssh/known_hosts
 
-      # -------------------------
-      # 6. Test SSH
-      # -------------------------
+          ssh-keyscan -H "$GCP_HOST" >> ~/.ssh/known_hosts
+
+      # =========================================================
+      # 7. Test SSH
+      # =========================================================
       - name: Test SSH connection
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "whoami && hostname"
+          set -euo pipefail
 
-      # -------------------------
-      # 7. Pull latest code on VM
-      # -------------------------
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" \
+            "whoami && hostname"
+
+      # =========================================================
+      # 8. Pull latest backend/source on VM
+      # =========================================================
       - name: Pull latest code on VM
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-              set -e
-              cd /var/www/pilarweb
-              git fetch origin
-              git reset --hard origin/main
-            "
+          set -euo pipefail
 
-      # -------------------------
-      # 8. Reset & load DB schema + seeds
-      # -------------------------
-      # NOTE: this is still a pre-production baseline (see .docs database guide),
-      # so every deploy drops and reloads the DB from the consolidated schema
-      # instead of applying migrations/ incrementally. Once real data needs to be
-      # preserved, replace this with real, additive ALTER migrations and stop
-      # dropping the database here.
-      - name: Reset & load DB schema + seeds on VM
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
+
+              cd /var/www/pilarweb
+
+              git fetch origin main
+              git reset --hard origin/main
+            '
+
+      # =========================================================
+      # 9. Database connectivity check
+      #
+      # IMPORTANT:
+      # This step is READ-ONLY.
+      # It does NOT run:
+      # - schema files
+      # - migrations
+      # - seeds
+      # - DROP / CREATE database
+      # =========================================================
+      - name: Check database connection
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-              set -e
+          set -euo pipefail
+
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
+
               cd /var/www/pilarweb/backend
+
               set -a
               . ./.env
               set +a
-              mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" -e 'DROP DATABASE IF EXISTS pilarweb;'
-              mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < database/schema/pilarweb-schema.sql
-              for f in database/seeds/*.sql; do
-                echo \"Applying \$f\"
-                mysql -h \"\$DB_HOST\" -P \"\$DB_PORT\" -u \"\$DB_USER\" -p\"\$DB_PASSWORD\" < \"\$f\"
-              done
-            "
 
-      # -------------------------
-      # 9. Upload frontend dist
-      # -------------------------
+              DB_NAME="${DB_NAME:-pilarweb}"
+              DB_PORT="${DB_PORT:-3306}"
+
+              mysql \
+                -h "$DB_HOST" \
+                -P "$DB_PORT" \
+                -u "$DB_USER" \
+                -p"$DB_PASSWORD" \
+                "$DB_NAME" \
+                -Nse "SELECT 1;"
+
+              echo "Database connection OK."
+            '
+
+      # =========================================================
+      # 10. Upload frontend build
+      # =========================================================
       - name: Upload frontend build
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
-          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+          set -euo pipefail
+
+          rsync \
+            -az \
+            --delete \
+            -e "ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/deploy_key" \
             frontend/dist/ \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:/var/www/pilarweb/frontend/dist/
+            "$GCP_USER@$GCP_HOST:/var/www/pilarweb/frontend/dist/"
 
-      # -------------------------
-      # 10. Install backend & restart PM2
-      # -------------------------
-      - name: Restart backend on VM
+      # =========================================================
+      # 11. Install production backend dependencies
+      # =========================================================
+      - name: Install backend dependencies on VM
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-              set -e
+          set -euo pipefail
 
-              export NVM_DIR=\"\$HOME/.nvm\"
-              [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
+
+              export NVM_DIR="$HOME/.nvm"
+
+              if [ -s "$NVM_DIR/nvm.sh" ]; then
+                . "$NVM_DIR/nvm.sh"
+              fi
 
               nvm use 24.14.0
 
               cd /var/www/pilarweb/backend
-              npm install --omit=dev
 
-              pm2 restart pilarweb-api --update-env || pm2 start npm --name pilarweb-api -- run start
+              npm ci --omit=dev
+            '
+
+      # =========================================================
+      # 12. Restart Pilarweb API
+      # =========================================================
+      - name: Restart Pilarweb API
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
+
+              export NVM_DIR="$HOME/.nvm"
+
+              if [ -s "$NVM_DIR/nvm.sh" ]; then
+                . "$NVM_DIR/nvm.sh"
+              fi
+
+              nvm use 24.14.0
+
+              cd /var/www/pilarweb/backend
+
+              if pm2 describe pilarweb-api >/dev/null 2>&1; then
+                pm2 restart pilarweb-api --update-env
+              else
+                pm2 start npm \
+                  --name pilarweb-api \
+                  -- run start
+              fi
+
               pm2 save
+            '
+
+      # =========================================================
+      # 13. Validate & reload Nginx
+      # =========================================================
+      - name: Reload Nginx
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
 
               sudo nginx -t
               sudo systemctl reload nginx
-            "
+            '
+
+      # =========================================================
+      # 14. Health check
+      # =========================================================
+      - name: Health check
+        env:
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_HOST: ${{ secrets.GCP_HOST }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            "$GCP_USER@$GCP_HOST" '
+              set -euo pipefail
+
+              sleep 2
+
+              curl \
+                --fail \
+                --silent \
+                --show-error \
+                http://127.0.0.1:3003/health
+
+              echo
+              echo "Pilarweb deployment health check passed."
+            '
