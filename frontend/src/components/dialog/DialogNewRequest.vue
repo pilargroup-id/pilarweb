@@ -69,7 +69,7 @@
                   placeholder="Select destination department"
                 />
                 <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
-                  Leave blank to use your own department.
+                  Kosongkan untuk menggunakan departemen Anda sendiri.
                 </p>
               </div>
             </div>
@@ -79,9 +79,12 @@
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Return Due Date <span class="text-error-500">*</span>
                 </label>
-                <DateField v-model="form.return_due_date" />
-                <p v-if="hasReturnDateError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
-                  Return Due Date is required for this purpose.
+                <DateField v-model="form.return_due_date" :max="maxReturnDueDate" />
+                <p v-if="returnDateError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
+                  {{ returnDateError }}
+                </p>
+                <p v-else class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                  Maksimal {{ returnDueDays }} hari dari hari ini ({{ maxReturnDueDateLabel }} sesuai kebijakan).
                 </p>
               </div>
             </div>
@@ -216,6 +219,7 @@ const isEditMode = computed(() => !!props.requestId)
 const isLoadingMaster = ref(false)
 const masterError = ref('')
 const purposes = ref([])
+const requestPolicy = ref(null)
 let masterLoaded = false
 
 const isLoadingDepartments = ref(false)
@@ -286,8 +290,35 @@ const selectedPurpose = computed(() =>
 )
 const requiresReturn = computed(() => selectedPurpose.value?.return_type === 'RETURNABLE')
 
+// return_due_days is a ceiling here: the backend always (re)computes the authoritative
+// return_due_at from return_due_days once delivery is fully resolved. This field just lets the
+// requester flag how long they expect to need it, capped at the policy maximum.
+const returnDueDays = computed(() => Number(requestPolicy.value?.return_due_days) || 14)
+
+function formatDateInput(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const maxReturnDueDate = computed(() => {
+  const date = new Date()
+  date.setDate(date.getDate() + returnDueDays.value)
+  return formatDateInput(date)
+})
+
+const maxReturnDueDateLabel = computed(() => {
+  const [y, m, d] = maxReturnDueDate.value.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+})
+
 watch(requiresReturn, (value) => {
-  if (!value) form.return_due_date = ''
+  if (!value) {
+    form.return_due_date = ''
+  } else if (!form.return_due_date) {
+    form.return_due_date = maxReturnDueDate.value
+  }
 })
 
 const submitAttempted = ref(false)
@@ -297,15 +328,24 @@ const isSubmitting = ref(false)
 
 const hasPurposeError = computed(() => submitAttempted.value && !form.request_purpose_id)
 const hasReasonError = computed(() => submitAttempted.value && !form.reason.trim())
-const hasReturnDateError = computed(
-  () => submitAttempted.value && requiresReturn.value && !form.return_due_date
-)
+
+function getReturnDateIssue() {
+  if (!requiresReturn.value) return ''
+  if (!form.return_due_date) return 'Return Due Date is required for this purpose.'
+  if (form.return_due_date > maxReturnDueDate.value) {
+    return `Return Due Date cannot be later than ${maxReturnDueDateLabel.value} (maximum ${returnDueDays.value} days from today, per policy).`
+  }
+  return ''
+}
+
+const returnDateError = computed(() => (submitAttempted.value ? getReturnDateIssue() : ''))
 
 function validate() {
   const errors = []
   if (!form.request_purpose_id) errors.push('Request Purpose is required.')
   if (!form.reason.trim()) errors.push('Reason is required.')
-  if (requiresReturn.value && !form.return_due_date) errors.push('Return Due Date is required for this purpose.')
+  const returnDateIssue = getReturnDateIssue()
+  if (returnDateIssue) errors.push(returnDateIssue)
 
   const firstRowIndexByItemId = new Map()
   items.value.forEach((row, index) => {
@@ -404,6 +444,7 @@ async function loadMaster() {
   try {
     const res = await getMasterBootstrap()
     purposes.value = res?.data?.request_purposes ?? []
+    requestPolicy.value = res?.data?.request_policy ?? null
     masterLoaded = true
   } catch (err) {
     masterError.value = err?.message || 'Failed to load master data.'

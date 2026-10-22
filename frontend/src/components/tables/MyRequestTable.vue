@@ -159,7 +159,7 @@
               {{ submittingId === item.id ? 'Submitting...' : 'Submit for Approval' }}
             </button>
             <button
-              v-if="isReturnPending(item.status)"
+              v-if="isReturnPending(item)"
               @click="handleReturnRequest(item)"
               :disabled="loadingReturnId === item.id"
               type="button"
@@ -572,7 +572,12 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 
 const isSubmittable = (status) => SUBMITTABLE_STATUSES.has(status)
 const isEditable = (status) => EDITABLE_STATUSES.has(status)
-const isReturnPending = (status) => status === 'RETURN_PENDING'
+// RETURN_PENDING covers the whole return lifecycle (awaiting requester
+// declaration, then awaiting Warehouse receipt), so it alone can't tell us
+// whether the requester still has something to submit. has_pending_return_declaration
+// (from request.service.js listMine) narrows it to that first phase, so the
+// button disappears once the requester has already declared their return qty.
+const isReturnPending = (item) => item.status === 'RETURN_PENDING' && !!item.has_pending_return_declaration
 // A resend shipment keeps the parent request at PARTIALLY_RECEIVED (see
 // warehouse.service.js printDo: only fulfillment_type=NORMAL sets DISPATCHED),
 // so that status can still have a delivery receipt waiting on the requester.

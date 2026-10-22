@@ -20,7 +20,7 @@
             </svg>
           </button>
 
-          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Fulfillment / Picking</h4>
+          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">{{ isAdministrative ? 'Fulfillment / Administrative' : 'Fulfillment / Picking' }}</h4>
           <p class="pr-12 text-sm text-white/70">
             {{ queueItem?.request_number }}
             <span v-if="fulfillment">&middot; {{ fulfillment.fulfillment_number }}</span>
@@ -40,11 +40,11 @@
               <div class="flex flex-wrap items-start gap-6">
                 <div class="flex flex-col gap-1.5">
                   <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-                    IWT No. <span v-if="isPicking" class="text-error-500">*</span>
+                    IWT No. <span v-if="isEditable" class="text-error-500">*</span>
                   </span>
                   <div class="flex flex-wrap items-center gap-2">
                     <input
-                      v-if="isPicking"
+                      v-if="isEditable"
                       v-model="iwtNumber"
                       @input="iwtNumber = iwtNumber.toUpperCase()"
                       type="text"
@@ -60,15 +60,19 @@
 
                 <div class="flex flex-col gap-1.5">
                   <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-                    Source Warehouse <span v-if="isPicking" class="text-error-500">*</span>
+                    Source Warehouse <span v-if="isEditable" class="text-error-500">*</span>
                   </span>
-                  <div v-if="isPicking" class="w-72">
+                  <div v-if="isEditable && !isReturnWarehouseLocked" class="w-72">
                     <SearchableSelect
                       v-model="sourceWarehouseId"
                       :options="warehouseOptions"
                       placeholder="Select warehouse"
                       search-in-field
                     />
+                  </div>
+                  <div v-else-if="isReturnWarehouseLocked" class="flex flex-col">
+                    <span class="text-theme-sm text-gray-600 dark:text-gray-300">{{ lockedWarehouseDisplay }}</span>
+                    <span class="text-theme-xs text-gray-400 dark:text-gray-500">Auto-selected &middot; returnable item</span>
                   </div>
                   <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ sourceWarehouseDisplay || '-' }}</span>
                 </div>
@@ -145,11 +149,16 @@
               </table>
             </div>
 
+            <p v-if="isAdministrative && isAdministrativePending" class="text-theme-sm text-gray-500 dark:text-gray-400">
+              Administrative fulfillment: goods are already physically with the requester, so Actual Qty mirrors the Finance-approved quantity. Warehouse only needs to confirm Source Warehouse and IWT No. before completing.
+            </p>
+
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
             <p v-if="infoMessage" class="text-sm text-success-600 dark:text-success-500">{{ infoMessage }}</p>
 
-            <div v-if="isPicking" class="flex items-center justify-end gap-3 pt-2">
+            <div v-if="isEditable" class="flex items-center justify-end gap-3 pt-2">
               <button
+                v-if="isPicking"
                 @click="handlePrintPicking"
                 type="button"
                 :disabled="isPrintingPicking || !fulfillment"
@@ -174,11 +183,11 @@
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckIcon class="h-4 w-4" />
-                {{ isCompleting ? 'Completing...' : 'Complete Picking' }}
+                {{ isCompleting ? 'Completing...' : (isAdministrativePending ? 'Complete Administrative Fulfillment' : 'Complete Picking') }}
               </button>
             </div>
 
-            <div v-else-if="fulfillment" class="flex items-center justify-end gap-3 pt-2">
+            <div v-else-if="fulfillment && !isAdministrative" class="flex items-center justify-end gap-3 pt-2">
               <input
                 v-if="fulfillment.status === 'READY_FOR_DISPATCH'"
                 v-model="doNote"
@@ -280,6 +289,9 @@ const sourceWarehouseId = ref('')
 let hasChanges = false
 
 const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
+const isAdministrative = computed(() => fulfillment.value?.fulfillment_mode === 'ADMINISTRATIVE')
+const isAdministrativePending = computed(() => fulfillment.value?.status === 'ADMINISTRATIVE_PENDING')
+const isEditable = computed(() => isPicking.value || isAdministrativePending.value)
 
 const warehouseOptions = computed(() =>
   warehouseLocations.value.map((opt) => ({
@@ -293,6 +305,23 @@ const sourceWarehouseDisplay = computed(() => {
   if (!f?.source_warehouse_name) return ''
   return f.source_warehouse_code ? `${f.source_warehouse_name} (${f.source_warehouse_code})` : f.source_warehouse_name
 })
+
+// Returnable-purpose requests (loaned items that must come back) are always
+// picked from the "LOAN" warehouse, so Source Warehouse is auto-filled and
+// locked instead of asking Warehouse staff to pick it every time.
+const loanWarehouse = computed(() => warehouseLocations.value.find((w) => w.code === 'LOAN') || null)
+const isReturnWarehouseLocked = computed(() => isPicking.value && fulfillment.value?.purpose_return_type === 'RETURNABLE')
+const lockedWarehouseDisplay = computed(() =>
+  loanWarehouse.value ? `${loanWarehouse.value.name} (${loanWarehouse.value.code})` : sourceWarehouseDisplay.value || '-'
+)
+
+watch(
+  [isReturnWarehouseLocked, loanWarehouse],
+  ([locked, warehouse]) => {
+    if (locked && warehouse) sourceWarehouseId.value = warehouse.id
+  },
+  { immediate: true }
+)
 
 const printPickingRows = computed(() =>
   rows.value.map((row) => ({
@@ -448,10 +477,11 @@ async function handleSaveProgress() {
   errorMessage.value = ''
   isSaving.value = true
   try {
+    const wasAdministrative = isAdministrative.value
     const res = await saveFulfillmentProgress(fulfillment.value.id, buildPayload())
     applyFulfillment(res?.data)
     hasChanges = true
-    infoMessage.value = 'Picking progress saved.'
+    infoMessage.value = wasAdministrative ? 'Progress saved.' : 'Picking progress saved.'
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to save picking progress.'
   } finally {
@@ -470,10 +500,13 @@ async function handleCompletePicking() {
   errorMessage.value = ''
   isCompleting.value = true
   try {
+    const wasAdministrative = isAdministrative.value
     const res = await completeFulfillmentPicking(fulfillment.value.id, buildPayload())
     applyFulfillment(res?.data)
     hasChanges = true
-    infoMessage.value = 'Picking completed. Ready for Delivery.'
+    infoMessage.value = wasAdministrative
+      ? 'Administrative fulfillment completed.'
+      : 'Picking completed. Ready for Delivery.'
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to complete picking.'
   } finally {
@@ -531,8 +564,10 @@ async function handlePrintDo() {
 
 const STATUS_BADGE_COLOR = {
   PICKING: 'info',
+  ADMINISTRATIVE_PENDING: 'primary',
   READY_FOR_DISPATCH: 'warning',
   DISPATCHED: 'success',
+  COMPLETED: 'success',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'

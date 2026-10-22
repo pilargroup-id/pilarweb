@@ -123,11 +123,21 @@ export interface WarehouseLocation extends AnyRecord {
 
 export type FinancialClosing = AnyRecord | null
 
+export interface RequestPolicy extends AnyRecord {
+  receipt_confirmation_days?: number
+  discrepancy_resolution_days?: number
+  discrepancy_escalation_days?: number
+  discrepancy_supervisor_lock_days?: number
+  return_due_days?: number
+  timezone?: string
+}
+
 export interface MasterBootstrap {
   request_purposes: RequestPurpose[]
   approval_rules: ApprovalRule[]
   warehouse_locations: WarehouseLocation[]
   financial_closing: FinancialClosing
+  request_policy?: RequestPolicy
 }
 
 export function getMasterBootstrap(): Promise<ApiResponse<MasterBootstrap>> {
@@ -673,63 +683,98 @@ export function confirmDelivery(
 }
 
 // ---------------------------------------------------------------------------
-// Warehouse Delivery Discrepancy (section 12)
+// Warehouse Delivery Discrepancy (section 12) — grouped PB form resend
 // ---------------------------------------------------------------------------
 
-export interface WarehouseDiscrepancyListItem extends AnyRecord {
-  id: number | string
+export interface WarehouseDiscrepancyFormListItem extends AnyRecord {
   request_id: string
   request_number?: string
   requester_name?: string
+  department_id?: number | string
   department_name?: string
-  fulfillment_id?: number | string
-  fulfillment_number?: string
-  item_code?: string
-  item_name?: string
-  expected_qty: number
-  received_qty: number
-  difference_qty: number
-  status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED' | 'RESOLVED'
-  resolution_type?: 'RESEND' | 'CLOSE_WITH_REASON' | null
-  resolution_due_at?: string | null
-  escalation_due_at?: string | null
-  supervisor_lock_at?: string | null
-  resolved_at?: string | null
+  target_department_id?: number | string
+  target_department_name?: string
+  discrepancy_item_count: number
+  total_difference_qty: number
+  nearest_resolution_due_at?: string | null
+  form_status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED'
+  warehouse_department_id?: number | string
+  warehouse_department_name?: string
 }
 
-export interface WarehouseDiscrepancyGroup {
-  request_id: string
-  request_number?: string
-  requester_name?: string
-  department_name?: string
-  status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED' | 'RESOLVED'
-  item_count: number
-  resolution_due_at?: string | null
-  items: WarehouseDiscrepancyListItem[]
-}
-
-export function getWarehouseDiscrepancies(
+export function getWarehouseDiscrepancyForms(
   params: {
     page?: number
     limit?: number
     search?: string
     status?: string
   } = {},
-): Promise<PaginatedResponse<WarehouseDiscrepancyGroup[]>> {
-  return request('/api/warehouse/discrepancies', { params })
+): Promise<PaginatedResponse<WarehouseDiscrepancyFormListItem[]>> {
+  return request('/api/warehouse/discrepancy-forms', { params })
 }
 
-export interface ResolveDiscrepancyPayload {
+export interface WarehouseDiscrepancyFormItem extends AnyRecord {
+  id: number | string
+  request_id: string
+  request_item_id: number | string
+  fulfillment_id: number | string
+  delivery_receipt_item_id: number | string
+  item_code?: string
+  item_name?: string
+  uom_code?: string
+  fulfillment_number?: string
+  warehouse_department_id?: number | string
+  warehouse_department_name?: string
+  source_warehouse_name?: string
+  expected_qty: number
+  received_qty: number
+  difference_qty: number
+  status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED'
+  resolution_due_at?: string | null
+  escalation_due_at?: string | null
+  supervisor_lock_at?: string | null
+  sla_status?: string | null
+  breached_at?: string | null
+  overdue_minutes?: number | null
+}
+
+export interface WarehouseDiscrepancyForm extends AnyRecord {
+  id: string
+  request_number?: string
+  requester_user_id?: number | string
+  requester_name?: string
+  department_id?: number | string
+  department_name?: string
+  target_department_id?: number | string
+  target_department_name?: string
+  status?: string
+  items: WarehouseDiscrepancyFormItem[]
+  resolution_type_options: ('RESEND' | 'CLOSE_WITH_REASON')[]
+}
+
+export function getWarehouseDiscrepancyForm(
+  requestId: string | number,
+): Promise<ApiResponse<WarehouseDiscrepancyForm>> {
+  return request(`/api/warehouse/discrepancy-forms/${requestId}`)
+}
+
+export interface ResolveDiscrepancyFormItemPayload {
+  discrepancy_id: number | string
   resolution_type: 'RESEND' | 'CLOSE_WITH_REASON'
   resolution_note?: string | null
   late_resolution_reason?: string | null
 }
 
-export function resolveWarehouseDiscrepancy(
-  id: string | number,
-  payload: ResolveDiscrepancyPayload,
+export interface ResolveDiscrepancyFormPayload {
+  items: ResolveDiscrepancyFormItemPayload[]
+  late_resolution_reason?: string | null
+}
+
+export function resolveWarehouseDiscrepancyForm(
+  requestId: string | number,
+  payload: ResolveDiscrepancyFormPayload,
 ): Promise<ApiResponse<AnyRecord>> {
-  return request(`/api/warehouse/discrepancies/${id}/resolve`, { method: 'POST', body: payload })
+  return request(`/api/warehouse/discrepancy-forms/${requestId}/resolve`, { method: 'POST', body: payload })
 }
 
 // ---------------------------------------------------------------------------

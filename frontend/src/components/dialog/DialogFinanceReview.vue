@@ -150,11 +150,8 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import Modal from '@/components/ui/Modal.vue'
 import { getFinanceRequestById, submitFinanceReview } from '@/service/api'
-
-const router = useRouter()
 
 const props = defineProps({
   isOpen: {
@@ -273,12 +270,8 @@ async function submit() {
         note: row.note.trim() || null,
       })),
     })
-    const hasApprovedItem = rows.value.some((row) => row.decision === 'APPROVED')
     emit('reviewed')
     close()
-    if (hasApprovedItem) {
-      router.push('/warehouse/fulfillments')
-    }
   } catch (err) {
     errorMessage.value = err?.message || 'Failed to submit finance review.'
   } finally {

@@ -83,7 +83,7 @@
       </tr>
       <tr v-else-if="!queue.length">
         <td colspan="11" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking or Ready for Delivery.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking, Ready for Delivery, or Administrative Pending.</p>
         </td>
       </tr>
       <tr
@@ -208,7 +208,7 @@
                 <SearchableSelect
                   v-model="draftStatusFilter"
                   :options="statusFilterOptions"
-                  placeholder="Picking & Ready for Delivery"
+                  placeholder="Picking, Ready for Delivery & Admin Pending"
                 />
               </div>
 
@@ -298,9 +298,10 @@ const requestToProcess = ref(null)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
-  { id: '', name: 'Picking & Ready for Delivery' },
+  { id: '', name: 'Picking, Ready for Delivery & Admin Pending' },
   { id: 'PICKING', name: 'Picking only' },
   { id: 'READY_FOR_DISPATCH', name: 'Ready for Dispatch only' },
+  { id: 'ADMINISTRATIVE_PENDING', name: 'Administrative Pending only' },
 ]
 const sortOrderOptions = [
   { id: 'desc', name: 'Newest submitted first' },
@@ -424,6 +425,7 @@ function closePickingDialog() {
 const PROCESS_LABEL = {
   PICKING: 'Pick Process',
   READY_FOR_DISPATCH: 'DO Process',
+  ADMINISTRATIVE_PENDING: 'Admin Process',
 }
 
 const processLabel = (status) => PROCESS_LABEL[status] || 'Process'
@@ -434,6 +436,7 @@ const PROCESS_BUTTON_OUTLINE_BASE =
 const PROCESS_BUTTON_COLOR_CLASS = {
   PICKING: 'border-blue-light-300 text-blue-light-500 hover:bg-blue-light-50 dark:border-blue-light-800 dark:hover:bg-white/[0.03]',
   READY_FOR_DISPATCH: 'border-warning-300 text-warning-600 hover:bg-warning-50 dark:border-warning-800 dark:hover:bg-white/[0.03]',
+  ADMINISTRATIVE_PENDING: 'border-success-300 text-success-600 hover:bg-success-50 dark:border-success-800 dark:hover:bg-white/[0.03]',
 }
 
 const processButtonClass = (status) =>
@@ -442,6 +445,7 @@ const processButtonClass = (status) =>
 const STATUS_BADGE_COLOR = {
   PICKING: 'info',
   READY_FOR_DISPATCH: 'warning',
+  ADMINISTRATIVE_PENDING: 'primary',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
@@ -478,9 +482,10 @@ const rejectQtyClass = (value) => {
     : 'text-theme-sm text-gray-400 dark:text-gray-500'
 }
 
-// Section 11/23: Picking and Ready for Delivery are one operational screen —
-// Warehouse works a fulfillment from picking through to printing the DO here,
-// so both statuses are listed together instead of in separate tables.
+// Section 11/23: Picking, Ready for Delivery, and Administrative Pending are
+// one operational screen — Warehouse works a fulfillment from picking/admin
+// entry through to printing the DO here, so these statuses are listed
+// together instead of in separate tables.
 async function fetchQueue(page = 1) {
   isLoading.value = true
   errorMessage.value = ''
@@ -488,7 +493,7 @@ async function fetchQueue(page = 1) {
     const res = await getWarehouseFulfillments({
       page,
       limit: meta.limit,
-      status: statusFilter.value || 'PICKING,READY_FOR_DISPATCH',
+      status: statusFilter.value || 'PICKING,READY_FOR_DISPATCH,ADMINISTRATIVE_PENDING',
       ...(search.value ? { search: search.value } : {}),
       ...(departmentFilter.value ? { department_id: departmentFilter.value } : {}),
       ...(purposeFilter.value ? { purpose_id: purposeFilter.value } : {}),

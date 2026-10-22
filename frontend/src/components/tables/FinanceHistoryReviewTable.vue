@@ -79,21 +79,22 @@
         <TableHeadCell>Reviewer</TableHeadCell>
         <TableHeadCell>Approved Qty</TableHeadCell>
         <TableHeadCell>Reject Qty</TableHeadCell>
+        <TableHeadCell>Request Status</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading finance history...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!history.length">
-        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests have been reviewed by Finance yet.</p>
         </td>
       </tr>
@@ -150,6 +151,9 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p :class="rejectQtyClass(item.total_rejected_qty)">{{ formatQty(item.total_rejected_qty) }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge :color="requestStatusColor(item.request_status)" size="sm">{{ formatStatusLabel(item.request_status) }}</Badge>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.finance_review_status)" size="sm">{{ formatStatusLabel(item.finance_review_status) }}</Badge>
@@ -459,6 +463,23 @@ const STATUS_BADGE_COLOR = {
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
+
+const REQUEST_STATUS_BADGE_COLOR = {
+  PENDING_DEPARTMENT_APPROVAL: 'warning',
+  REVERTED_TO_REQUESTER: 'warning',
+  PENDING_FINANCE_REVIEW: 'warning',
+  PICKING: 'info',
+  ADMINISTRATIVE_FULFILLMENT: 'info',
+  READY_FOR_DISPATCH: 'info',
+  DISPATCHED: 'primary',
+  PARTIALLY_RECEIVED: 'warning',
+  RETURN_PENDING: 'warning',
+  COMPLETED: 'success',
+  REJECTED: 'error',
+  CANCELED: 'error',
+}
+
+const requestStatusColor = (status) => REQUEST_STATUS_BADGE_COLOR[status] || 'light'
 
 const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
 

@@ -77,13 +77,13 @@
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
-      <tr v-else-if="!groups.length">
+      <tr v-else-if="!visibleGroups.length">
         <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No delivery discrepancies found.</p>
         </td>
       </tr>
       <tr
-        v-for="group in groups"
+        v-for="group in visibleGroups"
         v-else
         :key="group.request_id"
         class="border-t border-gray-100 dark:border-gray-800"
@@ -92,11 +92,11 @@
           <button
             @click="handleViewDetail(group)"
             type="button"
-            title="Detail"
+            title="Process"
             class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
           >
-            <EyeIcon class="h-4 w-4" />
-            Detail
+            <PencilIcon class="h-4 w-4" />
+            Process
           </button>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -111,13 +111,13 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.department_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.item_count }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.discrepancy_item_count }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <Badge :color="statusColor(group.status)" size="sm">{{ formatStatusLabel(group.status) }}</Badge>
+          <Badge :color="statusColor(group.form_status)" size="sm">{{ formatStatusLabel(group.form_status) }}</Badge>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(group.resolution_due_at) }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(group.nearest_resolution_due_at) }}</p>
         </td>
       </tr>
 
@@ -138,7 +138,7 @@
       :is-open="isItemsDialogOpen"
       :group="viewingGroup"
       @close="isItemsDialogOpen = false"
-      @resolved="handleItemResolved"
+      @resolved="handleFormResolved"
     />
 
     <Teleport to="body">
@@ -219,14 +219,14 @@
 
 <script setup>
 import { reactive, ref, computed, onMounted, onUnmounted } from 'vue'
-import { getWarehouseDiscrepancies } from '@/service/api'
+import { getWarehouseDiscrepancyForms } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogDiscrepancyItems from '@/components/dialog/DialogDiscrepancyItems.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
-import { RefreshIcon, EyeIcon, FilterIcon, CloseIcon } from '@/icons'
+import { RefreshIcon, PencilIcon, FilterIcon, CloseIcon } from '@/icons'
 
 const groups = ref([])
 const isLoading = ref(false)
@@ -238,6 +238,10 @@ const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 const isItemsDialogOpen = ref(false)
 const viewingGroup = ref(null)
 
+// The list endpoint only ever returns PBs with unresolved items, so this is a
+// defensive guard, not a workaround for data the API is expected to send.
+const visibleGroups = computed(() => groups.value.filter((group) => group.form_status !== 'RESOLVED'))
+
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
   { id: '', name: 'All statuses' },
@@ -245,7 +249,6 @@ const statusFilterOptions = [
   { id: 'OVERDUE', name: 'Overdue' },
   { id: 'ESCALATED', name: 'Escalated' },
   { id: 'SUPERVISOR_REQUIRED', name: 'Supervisor Required' },
-  { id: 'RESOLVED', name: 'Resolved' },
 ]
 
 const statusFilter = ref('')
@@ -275,13 +278,10 @@ function handleViewDetail(group) {
   isItemsDialogOpen.value = true
 }
 
-async function handleItemResolved() {
+async function handleFormResolved() {
+  isItemsDialogOpen.value = false
+  viewingGroup.value = null
   await fetchQueue(meta.page)
-  if (viewingGroup.value) {
-    const updated = groups.value.find((g) => g.request_id === viewingGroup.value.request_id)
-    viewingGroup.value = updated || null
-    if (!updated) isItemsDialogOpen.value = false
-  }
 }
 
 const STATUS_BADGE_COLOR = {
@@ -289,7 +289,6 @@ const STATUS_BADGE_COLOR = {
   OVERDUE: 'warning',
   ESCALATED: 'warning',
   SUPERVISOR_REQUIRED: 'error',
-  RESOLVED: 'success',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
@@ -319,7 +318,7 @@ async function fetchQueue(page = 1) {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getWarehouseDiscrepancies({
+    const res = await getWarehouseDiscrepancyForms({
       page,
       limit: meta.limit,
       ...(search.value ? { search: search.value } : {}),
