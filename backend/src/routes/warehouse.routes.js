@@ -10,6 +10,8 @@ router.post('/fulfillments/:fulfillmentId/print-picking',WarehouseController.pri
 router.put('/fulfillments/:fulfillmentId/progress',WarehouseController.saveProgress);
 router.post('/fulfillments/:fulfillmentId/complete',WarehouseController.complete);
 router.post('/fulfillments/:fulfillmentId/print-do',WarehouseController.printDo);
+router.get('/discrepancy-forms',WarehouseController.discrepancyForms);
+router.get('/discrepancy-forms/:requestId',WarehouseController.showDiscrepancyForm);
+router.post('/discrepancy-forms/:requestId/resolve',WarehouseController.resolveDiscrepancyForm);
 router.get('/discrepancies',WarehouseController.discrepancies);
-router.post('/discrepancies/:id/resolve',WarehouseController.resolveDiscrepancy);
 module.exports=router;
