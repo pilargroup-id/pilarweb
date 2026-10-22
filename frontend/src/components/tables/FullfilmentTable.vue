@@ -63,6 +63,7 @@
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Return Type</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
         <TableHeadCell>Approved Qty (Finance)</TableHeadCell>
         <TableHeadCell>Rejected Qty</TableHeadCell>
@@ -71,17 +72,17 @@
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking or Ready for Delivery.</p>
         </td>
       </tr>
@@ -115,6 +116,12 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge v-if="item.purpose_return_type" :color="returnTypeColor(item.purpose_return_type)" size="sm">
+            {{ formatReturnType(item.purpose_return_type) }}
+          </Badge>
+          <p v-else class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDate(item.submitted_at) }}</p>
@@ -438,6 +445,10 @@ const STATUS_BADGE_COLOR = {
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
+
+const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
+
+const formatReturnType = (returnType) => (returnType === 'RETURNABLE' ? 'Returnable' : 'Non-returnable')
 
 const formatStatusLabel = (status) => {
   if (!status) return '-'

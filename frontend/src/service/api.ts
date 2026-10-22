@@ -697,6 +697,17 @@ export interface WarehouseDiscrepancyListItem extends AnyRecord {
   resolved_at?: string | null
 }
 
+export interface WarehouseDiscrepancyGroup {
+  request_id: string
+  request_number?: string
+  requester_name?: string
+  department_name?: string
+  status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED' | 'RESOLVED'
+  item_count: number
+  resolution_due_at?: string | null
+  items: WarehouseDiscrepancyListItem[]
+}
+
 export function getWarehouseDiscrepancies(
   params: {
     page?: number
@@ -704,7 +715,7 @@ export function getWarehouseDiscrepancies(
     search?: string
     status?: string
   } = {},
-): Promise<PaginatedResponse<WarehouseDiscrepancyListItem[]>> {
+): Promise<PaginatedResponse<WarehouseDiscrepancyGroup[]>> {
   return request('/api/warehouse/discrepancies', { params })
 }
 

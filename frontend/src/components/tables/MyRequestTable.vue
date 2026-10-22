@@ -170,7 +170,7 @@
               {{ loadingReturnId === item.id ? 'Loading...' : 'Return' }}
             </button>
             <button
-              v-if="isDispatched(item.status)"
+              v-if="canConfirmDelivery(item)"
               @click="handleConfirmDelivery(item)"
               :disabled="loadingConfirmId === item.id"
               type="button"
@@ -575,8 +575,12 @@ const isEditable = (status) => EDITABLE_STATUSES.has(status)
 const isReturnPending = (status) => status === 'RETURN_PENDING'
 // A resend shipment keeps the parent request at PARTIALLY_RECEIVED (see
 // warehouse.service.js printDo: only fulfillment_type=NORMAL sets DISPATCHED),
-// so both statuses must offer the Confirm Receipt shortcut.
-const isDispatched = (status) => status === 'DISPATCHED' || status === 'PARTIALLY_RECEIVED'
+// so that status can still have a delivery receipt waiting on the requester.
+// has_pending_delivery_receipt (from request.service.js listMine) tells us
+// whether that's actually the case, vs. still waiting on Warehouse to resolve
+// the discrepancy -- in which case there's nothing to confirm yet.
+const canConfirmDelivery = (item) =>
+  item.status === 'DISPATCHED' || (item.status === 'PARTIALLY_RECEIVED' && !!item.has_pending_delivery_receipt)
 
 function handleEditRequest(item) {
   submitError.value = ''

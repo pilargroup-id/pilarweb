@@ -60,88 +60,64 @@
       <template #head>
         <TableHeadCell>Action</TableHeadCell>
         <TableHeadCell>Request No</TableHeadCell>
-        <TableHeadCell>Item</TableHeadCell>
-        <TableHeadCell>Fulfillment No</TableHeadCell>
-        <TableHeadCell>Expected</TableHeadCell>
-        <TableHeadCell>Received</TableHeadCell>
-        <TableHeadCell>Difference</TableHeadCell>
+        <TableHeadCell>Requester</TableHeadCell>
+        <TableHeadCell>Department</TableHeadCell>
+        <TableHeadCell>Items</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Resolution Due</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading delivery discrepancies...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
-      <tr v-else-if="!queue.length">
-        <td colspan="9" class="px-5 py-10 text-center sm:px-6">
+      <tr v-else-if="!groups.length">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No delivery discrepancies found.</p>
         </td>
       </tr>
       <tr
-        v-for="item in queue"
+        v-for="group in groups"
         v-else
-        :key="item.id"
+        :key="group.request_id"
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <div class="flex items-center gap-2">
-            <button
-              @click="handleViewDetail(item)"
-              type="button"
-              title="Detail"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-            >
-              <EyeIcon class="h-4 w-4" />
-              Detail
-            </button>
-            <button
-              v-if="canResolve(item)"
-              @click="openResolveDialog(item)"
-              type="button"
-              title="Resolve"
-              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-            >
-              <CheckIcon class="h-4 w-4" />
-              Resolve
-            </button>
-          </div>
+          <button
+            @click="handleViewDetail(group)"
+            type="button"
+            title="Detail"
+            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+          >
+            <EyeIcon class="h-4 w-4" />
+            Detail
+          </button>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
-            {{ item.request_number }}
+            {{ group.request_number }}
           </span>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <span class="block text-theme-sm text-gray-800 dark:text-white/90">{{ item.item_name || '-' }}</span>
-          <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ item.item_code || '-' }}</span>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.requester_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.fulfillment_number || '-' }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.department_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.expected_qty }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ group.item_count }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.received_qty }}</p>
+          <Badge :color="statusColor(group.status)" size="sm">{{ formatStatusLabel(group.status) }}</Badge>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="font-medium text-warning-600 text-theme-sm dark:text-warning-400">{{ item.difference_qty }}</p>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
-          <p v-if="item.status === 'RESOLVED' && item.resolution_type" class="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-            {{ formatStatusLabel(item.resolution_type) }}
-          </p>
-        </td>
-        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(item.resolution_due_at) }}</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ formatDateTime(group.resolution_due_at) }}</p>
         </td>
       </tr>
 
@@ -158,17 +134,11 @@
       </template>
     </BaseTable>
 
-    <DialogRequestDetail
-      :is-open="isDetailOpen"
-      :request-id="viewingRequestId"
-      @close="isDetailOpen = false"
-    />
-
-    <DialogResolveDiscrepancy
-      :is-open="isResolveDialogOpen"
-      :discrepancy-item="discrepancyToResolve"
-      @close="isResolveDialogOpen = false"
-      @resolved="handleResolved"
+    <DialogDiscrepancyItems
+      :is-open="isItemsDialogOpen"
+      :group="viewingGroup"
+      @close="isItemsDialogOpen = false"
+      @resolved="handleItemResolved"
     />
 
     <Teleport to="body">
@@ -250,28 +220,23 @@
 <script setup>
 import { reactive, ref, computed, onMounted, onUnmounted } from 'vue'
 import { getWarehouseDiscrepancies } from '@/service/api'
-import { authState } from '@/service/auth'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
-import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
-import DialogResolveDiscrepancy from '@/components/dialog/DialogResolveDiscrepancy.vue'
+import DialogDiscrepancyItems from '@/components/dialog/DialogDiscrepancyItems.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
-import { RefreshIcon, EyeIcon, CheckIcon, FilterIcon, CloseIcon } from '@/icons'
+import { RefreshIcon, EyeIcon, FilterIcon, CloseIcon } from '@/icons'
 
-const queue = ref([])
+const groups = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 let searchTimer = null
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
-const isDetailOpen = ref(false)
-const viewingRequestId = ref(null)
-
-const isResolveDialogOpen = ref(false)
-const discrepancyToResolve = ref(null)
+const isItemsDialogOpen = ref(false)
+const viewingGroup = ref(null)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
@@ -305,29 +270,18 @@ function resetFilters() {
   fetchQueue(1)
 }
 
-function handleViewDetail(item) {
-  viewingRequestId.value = item.request_id
-  isDetailOpen.value = true
+function handleViewDetail(group) {
+  viewingGroup.value = group
+  isItemsDialogOpen.value = true
 }
 
-// Section 12/25: once the SLA reaches SUPERVISOR_REQUIRED, only a user with
-// WAREHOUSE_DISCREPANCY_SUPERVISOR access may resolve it.
-function canResolve(item) {
-  if (item.status === 'RESOLVED') return false
-  if (item.status === 'SUPERVISOR_REQUIRED') {
-    return Boolean(authState.capabilities?.warehouse_discrepancy_supervisor_access)
-  }
-  return true
-}
-
-function openResolveDialog(item) {
-  discrepancyToResolve.value = item
-  isResolveDialogOpen.value = true
-}
-
-async function handleResolved() {
-  isResolveDialogOpen.value = false
+async function handleItemResolved() {
   await fetchQueue(meta.page)
+  if (viewingGroup.value) {
+    const updated = groups.value.find((g) => g.request_id === viewingGroup.value.request_id)
+    viewingGroup.value = updated || null
+    if (!updated) isItemsDialogOpen.value = false
+  }
 }
 
 const STATUS_BADGE_COLOR = {
@@ -371,13 +325,13 @@ async function fetchQueue(page = 1) {
       ...(search.value ? { search: search.value } : {}),
       ...(statusFilter.value ? { status: statusFilter.value } : {}),
     })
-    queue.value = res?.data ?? []
+    groups.value = res?.data ?? []
     meta.page = res?.meta?.page ?? page
     meta.limit = res?.meta?.limit ?? meta.limit
-    meta.total = res?.meta?.total ?? queue.value.length
+    meta.total = res?.meta?.total ?? groups.value.length
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
-    queue.value = []
+    groups.value = []
     errorMessage.value = err?.message || 'Failed to load delivery discrepancies.'
   } finally {
     isLoading.value = false

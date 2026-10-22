@@ -160,6 +160,72 @@
               </div>
             </div>
 
+            <div v-if="deliveryReceipts.length">
+              <h5 class="mb-3 text-theme-sm font-medium text-gray-700 dark:text-gray-300">Requester Receipt</h5>
+              <div class="flex flex-col gap-5">
+                <div
+                  v-for="{ fulfillment, receipt } in deliveryReceipts"
+                  :key="receipt.id"
+                  class="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
+                >
+                  <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                      {{ fulfillment.fulfillment_number }}
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                      <Badge v-if="receipt.confirmation_method === 'AUTO'" color="light" size="sm">Auto-accepted</Badge>
+                      <Badge :color="receiptStatusColor(receipt.status)" size="sm">{{ formatStatusLabel(receipt.status) }}</Badge>
+                    </div>
+                  </div>
+                  <p class="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
+                    <template v-if="receipt.status === 'PENDING'">
+                      Confirm before {{ formatDateTime(receipt.confirmation_deadline_at) }}
+                    </template>
+                    <template v-else>
+                      Confirmed
+                      <span v-if="receipt.confirmation_method !== 'AUTO' && receipt.confirmed_by_name">
+                        by <span class="font-medium text-gray-700 dark:text-gray-300">{{ receipt.confirmed_by_name }}</span>
+                      </span>
+                      &middot; {{ formatDateTime(receipt.confirmed_at) }}
+                    </template>
+                  </p>
+
+                  <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                      <thead class="bg-gray-50 dark:bg-white/[0.02]">
+                        <tr>
+                          <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                          <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Dispatched Qty</th>
+                          <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Received Qty</th>
+                          <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Discrepancy</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        <tr v-for="dri in receipt.items" :key="dri.id">
+                          <td class="px-4 py-3 align-top">
+                            <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                              {{ requestItemFor(dri)?.item_name || '-' }}
+                            </span>
+                            <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ requestItemFor(dri)?.item_code }}</span>
+                          </td>
+                          <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(dri.dispatched_qty) }}</td>
+                          <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(dri.received_qty) }}</td>
+                          <td class="px-4 py-3 align-top text-theme-sm" :class="rejectQtyClass(dri.discrepancy_qty)">
+                            {{ formatQty(dri.discrepancy_qty) }}
+                          </td>
+                        </tr>
+                        <tr v-if="!receipt.items?.length">
+                          <td colspan="4" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                            No items on this receipt.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div v-if="isReturnable">
               <h5 class="mb-3 text-theme-sm font-medium text-gray-700 dark:text-gray-300">Returns</h5>
               <div v-if="!requestDetail.return" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -401,6 +467,39 @@ const rejectQtyClass = (value) => {
 }
 
 const isReturnable = computed(() => requestDetail.value?.purpose_return_type === 'RETURNABLE')
+
+const RECEIPT_BADGE_COLOR = {
+  PENDING: 'warning',
+  PARTIAL: 'info',
+  RECEIVED: 'success',
+}
+
+const receiptStatusColor = (status) => RECEIPT_BADGE_COLOR[status] || 'light'
+
+const deliveryReceipts = computed(() =>
+  (requestDetail.value?.fulfillments || [])
+    .filter((f) => f.delivery_receipt)
+    .map((f) => ({ fulfillment: f, receipt: f.delivery_receipt }))
+)
+
+const requestItemById = computed(() => {
+  const map = new Map()
+  for (const item of requestDetail.value?.items || []) {
+    map.set(Number(item.id), item)
+  }
+  return map
+})
+
+function requestItemFor(receiptItem) {
+  return requestItemById.value.get(Number(receiptItem.request_item_id))
+}
+
+// DECIMAL columns come back as strings like "5.0000"; drop the trailing zeros.
+const formatQty = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const num = Number(value)
+  return Number.isNaN(num) ? value : String(num)
+}
 
 const timelineSteps = computed(() => {
   const req = requestDetail.value
