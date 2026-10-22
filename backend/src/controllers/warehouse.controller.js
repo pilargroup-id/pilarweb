@@ -8,5 +8,7 @@ async function saveProgress(req,res,next){try{return R.ok(res,await WarehouseSer
 async function complete(req,res,next){try{return R.ok(res,await WarehouseService.complete(req.user,req.params.fulfillmentId,req.body),'Fulfillment completed');}catch(e){return next(e);}}
 async function printDo(req,res,next){try{return R.ok(res,await WarehouseService.printDo(req.user,req.params.fulfillmentId,req.body),'DO printed and shipment dispatched');}catch(e){return next(e);}}
 async function discrepancies(req,res,next){try{const r=await DeliveryService.listDiscrepancies(req.user,req.query);return R.paginated(res,r.data,r.meta,'Delivery discrepancies loaded');}catch(e){return next(e);}}
-async function resolveDiscrepancy(req,res,next){try{return R.ok(res,await DeliveryService.resolveDiscrepancy(req.user,req.params.id,req.body),'Delivery discrepancy resolved');}catch(e){return next(e);}}
-module.exports={fulfillments,showFulfillment,printPicking,saveProgress,complete,printDo,discrepancies,resolveDiscrepancy};
+async function discrepancyForms(req,res,next){try{const r=await DeliveryService.listDiscrepancyForms(req.user,req.query);return R.paginated(res,r.data,r.meta,'Delivery discrepancy forms loaded');}catch(e){return next(e);}}
+async function showDiscrepancyForm(req,res,next){try{return R.ok(res,await DeliveryService.getDiscrepancyForm(req.user,req.params.requestId),'Delivery discrepancy form loaded');}catch(e){return next(e);}}
+async function resolveDiscrepancyForm(req,res,next){try{return R.ok(res,await DeliveryService.resolveDiscrepancyForm(req.user,req.params.requestId,req.body),'Delivery discrepancy form resolved');}catch(e){return next(e);}}
+module.exports={fulfillments,showFulfillment,printPicking,saveProgress,complete,printDo,discrepancies,discrepancyForms,showDiscrepancyForm,resolveDiscrepancyForm};

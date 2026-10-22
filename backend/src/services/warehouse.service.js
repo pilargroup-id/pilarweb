@@ -26,12 +26,54 @@ async function createFromFinance(connection,requestId,actor){
   return result.insertId;
 }
 
-async function createResend(connection,discrepancy,actor){
-  const[parentRows]=await connection.query('SELECT * FROM warehouse_fulfillments WHERE id=? LIMIT 1',[discrepancy.fulfillment_id]);const parent=parentRows[0];if(!parent)throw createError('Parent fulfillment not found',404,'FULFILLMENT_NOT_FOUND');
-  const[itemRows]=await connection.query('SELECT ri.id AS request_item_id,ri.item_code,ri.item_name,ri.requested_qty FROM request_items ri WHERE ri.id=? LIMIT 1',[discrepancy.request_item_id]);const item=itemRows[0];if(!item)throw createError('Request item not found',404,'REQUEST_ITEM_NOT_FOUND');
+async function createResendBatch(connection,discrepancies,actor){
+  const rows=Array.isArray(discrepancies)?discrepancies:[];
+  if(!rows.length)throw createError('At least one RESEND discrepancy is required',422,'RESEND_ITEMS_REQUIRED');
+
+  const requestIds=[...new Set(rows.map(row=>String(row.request_id)))];
+  if(requestIds.length!==1)throw createError('All RESEND discrepancies must belong to the same PB',422,'MIXED_REQUEST_DISCREPANCIES');
+
+  const warehouseDepartments=[...new Set(rows.map(row=>String(row.warehouse_department_id??'')))];
+  if(warehouseDepartments.length>1)throw createError('All RESEND items in one form must belong to the same Warehouse department',422,'MIXED_WAREHOUSE_DEPARTMENTS');
+
+  const parentIds=[...new Set(rows.map(row=>Number(row.fulfillment_id)).filter(Boolean))];
+  const parentFulfillmentId=parentIds.length===1?parentIds[0]:null;
+  const first=rows[0];
+
+  const requestItemIds=[...new Set(rows.map(row=>Number(row.request_item_id)).filter(Boolean))];
+  const placeholders=requestItemIds.map(()=>'?').join(',');
+  const[itemRows]=await connection.query(`SELECT id AS request_item_id,item_code,item_name FROM request_items WHERE id IN (${placeholders})`,requestItemIds);
+  const itemMap=new Map(itemRows.map(row=>[Number(row.request_item_id),row]));
+
+  const grouped=new Map();
+  for(const row of rows){
+    const requestItemId=Number(row.request_item_id);
+    const item=itemMap.get(requestItemId);
+    if(!item)throw createError(`Request item ${requestItemId} not found`,404,'REQUEST_ITEM_NOT_FOUND');
+    const qty=Number(row.difference_qty||0);
+    if(qty<=0)throw createError(`Discrepancy ${row.id} has no resend quantity`,422,'INVALID_RESEND_QTY');
+    const current=grouped.get(requestItemId)||{...item,qty:0};
+    current.qty+=qty;
+    grouped.set(requestItemId,current);
+  }
+
   const number=await SequenceUtil.nextNumber(connection,'FULFILLMENT',SequenceUtil.yearMonthPeriod(),'FUL',5,'');
-  const[result]=await connection.query(`INSERT INTO warehouse_fulfillments (request_id,parent_fulfillment_id,fulfillment_number,fulfillment_mode,fulfillment_type,status,warehouse_department_id,warehouse_department_name,source_warehouse_id,source_warehouse_internal_id,source_warehouse_code,source_warehouse_name,created_by_user_id,created_by_name) VALUES (?,?,?,'PHYSICAL','DISCREPANCY_RESEND','PICKING',?,?,?,?,?,?,?,?)`,[discrepancy.request_id,parent.id,number,parent.warehouse_department_id,parent.warehouse_department_name,parent.source_warehouse_id,parent.source_warehouse_internal_id,parent.source_warehouse_code,parent.source_warehouse_name,actor.user_id||null,actor.name||null]);
-  await connection.query(`INSERT INTO warehouse_fulfillment_items (fulfillment_id,request_item_id,item_code,item_name,requested_qty_snapshot,finance_approved_qty_snapshot,finance_rejected_qty_snapshot,actual_qty) VALUES (?,?,?,?,?,?,0,NULL)`,[result.insertId,item.request_item_id,item.item_code,item.item_name,discrepancy.difference_qty,discrepancy.difference_qty]);
+  const[result]=await connection.query(`
+    INSERT INTO warehouse_fulfillments (
+      request_id,parent_fulfillment_id,fulfillment_number,fulfillment_mode,fulfillment_type,status,
+      warehouse_department_id,warehouse_department_name,created_by_user_id,created_by_name
+    ) VALUES (?,?,?,'PHYSICAL','DISCREPANCY_RESEND','PICKING',?,?,?,?)
+  `,[requestIds[0],parentFulfillmentId,number,first.warehouse_department_id||null,first.warehouse_department_name||null,actor.user_id||null,actor.name||null]);
+
+  for(const item of grouped.values()){
+    await connection.query(`
+      INSERT INTO warehouse_fulfillment_items (
+        fulfillment_id,request_item_id,item_code,item_name,
+        requested_qty_snapshot,finance_approved_qty_snapshot,finance_rejected_qty_snapshot,actual_qty
+      ) VALUES (?,?,?,?,?,?,0,NULL)
+    `,[result.insertId,item.request_item_id,item.item_code,item.item_name,item.qty,item.qty]);
+  }
+
   return result.insertId;
 }
 
@@ -75,4 +117,4 @@ async function printDo(user,id,payload={}){const db=requireDatabase();const c=aw
     await ActivityService.log(c,{request_id:f.request_id,entity_type:'FULFILLMENT',entity_id:f.id,action_code:'DO_PRINTED_DISPATCHED',actor_user_id:actor.user_id,actor_name:actor.name,after:{status:'DISPATCHED',delivery_receipt_id:receiptResult.insertId,confirmation_method:'PENDING',note:optionalText(payload.note,500)}});await c.commit();return showFulfillment(user,f.id);
   }catch(e){await c.rollback();throw e;}finally{c.release();}}
 
-module.exports={createFromFinance,createResend,listFulfillments,showFulfillment,printPicking,saveProgress,complete,printDo,lockFulfillment};
+module.exports={createFromFinance,createResendBatch,listFulfillments,showFulfillment,printPicking,saveProgress,complete,printDo,lockFulfillment};

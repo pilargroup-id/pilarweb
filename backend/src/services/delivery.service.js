@@ -107,8 +107,143 @@ async function listDiscrepancies(user,query={}){
   return{data,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
 }
 
-async function resolveDiscrepancy(user,id,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'WAREHOUSE',c);await refreshDiscrepancyStatuses(c);const[rows]=await c.query(`SELECT dd.*,wf.warehouse_department_id,wf.warehouse_department_name,wf.fulfillment_number FROM delivery_discrepancies dd INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id WHERE dd.id=? LIMIT 1 FOR UPDATE`,[Number(id)]);const d=rows[0];if(!d)throw createError('Delivery discrepancy not found',404,'DELIVERY_DISCREPANCY_NOT_FOUND');if(d.status==='RESOLVED')throw createError('Delivery discrepancy is already resolved',409,'DELIVERY_DISCREPANCY_RESOLVED');const actor=UserUtil.snapshot(user);if(d.warehouse_department_id&&Number(actor.department_id)!==Number(d.warehouse_department_id)&&!(await AccessService.hasModuleAccess(user,'ADMIN',c)))throw createError('Discrepancy belongs to another Warehouse department',403,'WAREHOUSE_DEPARTMENT_MISMATCH');if(d.status==='SUPERVISOR_REQUIRED'&&!(await AccessService.hasModuleAccess(user,'WAREHOUSE_DISCREPANCY_SUPERVISOR',c)))throw createError('This overdue discrepancy requires Warehouse supervisor access',403,'WAREHOUSE_SUPERVISOR_REQUIRED');const type=String(payload.resolution_type||'').trim().toUpperCase();if(!['RESEND','CLOSE_WITH_REASON'].includes(type))throw createError('resolution_type must be RESEND or CLOSE_WITH_REASON',422,'VALIDATION_ERROR');const note=optionalText(payload.resolution_note??payload.reason,5000);if(type==='CLOSE_WITH_REASON'&&!note)throw createError('resolution_note is required for CLOSE_WITH_REASON',422,'RESOLUTION_NOTE_REQUIRED');const[nowRows]=await c.query('SELECT NOW() AS now_value');const late=new Date(nowRows[0].now_value).getTime()>new Date(d.resolution_due_at).getTime();const lateReason=optionalText(payload.late_resolution_reason,5000);if(late&&!lateReason)throw createError('late_resolution_reason is required after the Warehouse resolution SLA is exceeded',422,'LATE_RESOLUTION_REASON_REQUIRED');let resendId=null;if(type==='RESEND'){const WarehouseService=require('./warehouse.service');resendId=await WarehouseService.createResend(c,d,actor);}await c.query(`UPDATE delivery_discrepancies SET status='RESOLVED',resolution_type=?,resolved_at=NOW(),resolved_by_user_id=?,resolved_by_name=?,resolution_note=?,late_resolution_reason=?,resend_fulfillment_id=? WHERE id=?`,[type,actor.user_id,actor.name,note,lateReason,resendId,d.id]);await c.query(`UPDATE warehouse_sla_violations SET status='RESOLVED',resolved_at=NOW(),overdue_minutes=GREATEST(TIMESTAMPDIFF(MINUTE,due_at,NOW()),0),late_reason=? WHERE discrepancy_id=? AND violation_type='DELIVERY_DISCREPANCY_OVERDUE'`,[lateReason,d.id]);const[remain]=await c.query("SELECT id FROM delivery_discrepancies WHERE delivery_receipt_item_id IN (SELECT id FROM delivery_receipt_items WHERE delivery_receipt_id=(SELECT delivery_receipt_id FROM delivery_receipt_items WHERE id=?)) AND status<>'RESOLVED' LIMIT 1",[d.delivery_receipt_item_id]);if(!remain[0])await c.query("UPDATE delivery_receipts SET status='RECEIVED' WHERE id=(SELECT delivery_receipt_id FROM delivery_receipt_items WHERE id=? LIMIT 1)",[d.delivery_receipt_item_id]);await ActivityService.log(c,{request_id:d.request_id,entity_type:'DELIVERY_DISCREPANCY',entity_id:d.id,action_code:'DELIVERY_DISCREPANCY_RESOLVED',actor_user_id:actor.user_id,actor_name:actor.name,after:{resolution_type:type,resend_fulfillment_id:resendId,late,late_resolution_reason:lateReason}});if(type==='CLOSE_WITH_REASON')await finalizeRequestReceipt(c,d.request_id,actor);await c.commit();return{id:d.id,resolution_type:type,resend_fulfillment_id:resendId};}catch(e){await c.rollback();throw e;}finally{c.release();}}
+async function listDiscrepancyForms(user,query={}){
+  await AccessService.requireModuleAccess(user,'WAREHOUSE');
+  const db=requireDatabase();
+  await refreshDiscrepancyStatuses(db);
+  const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;
+  const params=[];let where="WHERE dd.status<>'RESOLVED'";
+  if(query.status){where+=' AND dd.status=?';params.push(String(query.status).toUpperCase());}
+  if(query.search){const search=`%${String(query.search).trim()}%`;where+=' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR r.department_name LIKE ?)';params.push(search,search,search);}
+  const[countRows]=await db.query(`SELECT COUNT(DISTINCT dd.request_id) AS total FROM delivery_discrepancies dd INNER JOIN requests r ON r.id=dd.request_id ${where}`,params);
+  const[rows]=await db.query(`
+    SELECT
+      dd.request_id,
+      r.request_number,
+      r.requester_name,
+      r.department_id,
+      r.department_name,
+      r.target_department_id,
+      r.target_department_name,
+      COUNT(*) AS discrepancy_item_count,
+      SUM(dd.difference_qty) AS total_difference_qty,
+      MIN(dd.resolution_due_at) AS nearest_resolution_due_at,
+      MAX(CASE dd.status WHEN 'SUPERVISOR_REQUIRED' THEN 4 WHEN 'ESCALATED' THEN 3 WHEN 'OVERDUE' THEN 2 ELSE 1 END) AS severity_rank,
+      CASE MAX(CASE dd.status WHEN 'SUPERVISOR_REQUIRED' THEN 4 WHEN 'ESCALATED' THEN 3 WHEN 'OVERDUE' THEN 2 ELSE 1 END)
+        WHEN 4 THEN 'SUPERVISOR_REQUIRED'
+        WHEN 3 THEN 'ESCALATED'
+        WHEN 2 THEN 'OVERDUE'
+        ELSE 'OPEN'
+      END AS form_status,
+      MIN(wf.warehouse_department_id) AS warehouse_department_id,
+      MIN(wf.warehouse_department_name) AS warehouse_department_name
+    FROM delivery_discrepancies dd
+    INNER JOIN requests r ON r.id=dd.request_id
+    INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
+    ${where}
+    GROUP BY dd.request_id,r.request_number,r.requester_name,r.department_id,r.department_name,r.target_department_id,r.target_department_name
+    ORDER BY severity_rank DESC,nearest_resolution_due_at ASC,r.request_number ASC
+    LIMIT ? OFFSET ?
+  `,[...params,limit,offset]);
+  const total=Number(countRows[0]?.total||0);
+  return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
+}
+
+async function getDiscrepancyForm(user,requestId){
+  await AccessService.requireModuleAccess(user,'WAREHOUSE');
+  const db=requireDatabase();
+  await refreshDiscrepancyStatuses(db);
+  const[requestRows]=await db.query(`SELECT id,request_number,requester_user_id,requester_name,department_id,department_name,target_department_id,target_department_name,status FROM requests WHERE id=? LIMIT 1`,[String(requestId)]);
+  const request=requestRows[0];if(!request)throw createError('PB not found',404,'REQUEST_NOT_FOUND');
+  const[items]=await db.query(`
+    SELECT dd.*,ri.item_code,ri.item_name,ri.uom_code,wf.fulfillment_number,wf.warehouse_department_id,wf.warehouse_department_name,wf.source_warehouse_name,wsv.status AS sla_status,wsv.breached_at,wsv.overdue_minutes
+    FROM delivery_discrepancies dd
+    INNER JOIN request_items ri ON ri.id=dd.request_item_id
+    INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
+    LEFT JOIN warehouse_sla_violations wsv ON wsv.discrepancy_id=dd.id AND wsv.violation_type='DELIVERY_DISCREPANCY_OVERDUE'
+    WHERE dd.request_id=? AND dd.status<>'RESOLVED'
+    ORDER BY FIELD(dd.status,'SUPERVISOR_REQUIRED','ESCALATED','OVERDUE','OPEN'),dd.id
+  `,[String(requestId)]);
+  if(!items.length)throw createError('No unresolved delivery discrepancy exists for this PB',404,'DISCREPANCY_FORM_NOT_FOUND');
+  return{...request,items,resolution_type_options:['RESEND','CLOSE_WITH_REASON']};
+}
+
+async function resolveDiscrepancyForm(user,requestId,payload={}){
+  const db=requireDatabase();const c=await db.getConnection();
+  try{
+    await c.beginTransaction();
+    await AccessService.requireModuleAccess(user,'WAREHOUSE',c);
+    await refreshDiscrepancyStatuses(c);
+    const inputs=Array.isArray(payload.items)?payload.items:[];
+    if(!inputs.length)throw createError('items is required',422,'DISCREPANCY_ITEMS_REQUIRED');
+
+    const ids=inputs.map(row=>Number(row.discrepancy_id));
+    if(ids.some(id=>!Number.isInteger(id)||id<=0)||new Set(ids).size!==ids.length)throw createError('Each discrepancy_id must be unique and valid',422,'INVALID_DISCREPANCY_ID');
+    const placeholders=ids.map(()=>'?').join(',');
+    const[rows]=await c.query(`
+      SELECT dd.*,wf.warehouse_department_id,wf.warehouse_department_name,wf.fulfillment_number
+      FROM delivery_discrepancies dd
+      INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
+      WHERE dd.request_id=? AND dd.id IN (${placeholders})
+      ORDER BY dd.id
+      FOR UPDATE
+    `,[String(requestId),...ids]);
+    if(rows.length!==ids.length)throw createError('One or more discrepancy items do not belong to this PB',422,'DISCREPANCY_FORM_MISMATCH');
+    if(rows.some(row=>row.status==='RESOLVED'))throw createError('One or more discrepancy items are already resolved',409,'DELIVERY_DISCREPANCY_RESOLVED');
+
+    const[openRows]=await c.query("SELECT id FROM delivery_discrepancies WHERE request_id=? AND status<>'RESOLVED' ORDER BY id FOR UPDATE",[String(requestId)]);
+    const openIds=openRows.map(row=>Number(row.id));
+    if(openIds.length!==ids.length||openIds.some(id=>!ids.includes(id)))throw createError('Submit a resolution for every unresolved item in this PB form',422,'DISCREPANCY_FORM_INCOMPLETE');
+
+    const actor=UserUtil.snapshot(user);
+    const isAdmin=await AccessService.hasModuleAccess(user,'ADMIN',c);
+    const needsSupervisor=rows.some(row=>row.status==='SUPERVISOR_REQUIRED');
+    const hasSupervisor=needsSupervisor?await AccessService.hasModuleAccess(user,'WAREHOUSE_DISCREPANCY_SUPERVISOR',c):false;
+    for(const row of rows){
+      if(row.warehouse_department_id&&Number(actor.department_id)!==Number(row.warehouse_department_id)&&!isAdmin)throw createError('Discrepancy form belongs to another Warehouse department',403,'WAREHOUSE_DEPARTMENT_MISMATCH');
+    }
+    if(needsSupervisor&&!hasSupervisor)throw createError('This overdue discrepancy form requires Warehouse supervisor access',403,'WAREHOUSE_SUPERVISOR_REQUIRED');
+
+    const inputMap=new Map(inputs.map(row=>[Number(row.discrepancy_id),row]));
+    const[nowRows]=await c.query('SELECT NOW() AS now_value');const nowValue=new Date(nowRows[0].now_value).getTime();
+    const normalized=[];
+    for(const row of rows){
+      const input=inputMap.get(Number(row.id));
+      const type=String(input.resolution_type||'').trim().toUpperCase();
+      if(!['RESEND','CLOSE_WITH_REASON'].includes(type))throw createError(`resolution_type for discrepancy ${row.id} must be RESEND or CLOSE_WITH_REASON`,422,'VALIDATION_ERROR');
+      const note=optionalText(input.resolution_note??input.reason,5000);
+      if(type==='CLOSE_WITH_REASON'&&!note)throw createError(`resolution_note is required for CLOSE_WITH_REASON on discrepancy ${row.id}`,422,'RESOLUTION_NOTE_REQUIRED');
+      const late=nowValue>new Date(row.resolution_due_at).getTime();
+      const lateReason=optionalText(input.late_resolution_reason??payload.late_resolution_reason,5000);
+      if(late&&!lateReason)throw createError(`late_resolution_reason is required for overdue discrepancy ${row.id}`,422,'LATE_RESOLUTION_REASON_REQUIRED');
+      normalized.push({row,type,note,late,lateReason});
+    }
+
+    const resendRows=normalized.filter(x=>x.type==='RESEND').map(x=>x.row);
+    let resendId=null;
+    if(resendRows.length){const WarehouseService=require('./warehouse.service');resendId=await WarehouseService.createResendBatch(c,resendRows,actor);}
+
+    const affectedReceiptIds=new Set();
+    for(const item of normalized){
+      const row=item.row;const assignedResendId=item.type==='RESEND'?resendId:null;
+      await c.query(`UPDATE delivery_discrepancies SET status='RESOLVED',resolution_type=?,resolved_at=NOW(),resolved_by_user_id=?,resolved_by_name=?,resolution_note=?,late_resolution_reason=?,resend_fulfillment_id=? WHERE id=?`,[item.type,actor.user_id,actor.name,item.note,item.lateReason,assignedResendId,row.id]);
+      await c.query(`UPDATE warehouse_sla_violations SET status='RESOLVED',resolved_at=NOW(),overdue_minutes=GREATEST(TIMESTAMPDIFF(MINUTE,due_at,NOW()),0),late_reason=? WHERE discrepancy_id=? AND violation_type='DELIVERY_DISCREPANCY_OVERDUE'`,[item.lateReason,row.id]);
+      const[receiptRows]=await c.query('SELECT delivery_receipt_id FROM delivery_receipt_items WHERE id=? LIMIT 1',[row.delivery_receipt_item_id]);if(receiptRows[0])affectedReceiptIds.add(Number(receiptRows[0].delivery_receipt_id));
+      await ActivityService.log(c,{request_id:row.request_id,entity_type:'DELIVERY_DISCREPANCY',entity_id:row.id,action_code:'DELIVERY_DISCREPANCY_RESOLVED',actor_user_id:actor.user_id,actor_name:actor.name,after:{resolution_type:item.type,resend_fulfillment_id:assignedResendId,late:item.late,late_resolution_reason:item.lateReason}});
+    }
+
+    for(const receiptId of affectedReceiptIds){
+      const[remain]=await c.query("SELECT dd.id FROM delivery_discrepancies dd INNER JOIN delivery_receipt_items dri ON dri.id=dd.delivery_receipt_item_id WHERE dri.delivery_receipt_id=? AND dd.status<>'RESOLVED' LIMIT 1",[receiptId]);
+      if(!remain[0])await c.query("UPDATE delivery_receipts SET status='RECEIVED' WHERE id=?",[receiptId]);
+    }
+
+    await ActivityService.log(c,{request_id:String(requestId),entity_type:'REQUEST',entity_id:String(requestId),action_code:'DELIVERY_DISCREPANCY_FORM_RESOLVED',actor_user_id:actor.user_id,actor_name:actor.name,after:{resolved_count:normalized.length,resend_item_count:resendRows.length,resend_fulfillment_id:resendId}});
+    await finalizeRequestReceipt(c,String(requestId),actor);
+    await c.commit();
+    return{request_id:String(requestId),resend_fulfillment_id:resendId,resolved_items:normalized.map(item=>({discrepancy_id:item.row.id,resolution_type:item.type,resend_fulfillment_id:item.type==='RESEND'?resendId:null}))};
+  }catch(e){await c.rollback();throw e;}finally{c.release();}
+}
 
 async function processDueActions(){const autoReceived=await processDueReceipts();const db=requireDatabase();await refreshDiscrepancyStatuses(db);await ValidationService.refreshReturnViolations(db);return{auto_received_count:autoReceived};}
 
-module.exports={listMine,getById,confirm,processDueReceipts,refreshDiscrepancyStatuses,listDiscrepancies,resolveDiscrepancy,finalizeRequestReceipt,processDueActions};
+module.exports={listMine,getById,confirm,processDueReceipts,refreshDiscrepancyStatuses,listDiscrepancies,listDiscrepancyForms,getDiscrepancyForm,resolveDiscrepancyForm,finalizeRequestReceipt,processDueActions};
