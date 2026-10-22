@@ -24,8 +24,8 @@
             {{ isEditMode ? 'Edit Depreciation Policy' : 'Create Depreciation Policy' }}
           </h4>
           <p class="pr-12 text-sm text-white/70">
-            <template v-if="isEditMode">Department and company cannot be changed here.</template>
-            <template v-else>Fields marked with * are required.</template>
+            <template v-if="isEditMode">Departemen dan perusahaan tidak dapat diubah di sini.</template>
+            <template v-else>Kolom bertanda * wajib diisi.</template>
           </p>
         </div>
 
@@ -102,7 +102,7 @@
                   </li>
                 </ul>
               </div>
-              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Leave blank to apply across all companies in this department.</p>
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Kosongkan untuk berlaku di semua perusahaan dalam departemen ini.</p>
             </div>
           </div>
 

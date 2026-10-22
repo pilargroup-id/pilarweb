@@ -2,7 +2,7 @@
   <AdminLayout>
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
-      <ComponentCard title="1. Choose Type &amp; File" desc="Download the template, fill it in, then upload it here for validation.">
+      <ComponentCard title="1. Choose Type &amp; File" desc="Unduh templatenya, isi, lalu unggah di sini untuk divalidasi.">
         <div class="flex flex-col gap-4">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

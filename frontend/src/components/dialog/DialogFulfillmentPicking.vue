@@ -62,30 +62,56 @@
                   <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
                     Source Warehouse <span v-if="isEditable" class="text-error-500">*</span>
                   </span>
-                  <div v-if="isEditable && !isReturnWarehouseLocked" class="w-72">
+                  <div v-if="isEditable" class="w-72">
                     <SearchableSelect
                       v-model="sourceWarehouseId"
                       :options="warehouseOptions"
                       placeholder="Select warehouse"
-                      search-in-field
                     />
-                  </div>
-                  <div v-else-if="isReturnWarehouseLocked" class="flex flex-col">
-                    <span class="text-theme-sm text-gray-600 dark:text-gray-300">{{ lockedWarehouseDisplay }}</span>
-                    <span class="text-theme-xs text-gray-400 dark:text-gray-500">Auto-selected &middot; returnable item</span>
                   </div>
                   <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ sourceWarehouseDisplay || '-' }}</span>
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2">
-                <Badge :color="statusColor(fulfillment?.status)" size="sm">{{ formatStatusLabel(fulfillment?.status) }}</Badge>
-                <span v-if="fulfillment?.last_picking_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
-                  Picking form printed {{ formatDateTime(fulfillment.last_picking_printed_at) }}
-                </span>
-                <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
-                  &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
-                </span>
+              <div class="flex flex-col items-end gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <Badge :color="statusColor(fulfillment?.status)" size="sm">{{ formatStatusLabel(fulfillment?.status) }}</Badge>
+                  <span v-if="fulfillment?.last_picking_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                    Picking form printed {{ formatDateTime(fulfillment.last_picking_printed_at) }}
+                  </span>
+                  <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
+                    &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
+                  </span>
+                </div>
+                <div v-if="isEditable" class="flex items-center gap-2">
+                  <button
+                    v-if="isPicking"
+                    @click="handlePrintPicking"
+                    type="button"
+                    :disabled="isPrintingPicking || !fulfillment"
+                    class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                  >
+                    <PrinterIcon class="h-4 w-4" />
+                    {{ isPrintingPicking ? 'Printing...' : 'Print Picking Form' }}
+                  </button>
+                  <button
+                    @click="handleSaveProgress"
+                    type="button"
+                    :disabled="isSaving || !fulfillment"
+                    class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                  >
+                    <SaveIcon class="h-4 w-4" />
+                    {{ isSaving ? 'Saving...' : 'Save Progress' }}
+                  </button>
+                </div>
+                <div v-if="!isAdministrative && fulfillment?.status === 'READY_FOR_DISPATCH'" class="flex w-64 flex-col items-start gap-1.5">
+                  <input
+                    v-model="doNote"
+                    type="text"
+                    placeholder="Optional dispatch note"
+                    class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                  />
+                </div>
               </div>
             </div>
 
@@ -99,7 +125,9 @@
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                       Actual Qty <span v-if="isPicking" class="text-error-500">*</span>
                     </th>
-                    <th class="rounded-tr-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
+                    <th class="rounded-tr-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                      Note<span v-if="rows.some(isNoteRequired)" class="text-error-500"> *</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -121,7 +149,7 @@
                         v-if="isPicking"
                         v-model.number="row.actual_qty"
                         type="number"
-                        step="0.01"
+                        step="1"
                         min="0"
                         :max="row.approved_qty"
                         @input="sanitizeActualQty(row)"
@@ -134,8 +162,13 @@
                         v-if="isPicking"
                         v-model="row.note"
                         type="text"
-                        placeholder="Optional note"
-                        class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                        :placeholder="isNoteRequired(row) ? 'Catatan wajib diisi karena actual qty tidak penuh' : 'Catatan (opsional)'"
+                        :class="[
+                          'dark:bg-dark-900 w-full rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:placeholder:text-white/30',
+                          isNoteRequired(row) && !row.note?.trim()
+                            ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
+                            : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
+                        ]"
                       />
                       <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ row.note || '-' }}</span>
                     </td>
@@ -158,25 +191,6 @@
 
             <div v-if="isEditable" class="flex items-center justify-end gap-3 pt-2">
               <button
-                v-if="isPicking"
-                @click="handlePrintPicking"
-                type="button"
-                :disabled="isPrintingPicking || !fulfillment"
-                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-              >
-                <PrinterIcon class="h-4 w-4" />
-                {{ isPrintingPicking ? 'Printing...' : 'Print Picking Form' }}
-              </button>
-              <button
-                @click="handleSaveProgress"
-                type="button"
-                :disabled="isSaving || !fulfillment"
-                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-              >
-                <SaveIcon class="h-4 w-4" />
-                {{ isSaving ? 'Saving...' : 'Save Progress' }}
-              </button>
-              <button
                 @click="handleCompletePicking"
                 type="button"
                 :disabled="isCompleting || isSaving || !fulfillment"
@@ -188,13 +202,6 @@
             </div>
 
             <div v-else-if="fulfillment && !isAdministrative" class="flex items-center justify-end gap-3 pt-2">
-              <input
-                v-if="fulfillment.status === 'READY_FOR_DISPATCH'"
-                v-model="doNote"
-                type="text"
-                placeholder="Optional dispatch note"
-                class="dark:bg-dark-900 w-64 rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-              />
               <button
                 @click="handlePrintDo"
                 type="button"
@@ -232,6 +239,7 @@
       :requester-name="queueItem?.requester_name"
       :department-name="queueItem?.department_name"
       :source-warehouse-name="sourceWarehouseDisplay"
+      :inventory-transfer-number="iwtNumber"
       :note="doNote"
       :printed-at="doPrintedAt"
       :rows="printDoRows"
@@ -306,23 +314,6 @@ const sourceWarehouseDisplay = computed(() => {
   return f.source_warehouse_code ? `${f.source_warehouse_name} (${f.source_warehouse_code})` : f.source_warehouse_name
 })
 
-// Returnable-purpose requests (loaned items that must come back) are always
-// picked from the "LOAN" warehouse, so Source Warehouse is auto-filled and
-// locked instead of asking Warehouse staff to pick it every time.
-const loanWarehouse = computed(() => warehouseLocations.value.find((w) => w.code === 'LOAN') || null)
-const isReturnWarehouseLocked = computed(() => isPicking.value && fulfillment.value?.purpose_return_type === 'RETURNABLE')
-const lockedWarehouseDisplay = computed(() =>
-  loanWarehouse.value ? `${loanWarehouse.value.name} (${loanWarehouse.value.code})` : sourceWarehouseDisplay.value || '-'
-)
-
-watch(
-  [isReturnWarehouseLocked, loanWarehouse],
-  ([locked, warehouse]) => {
-    if (locked && warehouse) sourceWarehouseId.value = warehouse.id
-  },
-  { immediate: true }
-)
-
 const printPickingRows = computed(() =>
   rows.value.map((row) => ({
     id: row.id,
@@ -339,7 +330,6 @@ const printDoRows = computed(() =>
     item_name: row.item_name,
     item_code: row.item_code,
     actual_qty: row.actual_qty,
-    inventory_transfer_number: iwtNumber.value,
   }))
 )
 
@@ -396,10 +386,15 @@ function applyFulfillment(data) {
   sourceWarehouseId.value = data?.source_warehouse_id ?? ''
 }
 
+function isNoteRequired(row) {
+  return isPicking.value && row.actual_qty !== null && Number(row.actual_qty) < Number(row.approved_qty)
+}
+
 function sanitizeActualQty(row) {
   let value = Number(row.actual_qty)
   if (Number.isNaN(value)) value = null
-  const max = Number(row.approved_qty || 0)
+  if (value !== null) value = Math.trunc(value)
+  const max = Math.trunc(Number(row.approved_qty || 0))
   if (value !== null) {
     if (value > max) value = max
     if (value < 0) value = 0
@@ -462,6 +457,9 @@ function validateForComplete() {
   if (!sourceWarehouseId.value) return 'Source warehouse is required.'
   for (const row of rows.value) {
     if (row.actual_qty === null) return `Actual qty is required for "${row.item_name}".`
+    if (Number(row.actual_qty) < Number(row.approved_qty) && !row.note?.trim()) {
+      return `Catatan wajib diisi untuk "${row.item_name}" karena actual qty tidak penuh.`
+    }
   }
   return ''
 }

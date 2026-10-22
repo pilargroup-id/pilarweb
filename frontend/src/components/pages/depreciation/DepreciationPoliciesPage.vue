@@ -4,14 +4,14 @@
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard
         title="Depreciation Policies"
-        desc="Department-level templates for useful life and salvage value. Editing a policy does not change assets already configured."
+        desc="Template tingkat departemen untuk masa manfaat dan nilai sisa. Mengubah kebijakan tidak mengubah aset yang sudah dikonfigurasi."
       >
         <DepreciationPoliciesTable />
       </ComponentCard>
 
       <ComponentCard
         title="Category Default Policy"
-        desc="Suggest a policy automatically when an asset in a category is configured for depreciation."
+        desc="Sarankan kebijakan secara otomatis saat aset dalam suatu kategori dikonfigurasi untuk penyusutan."
       >
         <DepreciationCategoryDefaultCard />
       </ComponentCard>

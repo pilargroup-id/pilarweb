@@ -24,7 +24,7 @@
             {{ isEditMode ? 'Edit Location' : 'Create Location' }}
           </h4>
           <p class="pr-12 text-sm text-white/70">
-            Fields marked with * are required.
+            Kolom bertanda * wajib diisi.
           </p>
         </div>
 

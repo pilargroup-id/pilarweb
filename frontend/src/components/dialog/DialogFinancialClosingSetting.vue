@@ -22,7 +22,7 @@
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Financial Closing Setting</h4>
           <p class="pr-12 text-sm text-white/70">
-            Defines the closing day and timezone used to derive period start/end dates. Requires admin access.
+            Menentukan hari penutupan dan zona waktu yang digunakan untuk menurunkan tanggal mulai/berakhir periode. Membutuhkan akses admin.
           </p>
         </div>
 
@@ -38,7 +38,7 @@
                 required
                 class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               />
-              <p class="mt-1 text-xs text-gray-400">Day of the month (1-31) when a period closes.</p>
+              <p class="mt-1 text-xs text-gray-400">Tanggal dalam bulan (1-31) saat periode ditutup.</p>
             </div>
 
             <div>

@@ -179,6 +179,7 @@
         :company-name="printItem?.company_name"
         :requester-name="printItem?.requester_name"
         :department-name="printItem?.department_name"
+        :inventory-transfer-number="printFulfillment?.inventory_transfer_number"
         :note="printItem?.note"
         :printed-at="printDoPrintedAt"
         :rows="printDoRows"
@@ -480,7 +481,6 @@ const printDoRows = computed(() =>
     item_code: item.item_code,
     actual_qty: item.actual_qty,
     source_warehouse_code: item.source_warehouse_code,
-    inventory_transfer_number: item.inventory_transfer_number,
   }))
 )
 

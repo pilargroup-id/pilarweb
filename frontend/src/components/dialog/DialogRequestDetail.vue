@@ -523,7 +523,7 @@ const timelineSteps = computed(() => {
       title: `Approved by ${approval.department_name || `Level ${approval.approval_order}`}`,
       status: isApproved ? 'done' : isReverted ? 'rejected' : 'pending',
       badge: isApproved ? 'Approved' : approval.status === 'CANCELED' ? 'Canceled' : isReverted ? 'Reverted' : 'Pending',
-      extra: approval.required_job_level_name ? `Requires ${approval.required_job_level_name} or above` : null,
+      extra: approval.required_job_level_name ? `Membutuhkan ${approval.required_job_level_name} atau lebih tinggi` : null,
       by: isApproved ? approval.approver_name : isReverted ? approval.reverted_by_name : null,
       at: isApproved ? approval.decided_at : isReverted ? (approval.reverted_at || approval.decided_at) : null,
       pendingLabel: 'Awaiting approval',

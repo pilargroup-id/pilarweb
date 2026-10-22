@@ -65,14 +65,14 @@
               />
               <p v-else class="text-gray-500 text-theme-sm dark:text-gray-400">No asset data yet.</p>
             </ComponentCard>
-            <ComponentCard v-else title="Assets" desc="You don't have permission to view asset data.">
+            <ComponentCard v-else title="Assets" desc="Anda tidak memiliki izin untuk melihat data aset.">
               <p class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
             </ComponentCard>
 
             <ComponentCard
               v-if="consumables"
               title="Low Stock Consumables"
-              desc="Items at or below minimum stock level"
+              desc="Barang pada atau di bawah stok minimum"
             >
               <BaseTable>
                 <template #head>
@@ -111,7 +111,7 @@
                 </tr>
               </BaseTable>
             </ComponentCard>
-            <ComponentCard v-else title="Consumables" desc="You don't have permission to view consumable data.">
+            <ComponentCard v-else title="Consumables" desc="Anda tidak memiliki izin untuk melihat data consumable.">
               <p class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
             </ComponentCard>
           </div>

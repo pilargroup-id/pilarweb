@@ -25,9 +25,9 @@
           </h4>
           <p class="pr-12 text-sm text-white/70">
             <template v-if="isEditMode">
-              Update consumable master data. Department, company, and consumable code cannot be changed here.
+              Perbarui data induk consumable. Departemen, perusahaan, dan kode consumable tidak dapat diubah di sini.
             </template>
-            <template v-else> Register a new consumable item. Fields marked with * are required. </template>
+            <template v-else> Daftarkan item consumable baru. Kolom bertanda * wajib diisi. </template>
           </p>
         </div>
 

@@ -12,22 +12,23 @@
         <span class="block truncate text-xs text-gray-500 dark:text-gray-400">{{ modelValue.item_code }}</span>
       </div>
       <div v-else ref="containerRef" class="relative min-w-[320px]">
-        <div class="relative">
-          <input
-            v-model="searchQuery"
-            @input="onSearchInput"
-            @focus="openDropdown"
-            type="text"
-            autocomplete="off"
-            placeholder="Search item by code or name..."
-            class="dark:bg-dark-900 h-11 w-full rounded-lg border bg-transparent px-4 py-2.5 pr-11 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-            :class="hasItemError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
-          />
+        <button
+          @click="toggleDropdown"
+          type="button"
+          class="dark:bg-dark-900 flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-transparent px-4 py-2.5 text-left text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:focus:border-brand-800"
+          :class="hasItemError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
+        >
+          <span
+            class="min-w-0 flex-1 truncate"
+            :class="modelValue.item_name ? 'text-gray-800 dark:text-white/90' : 'text-gray-400 dark:text-gray-500'"
+          >
+            {{ modelValue.item_name || 'Select item...' }}
+          </span>
           <ChevronDownIcon
-            class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-700 transition-transform dark:text-gray-400"
+            class="h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400"
             :class="{ 'rotate-180': isDropdownOpen }"
           />
-        </div>
+        </button>
       </div>
       <p v-if="hasItemError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
         Select an item from the list.
@@ -42,6 +43,17 @@
           :style="dropdownStyle"
           class="fixed z-[100000] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900"
         >
+          <div class="border-b border-gray-100 p-2 dark:border-gray-800">
+            <input
+              ref="searchInputRef"
+              v-model="searchQuery"
+              @input="onSearchInput"
+              type="text"
+              autocomplete="off"
+              placeholder="Search item by code or name..."
+              class="h-9 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+            />
+          </div>
           <ul class="custom-scrollbar max-h-64 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800" role="listbox">
             <li v-if="isSearching" class="px-3.5 py-3 text-sm text-gray-400">Searching...</li>
             <li v-else-if="searchError" class="px-3.5 py-3 text-sm text-error-600 dark:text-error-500">
@@ -79,15 +91,17 @@
     <td class="px-5 py-4 sm:px-6">
       <input
         :value="modelValue.qty"
-        @input="updateField('qty', $event.target.value)"
+        @input="onQtyInput"
+        @keydown="blockDecimalKey"
         type="number"
         min="0"
-        step="any"
+        step="1"
+        inputmode="numeric"
         placeholder="0"
         class="dark:bg-dark-900 h-11 w-24 rounded-lg border bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
         :class="hasQtyError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
       />
-      <p v-if="hasQtyError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">Must be greater than 0.</p>
+      <p v-if="hasQtyError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">Must be a whole number greater than 0.</p>
     </td>
 
     <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -118,7 +132,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { getItems } from '@/service/api'
 import { ChevronDownIcon, TrashIcon } from '@/icons'
 
@@ -147,21 +161,39 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'remove'])
 
-const searchQuery = ref(props.modelValue.item_name || '')
+const searchQuery = ref('')
 const isDropdownOpen = ref(false)
 const isSearching = ref(false)
 const searchError = ref('')
 const results = ref([])
 const containerRef = ref(null)
 const dropdownRef = ref(null)
+const searchInputRef = ref(null)
 const dropdownStyle = reactive({ top: '0px', left: '0px', width: '0px' })
 let searchTimer = null
 
 const hasItemError = computed(() => props.showErrors && !props.modelValue.item_id)
-const hasQtyError = computed(() => props.showErrors && !(Number(props.modelValue.qty) > 0))
+const hasQtyError = computed(() => {
+  if (!props.showErrors) return false
+  const qty = Number(props.modelValue.qty)
+  return !(qty > 0) || !Number.isInteger(qty)
+})
 
 function updateField(key, value) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
+}
+
+// Qty must be a whole number — strip any decimal point/comma a user pastes or
+// types (number inputs don't block decimals consistently across locales).
+function blockDecimalKey(event) {
+  if (event.key === '.' || event.key === ',') event.preventDefault()
+}
+
+function onQtyInput(event) {
+  const raw = event.target.value
+  const sanitized = raw.replace(/[.,].*$/, '').replace(/[^\d]/g, '')
+  if (sanitized !== raw) event.target.value = sanitized
+  updateField('qty', sanitized)
 }
 
 // The item list is proxied/passed through from Itembase as-is (see docs
@@ -216,27 +248,30 @@ function updateDropdownPosition() {
   dropdownStyle.width = `${Math.max(rect.width, 280)}px`
 }
 
-function openDropdown() {
+function toggleDropdown() {
+  if (isDropdownOpen.value) {
+    isDropdownOpen.value = false
+    return
+  }
   isDropdownOpen.value = true
+  searchQuery.value = ''
+  results.value = []
+  searchError.value = ''
   updateDropdownPosition()
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function onSearchInput() {
-  openDropdown()
   clearTimeout(searchTimer)
   const query = searchQuery.value.trim()
   if (!query) {
     results.value = []
-    if (props.modelValue.item_id) {
-      emit('update:modelValue', { ...props.modelValue, item_id: '', item_code: '', item_name: '', item_uom: '' })
-    }
     return
   }
   searchTimer = setTimeout(() => runSearch(query), 400)
 }
 
 function selectItem(item) {
-  searchQuery.value = getItemName(item)
   isDropdownOpen.value = false
   emit('update:modelValue', {
     ...props.modelValue,
@@ -252,15 +287,7 @@ function handleClickOutside(event) {
   if (containerRef.value?.contains(target)) return
   if (dropdownRef.value?.contains(target)) return
   isDropdownOpen.value = false
-  searchQuery.value = props.modelValue.item_name || ''
 }
-
-watch(
-  () => props.modelValue.item_name,
-  (name) => {
-    if (!isDropdownOpen.value) searchQuery.value = name || ''
-  }
-)
 
 watch(isDropdownOpen, (open) => {
   if (open) {

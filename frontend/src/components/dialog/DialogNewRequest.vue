@@ -22,7 +22,7 @@
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">{{ isEditMode ? 'Edit Request' : 'New Request' }}</h4>
           <p class="pr-12 text-sm text-white/70">
-            {{ isEditMode ? (requestDetail?.request_number || '') : 'Fields marked with * are required.' }}
+            {{ isEditMode ? (requestDetail?.request_number || '') : 'Kolom bertanda * wajib diisi.' }}
           </p>
         </div>
 
@@ -69,7 +69,7 @@
                   placeholder="Select destination department"
                 />
                 <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
-                  Kosongkan untuk menggunakan departemen Anda sendiri.
+                  Default ke departemen Anda sendiri. Ubah bila request ditujukan ke departemen lain.
                 </p>
               </div>
             </div>
@@ -190,6 +190,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import RequestItemRow from '@/components/tables/Request/RequestItemRow.vue'
 import { PlusIcon } from '@/icons'
+import { authState } from '@/service/auth'
 import {
   getMasterBootstrap,
   getDepartments,
@@ -233,6 +234,30 @@ function getDeptId(item) {
 function getDeptLabel(item) {
   return item?.name || item?.department_name || item?.display_name || String(getDeptId(item))
 }
+
+const ownDepartmentId = computed(() => {
+  const user = authState.user
+  if (!user) return ''
+  if (user.department_id !== undefined && user.department_id !== null && user.department_id !== '') {
+    return String(user.department_id)
+  }
+  const depts = Array.isArray(user.departments) ? user.departments : []
+  const primary = depts.find((d) => Number(d?.is_primary) === 1) || depts[0]
+  const id = primary?.department_id ?? primary?.id
+  return id !== undefined && id !== null ? String(id) : ''
+})
+
+// authState.user is fetched lazily by layout components (UserMenu/AppSidebar), so it may
+// not be ready yet when this dialog opens. Fill the default in as soon as it resolves.
+watch(
+  [() => props.isOpen, ownDepartmentId],
+  ([open, deptId]) => {
+    if (!open || isEditMode.value) return
+    if (!form.target_department_id && deptId) {
+      form.target_department_id = deptId
+    }
+  }
+)
 
 const isLoadingRequest = ref(false)
 const loadError = ref('')
@@ -350,7 +375,9 @@ function validate() {
   const firstRowIndexByItemId = new Map()
   items.value.forEach((row, index) => {
     if (!row.item_id) errors.push(`Item ${index + 1}: select an item from Itembase.`)
-    if (!(Number(row.qty) > 0)) errors.push(`Item ${index + 1}: requested qty must be greater than 0.`)
+    const qtyNum = Number(row.qty)
+    if (!(qtyNum > 0) || !Number.isInteger(qtyNum))
+      errors.push(`Item ${index + 1}: requested qty must be a whole number greater than 0.`)
 
     if (row.item_id) {
       const key = String(row.item_id)
@@ -410,7 +437,7 @@ function populateForm() {
       : [createEmptyRow()]
   } else {
     form.request_purpose_id = ''
-    form.target_department_id = ''
+    form.target_department_id = ownDepartmentId.value
     form.reason = ''
     form.return_due_date = ''
     items.value = [createEmptyRow()]

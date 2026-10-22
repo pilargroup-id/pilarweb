@@ -63,6 +63,7 @@
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
+        <TableHeadCell>Request Origin</TableHeadCell>
         <TableHeadCell>Return Type</TableHeadCell>
         <TableHeadCell>Submitted</TableHeadCell>
         <TableHeadCell>Approved Qty (Finance)</TableHeadCell>
@@ -72,17 +73,17 @@
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="12" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking, Ready for Delivery, or Administrative Pending.</p>
         </td>
       </tr>
@@ -116,6 +117,11 @@
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.request_purpose_name || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge :color="requestOriginColor(item.fulfillment_type)" size="sm">
+            {{ formatRequestOrigin(item.fulfillment_type) }}
+          </Badge>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge v-if="item.purpose_return_type" :color="returnTypeColor(item.purpose_return_type)" size="sm">
@@ -453,6 +459,16 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
 
 const formatReturnType = (returnType) => (returnType === 'RETURNABLE' ? 'Returnable' : 'Non-returnable')
+
+// A DISCREPANCY_RESEND fulfillment is a follow-up on the same original request
+// (its request_number doesn't change) after the requester confirmed receipt
+// short (request status went to PARTIALLY_RECEIVED) -- it needs its own marker
+// since it otherwise looks like a first-time pick in this queue. A
+// RETURN_SHORTFALL_CONVERSION fulfillment already has its own distinct PB
+// number, so it doesn't need this treatment.
+const requestOriginColor = (fulfillmentType) => (fulfillmentType === 'DISCREPANCY_RESEND' ? 'warning' : 'light')
+
+const formatRequestOrigin = (fulfillmentType) => (fulfillmentType === 'DISCREPANCY_RESEND' ? 'Return' : 'New Request')
 
 const formatStatusLabel = (status) => {
   if (!status) return '-'

@@ -24,7 +24,7 @@
             {{ isEditMode ? 'Edit Request Purpose' : 'Create Request Purpose' }}
           </h4>
           <p class="pr-12 text-sm text-white/70">
-            Fields marked with * are required.
+            Kolom bertanda * wajib diisi.
           </p>
         </div>
 
@@ -39,7 +39,7 @@
               disabled
               class="dark:bg-dark-900 h-11 w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm uppercase text-gray-500 shadow-theme-xs placeholder:text-gray-400 placeholder:normal-case dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400 dark:placeholder:text-white/30"
             />
-            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">Auto-generated from name.</p>
+            <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">Dibuat otomatis dari nama.</p>
           </div>
 
           <div>

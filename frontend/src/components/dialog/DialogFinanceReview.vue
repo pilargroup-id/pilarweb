@@ -44,7 +44,9 @@
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved Qty</th>
                   <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Reject Qty</th>
-                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Note</th>
+                  <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                    Note<span v-if="rows.some((r) => r.reject_qty > 0)" class="text-error-500"> *</span>
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -95,8 +97,13 @@
                     <input
                       v-model="row.note"
                       type="text"
-                      placeholder="Optional note"
-                      class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                      :placeholder="row.reject_qty > 0 ? 'Catatan wajib diisi untuk qty yang ditolak' : 'Catatan (opsional)'"
+                      :class="[
+                        'dark:bg-dark-900 w-full rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:placeholder:text-white/30',
+                        row.reject_qty > 0 && !row.note.trim()
+                          ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
+                          : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
+                      ]"
                     />
                   </td>
                 </tr>
@@ -116,7 +123,7 @@
             <textarea
               v-model="note"
               rows="2"
-              placeholder="Optional overall note for this review"
+              placeholder="Catatan opsional untuk ulasan ini"
               class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             ></textarea>
           </div>
@@ -255,6 +262,11 @@ async function submit() {
         errorMessage.value = `Approved qty for "${row.item_name}" must be a whole number greater than 0 and not exceed requested qty.`
         return
       }
+    }
+
+    if (row.reject_qty > 0 && !row.note.trim()) {
+      errorMessage.value = `Catatan wajib diisi untuk "${row.item_name}" karena tidak disetujui penuh.`
+      return
     }
   }
 

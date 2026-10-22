@@ -25,9 +25,9 @@
           </h4>
           <p class="pr-12 text-sm text-white/70">
             <template v-if="isEditMode">
-              Update asset master data. Department, company, location, status, and asset number cannot be changed here.
+              Perbarui data induk aset. Departemen, perusahaan, lokasi, status, dan nomor aset tidak dapat diubah di sini.
             </template>
-            <template v-else> Register a new serialized asset. Fields marked with * are required. </template>
+            <template v-else> Daftarkan aset baru bernomor seri. Kolom bertanda * wajib diisi. </template>
           </p>
         </div>
 

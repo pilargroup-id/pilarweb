@@ -24,7 +24,7 @@
             Create Approval Rule
           </h4>
           <p class="pr-12 text-sm text-white/70">
-            Controls requester eligibility and Department Approval. Fields marked with * are required.
+            Mengatur kelayakan pemohon dan Persetujuan Departemen. Kolom bertanda * wajib diisi.
           </p>
         </div>
 
@@ -74,7 +74,7 @@
               </ul>
             </div>
             <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
-              A rule with no department is used as the fallback when a department has no rule of its own. Clear the field to use the global fallback.
+              Aturan tanpa departemen digunakan sebagai cadangan ketika suatu departemen tidak memiliki aturannya sendiri. Kosongkan kolom ini untuk menggunakan cadangan global.
             </p>
           </div>
 
@@ -114,7 +114,7 @@
                 </ul>
               </div>
               <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
-                Users at or above this job level cannot create requests.
+                Pengguna pada level jabatan ini atau lebih tinggi tidak dapat membuat permintaan.
               </p>
             </div>
 
@@ -165,7 +165,7 @@
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
             <p class="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
-              Lower number is evaluated first when multiple rules match.
+              Angka yang lebih kecil akan dievaluasi lebih dulu jika ada beberapa aturan yang cocok.
             </p>
           </div>
 

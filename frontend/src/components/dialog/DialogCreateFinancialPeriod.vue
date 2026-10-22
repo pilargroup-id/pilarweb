@@ -22,7 +22,7 @@
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Create Financial Period</h4>
           <p class="pr-12 text-sm text-white/70">
-            Opens a new period for the selected month. Period start/end and closing date are derived from the Financial Closing setting.
+            Membuka periode baru untuk bulan yang dipilih. Tanggal mulai/berakhir dan tanggal penutupan periode diturunkan dari pengaturan Penutupan Keuangan.
           </p>
         </div>
 

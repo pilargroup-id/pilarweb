@@ -4,7 +4,7 @@
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard
         title="Export &amp; Reports"
-        desc="Each export is generated on demand as an XLSX file and automatically limited to the data your account has permission to see. Every export is recorded in the Activity Log."
+        desc="Setiap ekspor dibuat sesuai permintaan sebagai file XLSX dan otomatis dibatasi pada data yang menjadi hak akses akun Anda. Setiap ekspor dicatat dalam Log Aktivitas."
       >
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div
@@ -53,15 +53,15 @@ import { triggerBlobDownload, parseBlobErrorMessage } from '@/utils/download'
 const currentPageTitle = ref('Export & Reports')
 
 const REPORTS = [
-  { type: 'ASSET_LIST', label: 'Asset List', description: 'All assets in your scope with category, brand, model, location, vendor, and cost.' },
-  { type: 'ASSIGNMENTS', label: 'Assignments', description: 'Assignment and return history for assets in your scope.' },
-  { type: 'TRANSFERS', label: 'Transfers', description: 'Asset transfers between location, company, and managing department.' },
-  { type: 'MAINTENANCE', label: 'Maintenance', description: 'Maintenance records including vendor, cost, and result.' },
-  { type: 'DEPRECIATION', label: 'Depreciation', description: 'Generated depreciation ledger entries per asset and period.' },
-  { type: 'CONSUMABLE_STOCK', label: 'Consumable Stock', description: 'Current consumable stock balances per location.' },
-  { type: 'CONSUMABLE_MOVEMENTS', label: 'Consumable Movements', description: 'All consumable stock transactions: receive, issue, transfer, adjustment, write-off.' },
-  { type: 'CONSUMABLE_USAGE', label: 'Consumable Usage', description: 'Consumable issue transactions only, for usage analysis.' },
-  { type: 'ACTIVITY_LOG', label: 'Activity Log', description: 'System activity audit trail. Requires the Activity Log export permission.' },
+  { type: 'ASSET_LIST', label: 'Asset List', description: 'Semua aset dalam cakupan Anda beserta kategori, merek, model, lokasi, vendor, dan biaya.' },
+  { type: 'ASSIGNMENTS', label: 'Assignments', description: 'Riwayat penugasan dan pengembalian aset dalam cakupan Anda.' },
+  { type: 'TRANSFERS', label: 'Transfers', description: 'Perpindahan aset antar lokasi, perusahaan, dan departemen pengelola.' },
+  { type: 'MAINTENANCE', label: 'Maintenance', description: 'Catatan pemeliharaan termasuk vendor, biaya, dan hasil.' },
+  { type: 'DEPRECIATION', label: 'Depreciation', description: 'Entri buku besar penyusutan yang dihasilkan per aset dan periode.' },
+  { type: 'CONSUMABLE_STOCK', label: 'Consumable Stock', description: 'Saldo stok consumable saat ini per lokasi.' },
+  { type: 'CONSUMABLE_MOVEMENTS', label: 'Consumable Movements', description: 'Semua transaksi stok consumable: penerimaan, pengeluaran, transfer, penyesuaian, write-off.' },
+  { type: 'CONSUMABLE_USAGE', label: 'Consumable Usage', description: 'Hanya transaksi pengeluaran consumable, untuk analisis pemakaian.' },
+  { type: 'ACTIVITY_LOG', label: 'Activity Log', description: 'Jejak audit aktivitas sistem. Membutuhkan izin ekspor Log Aktivitas.' },
 ]
 
 const state = reactive(

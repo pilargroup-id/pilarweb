@@ -25,11 +25,11 @@
           </h4>
           <p class="pr-12 text-sm text-white/70">
             <template v-if="isSubjectLocked">
-              Grant an additional permission to
+              Berikan izin tambahan kepada
               <span class="font-medium text-white/90">{{ lockedSubjectLabel }}</span>
-              within an access scope.
+              dalam suatu cakupan akses.
             </template>
-            <template v-else> Grant a permission to a user, department, or company within an access scope. </template>
+            <template v-else> Berikan izin kepada pengguna, departemen, atau perusahaan dalam suatu cakupan akses. </template>
           </p>
         </div>
 
