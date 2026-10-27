@@ -204,7 +204,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
-import { authState, fetchCapabilities, fetchCurrentUser, isManager } from "@/service/auth";
+import { authState, fetchCapabilities, fetchCurrentUser } from "@/service/auth";
 
 import {
   ChevronDownIcon,
@@ -233,19 +233,19 @@ const rawMenuGroups = [
         icon: BoxIcon,
         name: "My Request",
         path: "/request/my",
-        hideForManager: true,
+        hideForApprover: true,
       },
       {
         icon: BoxIcon,
         name: "Delivery Confirmation",
         path: "/deliveries",
-        hideForManager: true,
+        hideForApprover: true,
       },
       {
         icon: CheckIcon,
-        name: "Approvals",
+        name: "Approve",
         path: "/approvals",
-        managerOnly: true,
+        approverOnly: true,
       },
       {
         icon: BarChartIcon,
@@ -288,9 +288,9 @@ const hasCapability = (item) => {
 
 const isVisible = (item) => {
   if (!hasCapability(item)) return false;
-  const userIsManager = isManager(authState.user);
-  if (item.managerOnly && !userIsManager) return false;
-  if (item.hideForManager && userIsManager) return false;
+  const canApprove = Boolean(authState.capabilities?.can_approve_department);
+  if (item.approverOnly && !canApprove) return false;
+  if (item.hideForApprover && canApprove) return false;
   return true;
 };
 

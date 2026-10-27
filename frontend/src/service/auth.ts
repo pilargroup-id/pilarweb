@@ -140,7 +140,3 @@ export function getDisplayEmail(user: AuthUser | null = state.user): string {
   if (!user) return ''
   return user.email || user.username || ''
 }
-
-export function isManager(user: AuthUser | null = state.user): boolean {
-  return String(user?.job_level ?? '').trim().toLowerCase() === 'manager'
-}

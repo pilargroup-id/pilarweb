@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authState, fetchCurrentUser, isManager, setToken } from '@/service/auth'
+import { authState, fetchCapabilities, fetchCurrentUser, setToken } from '@/service/auth'
 
 const APP_TITLE = 'Pilarweb'
 
@@ -196,7 +196,10 @@ router.beforeEach(async (to, from, next) => {
     if (!authState.user) {
       await fetchCurrentUser().catch(() => {})
     }
-    next({ path: isManager() ? '/approvals' : '/request/my', replace: true })
+    if (!authState.capabilities) {
+      await fetchCapabilities().catch(() => {})
+    }
+    next({ path: authState.capabilities?.can_approve_department ? '/approvals' : '/request/my', replace: true })
     return
   }
 
@@ -204,7 +207,10 @@ router.beforeEach(async (to, from, next) => {
     if (!authState.user) {
       await fetchCurrentUser().catch(() => {})
     }
-    if (!isManager()) {
+    if (!authState.capabilities) {
+      await fetchCapabilities().catch(() => {})
+    }
+    if (!authState.capabilities?.can_approve_department) {
       next({ path: '/' })
       return
     }
