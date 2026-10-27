@@ -29,14 +29,15 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
           <div v-if="isLoading" class="py-10 text-center">
-            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading return...</p>
+            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data return...</p>
           </div>
           <div v-else-if="loadError" class="py-10 text-center">
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <form v-else class="flex flex-col gap-5" @submit.prevent="submit">
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              Record the physical quantity received for each item. This can be done across multiple partial receipts.
+              Catat jumlah barang yang benar-benar diterima secara fisik untuk setiap item. Proses ini bisa dilakukan
+              bertahap melalui beberapa kali penerimaan sebagian.
             </p>
 
             <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
@@ -68,7 +69,7 @@
                   </tr>
                   <tr v-if="!rows.length">
                     <td colspan="3" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                      Nothing is outstanding on this return.
+                      Tidak ada sisa barang yang perlu diterima pada return ini.
                     </td>
                   </tr>
                 </tbody>
@@ -82,7 +83,7 @@
               <textarea
                 v-model="note"
                 rows="2"
-                placeholder="Optional note"
+                placeholder="Catatan (opsional)"
                 class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               ></textarea>
             </div>
@@ -181,7 +182,7 @@ async function loadReturn(returnId) {
       .filter((row) => row.outstanding > 0.0001)
   } catch (err) {
     rows.value = []
-    loadError.value = err?.message || 'Failed to load return detail.'
+    loadError.value = err?.message || 'Gagal memuat detail return.'
   } finally {
     isLoading.value = false
   }
@@ -197,13 +198,13 @@ async function submit() {
 
   const hasAnyQty = rows.value.some((row) => Number(row.received_qty) > 0)
   if (!hasAnyQty) {
-    errorMessage.value = 'Enter a received quantity for at least one item.'
+    errorMessage.value = 'Masukkan jumlah diterima untuk minimal satu item.'
     return
   }
   for (const row of rows.value) {
     const qty = Number(row.received_qty)
     if (Number.isNaN(qty) || qty < 0 || qty > row.outstanding + 0.0001) {
-      errorMessage.value = `Received qty for "${row.item_name}" cannot exceed ${row.outstanding}.`
+      errorMessage.value = `Qty diterima untuk "${row.item_name}" tidak boleh melebihi ${row.outstanding}.`
       return
     }
   }
@@ -221,7 +222,7 @@ async function submit() {
     emit('received', props.returnItem.id)
     emit('close')
   } catch (err) {
-    errorMessage.value = err?.message || `Failed to receive return ${props.returnItem?.return_number}.`
+    errorMessage.value = err?.message || `Gagal menerima return ${props.returnItem?.return_number}.`
   } finally {
     isSubmitting.value = false
   }

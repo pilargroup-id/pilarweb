@@ -30,7 +30,7 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
           <div v-if="isLoading" class="py-10 text-center">
-            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment...</p>
+            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data fulfillment...</p>
           </div>
           <div v-else-if="loadError" class="py-10 text-center">
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
@@ -48,7 +48,7 @@
                       v-model="iwtNumber"
                       @input="iwtNumber = iwtNumber.toUpperCase()"
                       type="text"
-                      placeholder="e.g. IT2604868"
+                      placeholder="cth. IT2604868"
                       class="dark:bg-dark-900 w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm uppercase text-gray-800 shadow-theme-xs placeholder:normal-case focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                     />
                     <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ iwtNumber || '-' }}</span>
@@ -66,7 +66,7 @@
                     <SearchableSelect
                       v-model="sourceWarehouseId"
                       :options="warehouseOptions"
-                      placeholder="Select warehouse"
+                      placeholder="Pilih warehouse"
                     />
                   </div>
                   <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ sourceWarehouseDisplay || '-' }}</span>
@@ -108,7 +108,7 @@
                   <input
                     v-model="doNote"
                     type="text"
-                    placeholder="Optional dispatch note"
+                    placeholder="Catatan pengiriman (opsional)"
                     class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                   />
                 </div>
@@ -175,7 +175,7 @@
                   </tr>
                   <tr v-if="!rows.length">
                     <td colspan="5" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                      No items on this fulfillment.
+                      Tidak ada item pada fulfillment ini.
                     </td>
                   </tr>
                 </tbody>
@@ -183,7 +183,7 @@
             </div>
 
             <p v-if="isAdministrative && isAdministrativePending" class="text-theme-sm text-gray-500 dark:text-gray-400">
-              Administrative fulfillment: goods are already physically with the requester, so Actual Qty mirrors the Finance-approved quantity. Warehouse only needs to confirm Source Warehouse and IWT No. before completing.
+              Fulfillment administratif: barang sudah secara fisik berada di tangan requester, sehingga Actual Qty mengikuti qty yang disetujui Finance. Warehouse hanya perlu mengonfirmasi Source Warehouse dan IWT No. sebelum menyelesaikan.
             </p>
 
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
@@ -410,7 +410,7 @@ async function loadDetail(fulfillmentId) {
     const res = await getWarehouseFulfillmentDetail(fulfillmentId)
     applyFulfillment(res?.data)
   } catch (err) {
-    loadError.value = err?.message || 'Failed to load fulfillment detail.'
+    loadError.value = err?.message || 'Gagal memuat detail fulfillment.'
   } finally {
     isLoading.value = false
   }
@@ -442,10 +442,10 @@ function validateQuantities() {
     if (row.actual_qty === null) continue
     const actual = Number(row.actual_qty)
     if (Number.isNaN(actual) || actual < 0) {
-      return `Actual qty for "${row.item_name}" must be 0 or greater.`
+      return `Actual qty untuk "${row.item_name}" harus 0 atau lebih.`
     }
     if (actual > Number(row.approved_qty) + 0.0001) {
-      return `Actual qty for "${row.item_name}" cannot exceed the approved quantity (${row.approved_qty}).`
+      return `Actual qty untuk "${row.item_name}" tidak boleh melebihi qty yang disetujui (${row.approved_qty}).`
     }
   }
   return ''
@@ -454,10 +454,10 @@ function validateQuantities() {
 function validateForComplete() {
   const qtyError = validateQuantities()
   if (qtyError) return qtyError
-  if (!iwtNumber.value?.trim()) return 'IWT No. is required.'
-  if (!sourceWarehouseId.value) return 'Source warehouse is required.'
+  if (!iwtNumber.value?.trim()) return 'IWT No. wajib diisi.'
+  if (!sourceWarehouseId.value) return 'Source Warehouse wajib diisi.'
   for (const row of rows.value) {
-    if (row.actual_qty === null) return `Actual qty is required for "${row.item_name}".`
+    if (row.actual_qty === null) return `Actual qty wajib diisi untuk "${row.item_name}".`
     if (Number(row.actual_qty) < Number(row.approved_qty) && !row.note?.trim()) {
       return `Catatan wajib diisi untuk "${row.item_name}" karena actual qty tidak penuh.`
     }
@@ -480,9 +480,9 @@ async function handleSaveProgress() {
     const res = await saveFulfillmentProgress(fulfillment.value.id, buildPayload())
     applyFulfillment(res?.data)
     hasChanges = true
-    infoMessage.value = wasAdministrative ? 'Progress saved.' : 'Picking progress saved.'
+    infoMessage.value = wasAdministrative ? 'Progres tersimpan.' : 'Progres picking tersimpan.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to save picking progress.'
+    errorMessage.value = err?.message || 'Gagal menyimpan progres picking.'
   } finally {
     isSaving.value = false
   }
@@ -504,10 +504,10 @@ async function handleCompletePicking() {
     applyFulfillment(res?.data)
     hasChanges = true
     infoMessage.value = wasAdministrative
-      ? 'Administrative fulfillment completed.'
-      : 'Picking completed. Ready for Delivery.'
+      ? 'Fulfillment administratif selesai.'
+      : 'Picking selesai. Siap untuk dikirim.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to complete picking.'
+    errorMessage.value = err?.message || 'Gagal menyelesaikan picking.'
   } finally {
     isCompleting.value = false
   }
@@ -528,9 +528,9 @@ async function handlePrintPicking() {
     document.title = ' '
     window.print()
     document.title = originalTitle
-    infoMessage.value = 'Picking form print recorded.'
+    infoMessage.value = 'Cetak form picking tercatat.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to record picking form print.'
+    errorMessage.value = err?.message || 'Gagal mencatat cetak form picking.'
   } finally {
     isPrintingPicking.value = false
   }
@@ -552,10 +552,10 @@ async function handlePrintDo() {
     window.print()
     document.title = originalTitle
     infoMessage.value = fulfillment.value?.status === 'HANDED_OVER'
-      ? 'Delivery Order printed. Request handed over.'
-      : 'Delivery Order print recorded.'
+      ? 'Delivery Order dicetak. Request sudah diserahkan.'
+      : 'Cetak Delivery Order tercatat.'
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to record Delivery Order print.'
+    errorMessage.value = err?.message || 'Gagal mencatat cetak Delivery Order.'
   } finally {
     isPrintingDo.value = false
   }

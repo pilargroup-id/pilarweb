@@ -42,7 +42,7 @@
               v-model="search"
               @input="onSearchInput"
               type="text"
-              placeholder="Search request no, requester, or purpose..."
+              placeholder="Cari no request, requester, atau tujuan..."
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-11 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
           </div>
@@ -73,7 +73,7 @@
 
       <tr v-if="isLoading">
         <td colspan="11" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading approvals...</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data approval...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
@@ -83,7 +83,7 @@
       </tr>
       <tr v-else-if="!approvals.length">
         <td colspan="11" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No pending approvals.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada approval yang perlu diproses.</p>
         </td>
       </tr>
       <tr
@@ -250,7 +250,7 @@
                 <SearchableSelect
                   v-model="draftStatusFilter"
                   :options="statusFilterOptions"
-                  placeholder="All statuses"
+                  placeholder="Semua status"
                 />
               </div>
 
@@ -260,7 +260,7 @@
                   v-model="draftTargetDepartmentFilter"
                   :options="departmentOptions"
                   :disabled="isLoadingFilterMaster"
-                  placeholder="All departments"
+                  placeholder="Semua departemen"
                 />
               </div>
 
@@ -270,7 +270,7 @@
                   v-model="draftPurposeFilter"
                   :options="purposeOptions"
                   :disabled="isLoadingFilterMaster"
-                  placeholder="All purposes"
+                  placeholder="Semua tujuan"
                 />
               </div>
 
@@ -279,7 +279,7 @@
                 <SearchableSelect
                   v-model="draftReturnTypeFilter"
                   :options="returnTypeFilterOptions"
-                  placeholder="All types"
+                  placeholder="Semua tipe"
                 />
               </div>
 
@@ -352,12 +352,12 @@ const viewingRequestId = ref(null)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
-  { id: '', name: 'All statuses' },
+  { id: '', name: 'Semua status' },
   { id: 'PENDING_DEPARTMENT_APPROVAL', name: 'Pending Department Approval' },
   { id: 'PENDING_FINANCE_REVIEW', name: 'Pending Finance Review' },
 ]
 const returnTypeFilterOptions = [
-  { id: '', name: 'All types' },
+  { id: '', name: 'Semua tipe' },
   { id: 'RETURNABLE', name: 'Returnable' },
   { id: 'NON_RETURNABLE', name: 'Non-returnable' },
 ]
@@ -407,12 +407,12 @@ function deptLabel(item) {
 }
 
 const departmentOptions = computed(() => [
-  { id: '', name: 'All departments' },
+  { id: '', name: 'Semua departemen' },
   ...departments.value.map((dept) => ({ id: deptId(dept), name: deptLabel(dept) })),
 ])
 
 const purposeOptions = computed(() => [
-  { id: '', name: 'All purposes' },
+  { id: '', name: 'Semua tujuan' },
   ...purposes.value.map((purpose) => ({
     id: purpose.id,
     name: purpose.name,
@@ -537,7 +537,7 @@ async function fetchApprovals(page = 1) {
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
     approvals.value = []
-    errorMessage.value = err?.message || 'Failed to load approvals.'
+    errorMessage.value = err?.message || 'Gagal memuat data approval.'
   } finally {
     isLoading.value = false
   }

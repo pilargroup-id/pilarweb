@@ -26,23 +26,24 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
           <p v-if="isLoading" class="py-10 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-            Loading discrepancy form...
+            Memuat form selisih pengiriman...
           </p>
           <p v-else-if="loadError" class="py-10 text-center text-theme-sm text-error-600 dark:text-error-500">
             {{ loadError }}
           </p>
           <form v-else class="flex flex-col gap-5" @submit.prevent="submit">
             <p class="text-theme-sm text-gray-500 dark:text-gray-400">
-              All rows marked <span class="font-medium text-gray-700 dark:text-gray-300">Resend</span> in this form
-              are grouped into one supplemental fulfillment. Submit a resolution for every row below — partial
-              submission is rejected.
+              Semua baris yang ditandai <span class="font-medium text-gray-700 dark:text-gray-300">Resend</span> pada
+              form ini akan digabung menjadi satu fulfillment tambahan. Isi penyelesaian untuk setiap baris di bawah
+              ini — pengajuan sebagian akan ditolak.
             </p>
 
             <div
               v-if="needsSupervisor && !hasSupervisorAccess"
               class="rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-theme-sm text-error-700 dark:border-error-800 dark:bg-error-500/10 dark:text-error-400"
             >
-              This form has an overdue row that requires Warehouse supervisor access to resolve.
+              Form ini memiliki baris yang sudah lewat tenggat (overdue) dan hanya bisa diselesaikan oleh supervisor
+              Warehouse.
             </div>
 
             <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
@@ -94,7 +95,7 @@
                           <textarea
                             v-model="itemState[item.id].resolution_note"
                             rows="2"
-                            placeholder="Required: explain why the remaining qty will not be sent"
+                            placeholder="Wajib diisi: jelaskan alasan sisa qty tidak dikirim"
                             class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                           ></textarea>
                         </td>
@@ -102,7 +103,7 @@
                     </template>
                     <tr v-if="!form?.items?.length">
                       <td colspan="7" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                        No items on this discrepancy.
+                        Tidak ada item pada selisih pengiriman ini.
                       </td>
                     </tr>
                   </tbody>
@@ -118,7 +119,7 @@
               <textarea
                 v-model="lateResolutionReason"
                 rows="2"
-                placeholder="Required: explain why the overdue row(s) above are being resolved after the SLA deadline"
+                placeholder="Wajib diisi: jelaskan alasan baris di atas diselesaikan setelah lewat tenggat SLA"
                 class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               ></textarea>
             </div>
@@ -209,7 +210,7 @@ async function loadForm() {
       itemState[item.id] = { resolution_type: '', resolution_note: '' }
     }
   } catch (err) {
-    loadError.value = err?.message || 'Failed to load the delivery discrepancy form.'
+    loadError.value = err?.message || 'Gagal memuat form selisih pengiriman.'
   } finally {
     isLoading.value = false
   }
@@ -244,20 +245,20 @@ async function submit() {
   const items = form.value.items || []
   for (const item of items) {
     if (!itemState[item.id]?.resolution_type) {
-      errorMessage.value = 'Choose a resolution for every row before submitting.'
+      errorMessage.value = 'Pilih penyelesaian untuk setiap baris sebelum mengirim.'
       return
     }
   }
   for (const item of items) {
     const state = itemState[item.id]
     if (state.resolution_type === 'CLOSE_WITH_REASON' && !state.resolution_note.trim()) {
-      errorMessage.value = `Resolution note is required for "${item.item_name || item.id}" (Close with Reason).`
+      errorMessage.value = `Catatan penyelesaian wajib diisi untuk "${item.item_name || item.id}" (Close with Reason).`
       return
     }
   }
   const lateReason = lateResolutionReason.value.trim()
   if (hasOverdueItems.value && !lateReason) {
-    errorMessage.value = 'Late resolution reason is required because this form has an overdue row.'
+    errorMessage.value = 'Alasan keterlambatan wajib diisi karena form ini memiliki baris yang sudah lewat tenggat.'
     return
   }
 
@@ -274,7 +275,7 @@ async function submit() {
     })
     emit('resolved')
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to submit the delivery discrepancy form.'
+    errorMessage.value = err?.message || 'Gagal mengirim form selisih pengiriman.'
   } finally {
     isSubmitting.value = false
   }

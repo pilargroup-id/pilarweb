@@ -60,7 +60,7 @@
 
               <div>
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Destination Target
+                  Purpose for Division
                 </label>
                 <SearchableSelect
                   v-model="form.target_department_id"
@@ -235,6 +235,16 @@ function getDeptLabel(item) {
   return item?.name || item?.department_name || item?.display_name || String(getDeptId(item))
 }
 
+function getDeptClass(item) {
+  return item?.class || item?.department_class || ''
+}
+
+function getDeptDisplayLabel(item) {
+  const name = getDeptLabel(item)
+  const deptClass = getDeptClass(item)
+  return deptClass ? `${name} - ${deptClass}` : name
+}
+
 const ownDepartmentId = computed(() => {
   const user = authState.user
   if (!user) return ''
@@ -306,7 +316,7 @@ const purposeOptions = computed(() =>
 const departmentOptions = computed(() =>
   departments.value.map((dept) => ({
     id: getDeptId(dept),
-    name: getDeptLabel(dept),
+    name: getDeptDisplayLabel(dept),
   }))
 )
 

@@ -23,7 +23,7 @@
           <input
             v-model="search"
             type="text"
-            placeholder="Search code or name..."
+            placeholder="Cari kode atau nama..."
             class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-11 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
           />
         </div>
@@ -50,7 +50,7 @@
 
       <tr v-if="isLoading">
         <td colspan="5" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading warehouse locations...</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data warehouse location...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
@@ -60,7 +60,7 @@
       </tr>
       <tr v-else-if="!filteredLocations.length">
         <td colspan="5" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No warehouse locations found.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada data warehouse location.</p>
         </td>
       </tr>
       <tr v-else v-for="location in filteredLocations" :key="location.id" class="border-t border-gray-100 dark:border-gray-800">
@@ -123,7 +123,7 @@ async function fetchWarehouseLocations() {
     locations.value = res?.data ?? []
   } catch (err) {
     locations.value = []
-    errorMessage.value = err?.message || 'Failed to load warehouse locations.'
+    errorMessage.value = err?.message || 'Gagal memuat data warehouse location.'
   } finally {
     isLoading.value = false
   }

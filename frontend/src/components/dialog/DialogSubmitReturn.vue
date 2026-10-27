@@ -29,7 +29,8 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
           <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            Enter the actual quantity being handed over to Warehouse for each item. This can be less than the expected qty.
+            Masukkan jumlah barang yang benar-benar diserahkan ke Warehouse untuk setiap item. Jumlahnya boleh lebih
+            sedikit dari qty yang diharapkan.
           </p>
 
           <form class="flex flex-col gap-5" @submit.prevent="submit">
@@ -67,14 +68,14 @@
                       <input
                         v-model="row.note"
                         type="text"
-                        placeholder="Optional note"
+                        placeholder="Catatan (opsional)"
                         class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                       />
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
                     <td colspan="4" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                      No items on this return.
+                      Tidak ada item pada return ini.
                     </td>
                   </tr>
                 </tbody>
@@ -179,7 +180,7 @@ async function submit() {
   for (const row of rows.value) {
     const qty = Number(row.qty)
     if (Number.isNaN(qty) || qty < 0 || qty > row.expected_qty + 0.0001) {
-      errorMessage.value = `Qty for "${row.item_name}" must be between 0 and ${row.expected_qty}.`
+      errorMessage.value = `Qty untuk "${row.item_name}" harus antara 0 dan ${row.expected_qty}.`
       return
     }
   }
@@ -197,7 +198,7 @@ async function submit() {
     emit('submitted')
     close()
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to submit return.'
+    errorMessage.value = err?.message || 'Gagal mengirim return.'
   } finally {
     isSubmitting.value = false
   }

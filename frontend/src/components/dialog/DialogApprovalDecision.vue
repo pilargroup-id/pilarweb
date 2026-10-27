@@ -38,7 +38,7 @@
             v-if="mode === 'approve' && isReturnable"
             class="text-sm text-gray-500 dark:text-gray-400"
           >
-            This request is <span class="font-medium text-gray-700 dark:text-gray-300">Returnable</span> — it will skip Finance review and go straight to Warehouse picking.
+            Request ini bersifat <span class="font-medium text-gray-700 dark:text-gray-300">Returnable</span> — akan melewati review Finance dan langsung masuk ke proses picking Warehouse.
           </p>
           <div v-if="config.showNote">
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
@@ -52,7 +52,7 @@
               class="dark:bg-dark-900 w-full rounded-lg border px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               :class="hasNoteError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
             ></textarea>
-            <p v-if="hasNoteError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">Reason is required.</p>
+            <p v-if="hasNoteError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">Alasan wajib diisi.</p>
           </div>
 
           <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">
@@ -110,7 +110,7 @@ const emit = defineEmits(['close', 'decided'])
 const MODE_CONFIG = {
   approve: {
     title: 'Approve Request',
-    confirmMessage: 'Are you sure you want to approve this request?',
+    confirmMessage: 'Apakah Anda yakin ingin menyetujui request ini?',
     showNote: false,
     required: false,
     submitLabel: 'Approve',
@@ -119,7 +119,7 @@ const MODE_CONFIG = {
   cancel: {
     title: 'Cancel Request',
     label: 'Reason',
-    placeholder: 'Explain why this request is being canceled',
+    placeholder: 'Jelaskan alasan request ini dibatalkan',
     showNote: true,
     required: true,
     submitLabel: 'Cancel Request',
@@ -128,12 +128,18 @@ const MODE_CONFIG = {
   revert: {
     title: 'Revert Approval',
     label: 'Reason',
-    placeholder: 'Explain why this approval is being reverted',
+    placeholder: 'Jelaskan alasan approval ini di-revert',
     showNote: true,
     required: true,
     submitLabel: 'Revert',
     submitClass: 'bg-warning-500 hover:bg-warning-600',
   },
+}
+
+const FAILURE_MESSAGE = {
+  approve: 'Gagal menyetujui request.',
+  cancel: 'Gagal membatalkan request.',
+  revert: 'Gagal melakukan revert approval.',
 }
 
 const config = computed(() => MODE_CONFIG[props.mode] || MODE_CONFIG.approve)
@@ -180,7 +186,7 @@ async function submit() {
     emit('decided')
     close()
   } catch (err) {
-    errorMessage.value = err?.message || `Failed to ${props.mode} request.`
+    errorMessage.value = err?.message || FAILURE_MESSAGE[props.mode] || 'Gagal memproses request.'
   } finally {
     isSubmitting.value = false
   }

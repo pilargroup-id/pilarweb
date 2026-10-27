@@ -42,7 +42,7 @@
               v-model="search"
               @input="onSearchInput"
               type="text"
-              placeholder="Search return no, request no, or requester..."
+              placeholder="Cari no return, no request, atau requester..."
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-11 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
           </div>
@@ -70,7 +70,7 @@
 
       <tr v-if="isLoading">
         <td colspan="8" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading returns...</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data return...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
@@ -80,7 +80,7 @@
       </tr>
       <tr v-else-if="!queue.length">
         <td colspan="8" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No returns found.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada data return.</p>
         </td>
       </tr>
       <tr
@@ -210,7 +210,7 @@
                 <SearchableSelect
                   v-model="draftStatusFilter"
                   :options="statusFilterOptions"
-                  placeholder="All statuses"
+                  placeholder="Semua status"
                 />
               </div>
 
@@ -220,7 +220,7 @@
                   v-model="draftDepartmentFilter"
                   :options="departmentOptions"
                   :disabled="isLoadingFilterMaster"
-                  placeholder="All departments"
+                  placeholder="Semua departemen"
                 />
               </div>
 
@@ -291,7 +291,7 @@ const returnToView = ref(null)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
-  { id: '', name: 'All statuses' },
+  { id: '', name: 'Semua status' },
   { id: 'PENDING_REQUESTER', name: 'Pending Requester' },
   { id: 'SUBMITTED', name: 'Submitted' },
   { id: 'COMPLETED', name: 'Completed' },
@@ -335,7 +335,7 @@ function deptLabel(item) {
 }
 
 const departmentOptions = computed(() => [
-  { id: '', name: 'All departments' },
+  { id: '', name: 'Semua departemen' },
   ...departments.value.map((dept) => ({ id: deptId(dept), name: deptLabel(dept) })),
 ])
 
@@ -453,7 +453,7 @@ async function fetchQueue(page = 1) {
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
     queue.value = []
-    errorMessage.value = err?.message || 'Failed to load returns.'
+    errorMessage.value = err?.message || 'Gagal memuat data return.'
   } finally {
     isLoading.value = false
   }

@@ -4,7 +4,7 @@
       <template #toolbar>
         <div class="flex w-full items-center gap-3 sm:max-w-[280px]">
           <div class="w-full">
-            <SearchableSelect v-model="statusFilter" :options="statusFilterOptions" placeholder="All statuses" />
+            <SearchableSelect v-model="statusFilter" :options="statusFilterOptions" placeholder="Semua status" />
           </div>
         </div>
         <button
@@ -29,7 +29,7 @@
 
       <tr v-if="isLoading">
         <td colspan="7" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading deliveries...</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data pengiriman...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
@@ -39,7 +39,7 @@
       </tr>
       <tr v-else-if="!queue.length">
         <td colspan="7" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No deliveries found.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada data pengiriman.</p>
         </td>
       </tr>
       <tr
@@ -80,7 +80,7 @@
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge :color="statusColor(item.status)" size="sm">{{ formatStatusLabel(item.status) }}</Badge>
           <span v-if="item.confirmation_method === 'AUTO'" class="ml-1.5 text-theme-xs text-gray-400 dark:text-gray-500">
-            (auto-accepted)
+            (diterima otomatis)
           </span>
         </td>
       </tr>
@@ -124,7 +124,7 @@ const errorMessage = ref('')
 const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
 
 const statusFilterOptions = [
-  { id: '', name: 'All statuses' },
+  { id: '', name: 'Semua status' },
   { id: 'PENDING', name: 'Pending confirmation' },
   { id: 'PARTIAL', name: 'Partially received' },
   { id: 'RECEIVED', name: 'Received' },
@@ -188,14 +188,14 @@ function deadlineLabel(item) {
   const deadline = new Date(item.confirmation_deadline_at).getTime()
   if (Number.isNaN(deadline)) return '-'
   const diffMs = deadline - now.value
-  if (diffMs <= 0) return 'Auto-accepting...'
+  if (diffMs <= 0) return 'Menunggu diterima otomatis...'
   const hours = Math.floor(diffMs / (1000 * 60 * 60))
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
   if (hours >= 24) {
     const days = Math.floor(hours / 24)
-    return `${days}d ${hours % 24}h left`
+    return `${days} hari ${hours % 24} jam lagi`
   }
-  return `${hours}h ${minutes}m left`
+  return `${hours} jam ${minutes} menit lagi`
 }
 
 function deadlineClass(item) {
@@ -226,7 +226,7 @@ async function fetchQueue(page = 1) {
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
     queue.value = []
-    errorMessage.value = err?.message || 'Failed to load deliveries.'
+    errorMessage.value = err?.message || 'Gagal memuat data pengiriman.'
   } finally {
     isLoading.value = false
   }

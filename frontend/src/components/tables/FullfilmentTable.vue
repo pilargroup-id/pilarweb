@@ -42,7 +42,7 @@
               v-model="search"
               @input="onSearchInput"
               type="text"
-              placeholder="Search request no, requester, or department..."
+              placeholder="Cari no request, requester, atau departemen..."
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2.5 pl-11 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
           </div>
@@ -74,7 +74,7 @@
 
       <tr v-if="isLoading">
         <td colspan="12" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading fulfillment queue...</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat antrean fulfillment...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
@@ -84,7 +84,7 @@
       </tr>
       <tr v-else-if="!queue.length">
         <td colspan="12" class="px-5 py-10 text-center sm:px-6">
-          <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests are currently in Picking, Ready for Delivery, or Administrative Pending.</p>
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada request yang sedang berstatus Picking, Ready for Delivery, atau Administrative Pending.</p>
         </td>
       </tr>
       <tr
@@ -224,7 +224,7 @@
                   v-model="draftDepartmentFilter"
                   :options="departmentOptions"
                   :disabled="isLoadingFilterMaster"
-                  placeholder="All departments"
+                  placeholder="Semua departemen"
                 />
               </div>
 
@@ -234,7 +234,7 @@
                   v-model="draftPurposeFilter"
                   :options="purposeOptions"
                   :disabled="isLoadingFilterMaster"
-                  placeholder="All purposes"
+                  placeholder="Semua tujuan"
                 />
               </div>
 
@@ -352,12 +352,12 @@ function deptLabel(item) {
 }
 
 const departmentOptions = computed(() => [
-  { id: '', name: 'All departments' },
+  { id: '', name: 'Semua departemen' },
   ...departments.value.map((dept) => ({ id: deptId(dept), name: deptLabel(dept) })),
 ])
 
 const purposeOptions = computed(() => [
-  { id: '', name: 'All purposes' },
+  { id: '', name: 'Semua tujuan' },
   ...purposes.value.map((purpose) => ({
     id: purpose.id,
     name: purpose.name,
@@ -524,7 +524,7 @@ async function fetchQueue(page = 1) {
     meta.totalPages = res?.meta?.totalPages ?? 1
   } catch (err) {
     queue.value = []
-    errorMessage.value = err?.message || 'Failed to load fulfillment queue.'
+    errorMessage.value = err?.message || 'Gagal memuat antrean fulfillment.'
   } finally {
     isLoading.value = false
   }

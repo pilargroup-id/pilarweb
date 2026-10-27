@@ -29,7 +29,7 @@
 
         <div class="no-scrollbar overflow-y-auto p-6 lg:p-8">
           <div v-if="isLoading" class="py-10 text-center">
-            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading delivery...</p>
+            <p class="text-gray-500 text-theme-sm dark:text-gray-400">Memuat data pengiriman...</p>
           </div>
           <div v-else-if="loadError" class="py-10 text-center">
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
@@ -39,13 +39,14 @@
               v-if="deadlineAt"
               class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-theme-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-300"
             >
-              Confirm before <span class="font-medium">{{ formatDateTime(deadlineAt) }}</span> or the full dispatched
-              quantity will be automatically accepted.
+              Konfirmasi sebelum <span class="font-medium">{{ formatDateTime(deadlineAt) }}</span>, jika tidak maka
+              seluruh qty yang dikirim akan otomatis dianggap diterima.
             </div>
 
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              Enter the actual quantity physically received for each item. Reduce the quantity if less than what was
-              dispatched; the difference will be recorded as a delivery discrepancy.
+              Masukkan jumlah barang yang benar-benar diterima secara fisik untuk setiap item. Kurangi jumlahnya jika
+              barang yang diterima lebih sedikit dari yang dikirim; selisihnya akan otomatis tercatat sebagai selisih
+              pengiriman (discrepancy).
             </p>
 
             <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
@@ -85,7 +86,7 @@
                   </tr>
                   <tr v-if="!rows.length">
                     <td colspan="4" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-                      No items on this delivery.
+                      Tidak ada item pada pengiriman ini.
                     </td>
                   </tr>
                 </tbody>
@@ -176,7 +177,7 @@ async function loadDelivery(id) {
     }))
   } catch (err) {
     rows.value = []
-    loadError.value = err?.message || 'Failed to load delivery detail.'
+    loadError.value = err?.message || 'Gagal memuat detail pengiriman.'
   } finally {
     isLoading.value = false
   }
@@ -206,7 +207,7 @@ async function submit() {
   for (const row of rows.value) {
     const qty = Number(row.received_qty)
     if (Number.isNaN(qty) || qty < 0 || qty > row.dispatched_qty + 0.0001) {
-      errorMessage.value = `Received qty for "${row.item_name}" must be between 0 and ${row.dispatched_qty}.`
+      errorMessage.value = `Qty diterima untuk "${row.item_name}" harus antara 0 dan ${row.dispatched_qty}.`
       return
     }
   }
@@ -223,7 +224,7 @@ async function submit() {
     emit('confirmed', props.deliveryItem.id)
     close()
   } catch (err) {
-    errorMessage.value = err?.message || 'Failed to confirm physical receipt.'
+    errorMessage.value = err?.message || 'Gagal mengonfirmasi penerimaan fisik barang.'
     if (err?.data?.errors?.code === 'DELIVERY_AUTO_ACCEPTED') {
       emit('confirmed', props.deliveryItem.id)
       close()
