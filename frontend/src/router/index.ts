@@ -11,18 +11,10 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'Dashboard',
-      component: () => import('../components/pages/dashboard/DashboardPage.vue'),
+      name: 'Home',
+      component: () => import('../components/pages/request/MyRequest.vue'),
       meta: {
-        title: 'Dashboard',
-      },
-    },
-    {
-      path: '/asset/fixed',
-      name: 'Asset Fixed',
-      component: () => import('../components/pages/assets/AssetFixed.vue'),
-      meta: {
-        title: 'Asset Fixed',
+        title: 'My Request',
       },
     },
     {
@@ -197,6 +189,14 @@ router.beforeEach(async (to, from, next) => {
     const query = { ...to.query }
     delete query.token
     next({ path: to.path, query, hash: to.hash, replace: true })
+    return
+  }
+
+  if (to.path === '/') {
+    if (!authState.user) {
+      await fetchCurrentUser().catch(() => {})
+    }
+    next({ path: isManager() ? '/approvals' : '/request/my', replace: true })
     return
   }
 

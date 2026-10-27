@@ -34,7 +34,13 @@
           <p v-if="!config.showNote" class="text-sm text-gray-600 dark:text-gray-300">
             {{ config.confirmMessage }}
           </p>
-          <div v-else>
+          <p
+            v-if="mode === 'approve' && isReturnable"
+            class="text-sm text-gray-500 dark:text-gray-400"
+          >
+            This request is <span class="font-medium text-gray-700 dark:text-gray-300">Returnable</span> — it will skip Finance review and go straight to Warehouse picking.
+          </p>
+          <div v-if="config.showNote">
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
               {{ config.label }} <span v-if="config.required" class="text-error-500">*</span>
             </label>
@@ -131,6 +137,7 @@ const MODE_CONFIG = {
 }
 
 const config = computed(() => MODE_CONFIG[props.mode] || MODE_CONFIG.approve)
+const isReturnable = computed(() => props.approval?.purpose_return_type === 'RETURNABLE')
 
 const note = ref('')
 const isSubmitting = ref(false)

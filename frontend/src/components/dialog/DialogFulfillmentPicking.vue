@@ -121,7 +121,7 @@
                   <tr>
                     <th class="rounded-tl-xl px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Requested</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Approved (Finance)</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">{{ isReturnable ? 'Approved' : 'Approved (Finance)' }}</th>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                       Actual Qty <span v-if="isPicking" class="text-error-500">*</span>
                     </th>
@@ -297,6 +297,7 @@ const sourceWarehouseId = ref('')
 let hasChanges = false
 
 const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
+const isReturnable = computed(() => fulfillment.value?.purpose_return_type === 'RETURNABLE')
 const isAdministrative = computed(() => fulfillment.value?.fulfillment_mode === 'ADMINISTRATIVE')
 const isAdministrativePending = computed(() => fulfillment.value?.status === 'ADMINISTRATIVE_PENDING')
 const isEditable = computed(() => isPicking.value || isAdministrativePending.value)

@@ -213,7 +213,6 @@ import {
   BoxCubeIcon,
   SettingsIcon,
   FolderIcon,
-  LayoutDashboardIcon,
   PieChartIcon,
   BarChartIcon,
   TableIcon,
@@ -230,11 +229,6 @@ const rawMenuGroups = [
   {
     title: "Menu",
     items: [
-      {
-        icon: LayoutDashboardIcon,
-        name: "Dashboard",
-        path: "/",
-      },
        {
         icon: BoxIcon,
         name: "My Request",

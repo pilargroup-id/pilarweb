@@ -12,7 +12,7 @@
         </span>
         <span
           class="status-dot-online absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-[#1a2a57]"
-        ></span>
+        ></span>.env
       </span>
 
       <span class="block mr-1 font-medium text-theme-sm">{{ displayName }}</span>
