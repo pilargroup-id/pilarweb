@@ -263,7 +263,7 @@ const rawMenuGroups = [
         capability: "warehouse_access",
         subItems: [
           { name: "Fulfillment / Picking", path: "/warehouse/fulfillments", pro: false },
-          { name: "Delivery Discrepancies", path: "/warehouse/discrepancies", pro: false },
+          { name: "Delivery Issues", path: "/warehouse/discrepancies", pro: false },
           { name: "Returns", path: "/returns", pro: false },
           { name: "Hand Over", path: "/warehouse/handover", pro: false },
         ],

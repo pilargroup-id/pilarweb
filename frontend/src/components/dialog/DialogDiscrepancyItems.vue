@@ -14,7 +14,7 @@
           </button>
 
           <h4 class="mb-1 pr-12 text-xl font-semibold text-white">
-            {{ form?.request_number || group?.request_number || 'Delivery Discrepancy' }}
+            {{ form?.request_number || group?.request_number || 'Delivery Issue' }}
           </h4>
           <p class="pr-12 text-sm text-white/70">
             {{ form?.requester_name || group?.requester_name || '-' }}

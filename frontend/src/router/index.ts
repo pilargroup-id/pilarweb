@@ -111,7 +111,7 @@ const router = createRouter({
       name: 'Warehouse Discrepancies',
       component: () => import('../components/pages/werehouse/DiscrepancyPage.vue'),
       meta: {
-        title: 'Delivery Discrepancies',
+        title: 'Delivery Issues',
       },
     },
     {

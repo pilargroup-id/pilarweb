@@ -16,5 +16,5 @@ import PageBreadcrumb from "@/components/common/PageBreadcrumb.vue";
 import ComponentCard from "@/components/common/ComponentCard.vue";
 import DiscrepancyTable from "@/components/tables/DiscrepancyTable.vue";
 
-const currentPageTitle = ref("Delivery Discrepancies");
+const currentPageTitle = ref("Delivery Issues");
 </script>
