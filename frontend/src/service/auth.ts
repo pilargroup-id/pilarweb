@@ -3,6 +3,12 @@ import { reactive, readonly } from 'vue'
 const TOKEN_KEY = 'auth_token'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
+export interface AuthDepartment {
+  department_name?: string | null
+  name?: string | null
+  is_primary?: string | number | boolean
+}
+
 export interface AuthUser {
   id: string | number
   name?: string
@@ -13,6 +19,9 @@ export interface AuthUser {
   apps?: string[]
   job_level?: string
   job_level_value?: number
+  department_id?: string | number | null
+  department?: string | null
+  departments?: AuthDepartment[]
   [key: string]: unknown
 }
 
@@ -40,6 +49,19 @@ const state = reactive<AuthState>({
 })
 
 export const authState = readonly(state)
+
+export function isITDepartment(user: AuthUser | null = state.user): boolean {
+  if (!user) return false
+
+  let departmentName = user.department
+  if (user.department_id === undefined || user.department_id === null) {
+    const departments = user.departments ?? []
+    const primary = departments.find((department) => Number(department.is_primary) === 1) || departments[0]
+    departmentName = primary?.department_name ?? primary?.name
+  }
+
+  return departmentName?.trim().toUpperCase() === 'IT'
+}
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)

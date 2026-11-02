@@ -204,7 +204,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
-import { authState, fetchCapabilities, fetchCurrentUser } from "@/service/auth";
+import { authState, fetchCapabilities, fetchCurrentUser, isITDepartment } from "@/service/auth";
 
 import {
   ChevronDownIcon,
@@ -271,6 +271,7 @@ const rawMenuGroups = [
             {
         icon: TableIcon,
         name: "Master",
+        itOnly: true,
         subItems: [
           { name: "Request Purpose", path: "/data/RequestPurpose", pro: false },
           { name: "Approval Rules", path: "/data/ApprovalRules", pro: false },
@@ -287,6 +288,7 @@ const hasCapability = (item) => {
 };
 
 const isVisible = (item) => {
+  if (item.itOnly && !isITDepartment()) return false;
   if (!hasCapability(item)) return false;
   const canApprove = Boolean(authState.capabilities?.can_approve_department);
   if (item.approverOnly && !canApprove) return false;

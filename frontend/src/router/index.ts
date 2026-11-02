@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authState, fetchCapabilities, fetchCurrentUser, setToken } from '@/service/auth'
+import { authState, fetchCapabilities, fetchCurrentUser, isITDepartment, setToken } from '@/service/auth'
 
 const APP_TITLE = 'Pilarweb'
 
@@ -128,6 +128,7 @@ const router = createRouter({
       component: () => import('../components/pages/werehouse/WHLocations.vue'),
       meta: {
         title: 'Warehouse Locations',
+        requiresIT: true,
       },
     },
     {
@@ -136,6 +137,7 @@ const router = createRouter({
       component: () => import('../components/pages/master/RequestPurpose.vue'),
       meta: {
         title: 'Request Purpose',
+        requiresIT: true,
       },
     },
     {
@@ -144,6 +146,7 @@ const router = createRouter({
       component: () => import('../components/pages/master/ApprovalRulesPage.vue'),
       meta: {
         title: 'Approval Rules',
+        requiresIT: true,
       },
     },
     {
@@ -201,6 +204,16 @@ router.beforeEach(async (to, from, next) => {
     }
     next({ path: authState.capabilities?.can_approve_department ? '/approvals' : '/request/my', replace: true })
     return
+  }
+
+  if (to.meta.requiresIT) {
+    if (!authState.user) {
+      await fetchCurrentUser().catch(() => {})
+    }
+    if (!isITDepartment()) {
+      next({ path: '/', replace: true })
+      return
+    }
   }
 
   if (to.meta.requiresManager) {
