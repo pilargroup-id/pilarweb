@@ -218,8 +218,12 @@ export function getDepartments(): Promise<ApiResponse<DepartmentRecord[]>> {
   return request('/api/internal/directory/departments')
 }
 
-export function getWarehouseLocations(): Promise<ApiResponse<WarehouseLocation[]>> {
-  return request('/api/master/warehouse-locations')
+export function getWarehouseLocations(
+  options: { includeInactive?: boolean } = {},
+): Promise<ApiResponse<WarehouseLocation[]>> {
+  return request('/api/master/warehouse-locations', {
+    params: { include_inactive: options.includeInactive ? '1' : undefined },
+  })
 }
 
 export interface WarehouseLocationPayload {

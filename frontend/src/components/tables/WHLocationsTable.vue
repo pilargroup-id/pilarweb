@@ -145,7 +145,7 @@ async function fetchWarehouseLocations() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getWarehouseLocations()
+    const res = await getWarehouseLocations({ includeInactive: true })
     locations.value = res?.data ?? []
     page.value = 1
   } catch (err) {

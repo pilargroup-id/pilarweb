@@ -5,7 +5,7 @@ const { createError, optionalText } = require('../utils/business.util');
 
 async function getRequestPurposes({includeSystem=false}={}){const db=requireDatabase();const[rows]=await db.query(`SELECT id,code,name,description,return_type,is_system,sort_order,is_active FROM master_request_purposes WHERE is_active=1 ${includeSystem?'':'AND is_system=0'} ORDER BY sort_order,name`);return rows;}
 async function getApprovalRules(departmentId=null){const db=requireDatabase();const params=[];let where='WHERE is_active=1';if(departmentId!==null&&departmentId!==undefined&&departmentId!==''){where+=' AND (department_id=? OR department_id IS NULL)';params.push(Number(departmentId));}const[rows]=await db.query(`SELECT * FROM approval_rules ${where} ORDER BY CASE WHEN department_id IS NULL THEN 1 ELSE 0 END,priority,id`,params);return rows;}
-async function getWarehouseLocations(){const db=requireDatabase();const[rows]=await db.query('SELECT id,internal_id,code,name,is_active FROM warehouse_locations WHERE is_active=1 ORDER BY name');return rows;}
+async function getWarehouseLocations({includeInactive=false}={}){const db=requireDatabase();const where=includeInactive?'':'WHERE is_active=1';const[rows]=await db.query(`SELECT id,internal_id,code,name,is_active FROM warehouse_locations ${where} ORDER BY name`);return rows;}
 async function getFinancialClosingSetting(){const db=requireDatabase();const[rows]=await db.query('SELECT * FROM financial_closing_settings WHERE is_active=1 ORDER BY id DESC LIMIT 1');return rows[0]||null;}
 async function getRequestPolicy(){return PolicyService.getActive();}
 async function getValidationRules(){const db=requireDatabase();const[rows]=await db.query('SELECT * FROM validation_rules ORDER BY id');return rows;}
