@@ -148,6 +148,7 @@
         :disabled="isLoading"
         item-label="subjects"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -176,7 +177,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 const expandedKeys = reactive(new Set())
 const togglingIds = reactive(new Set())
 
@@ -268,11 +269,11 @@ const groupedBySubject = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(groupedBySubject.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(groupedBySubject.value.length / limit.value)))
 
 const paginatedGroups = computed(() => {
-  const start = (page.value - 1) * limit
-  return groupedBySubject.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return groupedBySubject.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {

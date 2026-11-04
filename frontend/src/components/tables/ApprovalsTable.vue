@@ -183,6 +183,7 @@
           :disabled="isLoading"
           item-label="approvals"
           @update:page="fetchApprovals"
+          @update:limit="(value) => { meta.limit = value; fetchApprovals(1) }"
         />
       </template>
     </BaseTable>
@@ -341,7 +342,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 let searchTimer = null
-const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
+const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const isDecisionOpen = ref(false)
 const selectedApproval = ref(null)

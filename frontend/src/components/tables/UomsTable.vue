@@ -95,6 +95,7 @@
         :disabled="isLoading"
         item-label="units"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -116,7 +117,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 
 const filteredUoms = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -128,11 +129,11 @@ const filteredUoms = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredUoms.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredUoms.value.length / limit.value)))
 
 const paginatedUoms = computed(() => {
-  const start = (page.value - 1) * limit
-  return filteredUoms.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return filteredUoms.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {

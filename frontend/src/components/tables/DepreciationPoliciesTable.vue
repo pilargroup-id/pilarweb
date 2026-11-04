@@ -107,6 +107,7 @@
         :disabled="isLoading"
         item-label="policies"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -128,7 +129,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 
 const filteredPolicies = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -136,11 +137,11 @@ const filteredPolicies = computed(() => {
   return policies.value.filter((policy) => String(policy.name || '').toLowerCase().includes(term))
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredPolicies.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredPolicies.value.length / limit.value)))
 
 const paginatedPolicies = computed(() => {
-  const start = (page.value - 1) * limit
-  return filteredPolicies.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return filteredPolicies.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {

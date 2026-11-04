@@ -92,6 +92,7 @@
         :disabled="isLoading"
         item-label="permissions"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -111,7 +112,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 
 const filteredPermissions = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -123,11 +124,11 @@ const filteredPermissions = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredPermissions.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredPermissions.value.length / limit.value)))
 
 const paginatedPermissions = computed(() => {
-  const start = (page.value - 1) * limit
-  return filteredPermissions.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return filteredPermissions.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {

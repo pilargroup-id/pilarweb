@@ -94,6 +94,7 @@
           :disabled="isLoading"
           item-label="deliveries"
           @update:page="fetchQueue"
+          @update:limit="(value) => { meta.limit = value; fetchQueue(1) }"
         />
       </template>
     </BaseTable>
@@ -121,7 +122,7 @@ import { RefreshIcon, CheckIcon } from '@/icons'
 const queue = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
-const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
+const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const statusFilterOptions = [
   { id: '', name: 'Semua status' },

@@ -221,6 +221,7 @@
           :disabled="isLoading"
           item-label="requests"
           @update:page="fetchRequests"
+          @update:limit="(value) => { meta.limit = value; fetchRequests(1) }"
         />
       </template>
     </BaseTable>
@@ -432,7 +433,7 @@ const confirmNotice = ref('')
 const submittingId = ref('')
 const search = ref('')
 let searchTimer = null
-const meta = reactive({ page: 1, limit: 20, total: 0, totalPages: 1 })
+const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [

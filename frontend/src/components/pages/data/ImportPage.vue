@@ -96,6 +96,7 @@
                 :total-pages="totalPages"
                 item-label="rows"
                 @update:page="(value) => (page = value)"
+                @update:limit="(value) => { limit = value; page = 1 }"
               />
             </template>
           </BaseTable>
@@ -207,7 +208,7 @@ const isDownloadingTemplate = ref(false)
 
 const preview = ref(null)
 const page = ref(1)
-const limit = 20
+const limit = ref(50)
 const commitError = ref('')
 const isCommitting = ref(false)
 const isCanceling = ref(false)
@@ -215,11 +216,11 @@ const isCanceling = ref(false)
 const commitResult = ref(null)
 const isDownloadingErrors = ref(false)
 
-const totalPages = computed(() => Math.max(1, Math.ceil((preview.value?.rows.length || 0) / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil((preview.value?.rows.length || 0) / limit.value)))
 const paginatedRows = computed(() => {
   if (!preview.value) return []
-  const start = (page.value - 1) * limit
-  return preview.value.rows.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return preview.value.rows.slice(start, start + limit.value)
 })
 
 function rowSummary(row) {

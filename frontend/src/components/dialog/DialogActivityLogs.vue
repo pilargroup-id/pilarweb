@@ -118,6 +118,7 @@
             :disabled="activeState.loading"
             item-label="aktivitas"
             @update:page="changePage"
+            @update:limit="changeLimit"
           />
         </div>
       </div>
@@ -171,7 +172,7 @@ const TABS = [
 const activeTab = ref(TABS[0].key)
 
 function createTabState() {
-  return { rows: [], page: 1, limit: 8, total: 0, totalPages: 1, loading: false, error: '', loaded: false }
+  return { rows: [], page: 1, limit: 50, total: 0, totalPages: 1, loading: false, error: '', loaded: false }
 }
 
 const tabState = reactive(Object.fromEntries(TABS.map((tab) => [tab.key, createTabState()])))
@@ -207,6 +208,11 @@ function selectTab(key) {
 
 function changePage(page) {
   fetchTab(activeTab.value, page)
+}
+
+function changeLimit(limit) {
+  activeState.value.limit = limit
+  fetchTab(activeTab.value, 1)
 }
 
 function refreshActiveTab() {

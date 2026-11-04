@@ -122,6 +122,7 @@
           :disabled="isLoading"
           item-label="rules"
           @update:page="(p) => (page = p)"
+          @update:limit="(l) => { limit = l; page = 1 }"
         />
       </template>
     </BaseTable>
@@ -143,7 +144,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = ref(10)
+const limit = ref(50)
 
 const filteredRules = computed(() => {
   const term = search.value.trim().toLowerCase()

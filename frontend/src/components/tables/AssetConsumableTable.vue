@@ -126,6 +126,7 @@
         :disabled="isLoading"
         item-label="consumables"
         @update:page="fetchConsumables"
+        @update:limit="(value) => { meta.limit = value; fetchConsumables(1) }"
       />
     </template>
   </BaseTable>
@@ -149,7 +150,7 @@ const errorMessage = ref('')
 const search = ref('')
 let searchTimer = null
 
-const meta = reactive({ page: 1, limit: 25, total: 0, totalPages: 1 })
+const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const brandVariant = (consumable) => {
   const parts = [consumable.brand_name, consumable.variant].filter(Boolean)

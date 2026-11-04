@@ -95,6 +95,7 @@
         :disabled="isLoading"
         item-label="brands"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -116,7 +117,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 
 const filteredBrands = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -128,11 +129,11 @@ const filteredBrands = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredBrands.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredBrands.value.length / limit.value)))
 
 const paginatedBrands = computed(() => {
-  const start = (page.value - 1) * limit
-  return filteredBrands.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return filteredBrands.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {

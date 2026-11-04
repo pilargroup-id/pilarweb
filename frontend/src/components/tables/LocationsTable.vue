@@ -103,6 +103,7 @@
         :disabled="isLoading"
         item-label="locations"
         @update:page="(value) => (page = value)"
+        @update:limit="(value) => { limit = value; page = 1 }"
       />
     </template>
   </BaseTable>
@@ -124,7 +125,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const page = ref(1)
-const limit = 25
+const limit = ref(50)
 
 const filteredLocations = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -136,11 +137,11 @@ const filteredLocations = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredLocations.value.length / limit)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredLocations.value.length / limit.value)))
 
 const paginatedLocations = computed(() => {
-  const start = (page.value - 1) * limit
-  return filteredLocations.value.slice(start, start + limit)
+  const start = (page.value - 1) * limit.value
+  return filteredLocations.value.slice(start, start + limit.value)
 })
 
 watch(search, () => {
