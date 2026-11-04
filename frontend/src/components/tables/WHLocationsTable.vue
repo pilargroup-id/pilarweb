@@ -63,7 +63,7 @@
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Tidak ada data warehouse location.</p>
         </td>
       </tr>
-      <tr v-else v-for="location in filteredLocations" :key="location.id" class="border-t border-gray-100 dark:border-gray-800">
+      <tr v-else v-for="location in paginatedLocations" :key="location.id" class="border-t border-gray-100 dark:border-gray-800">
         <td class="px-5 py-4 sm:px-6">
           <ButtonUpdateWarehouseLocation :location="location" @updated="fetchWarehouseLocations" />
         </td>
@@ -86,16 +86,29 @@
           </Badge>
         </td>
       </tr>
+
+      <template #pagination>
+        <TablePagination
+          :page="page"
+          :limit="limit"
+          :total="filteredLocations.length"
+          :total-pages="totalPages"
+          :disabled="isLoading"
+          item-label="locations"
+          @update:page="(p) => (page = p)"
+        />
+      </template>
     </BaseTable>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { getWarehouseLocations } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
+import TablePagination from '@/components/tables/TablePagination.vue'
 import ButtonCreateWarehouseLocation from '@/components/buttons/create/ButtonCreateWarehouseLocation.vue'
 import ButtonUpdateWarehouseLocation from '@/components/buttons/update/ButtonUpdateWarehouseLocation.vue'
 import { RefreshIcon } from '@/icons'
@@ -104,6 +117,8 @@ const locations = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
+const page = ref(1)
+const limit = ref(10)
 
 const filteredLocations = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -115,12 +130,24 @@ const filteredLocations = computed(() => {
   )
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredLocations.value.length / limit.value)))
+
+const paginatedLocations = computed(() => {
+  const start = (page.value - 1) * limit.value
+  return filteredLocations.value.slice(start, start + limit.value)
+})
+
+watch(search, () => {
+  page.value = 1
+})
+
 async function fetchWarehouseLocations() {
   isLoading.value = true
   errorMessage.value = ''
   try {
     const res = await getWarehouseLocations()
     locations.value = res?.data ?? []
+    page.value = 1
   } catch (err) {
     locations.value = []
     errorMessage.value = err?.message || 'Gagal memuat data warehouse location.'

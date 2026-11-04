@@ -65,7 +65,7 @@
         </td>
       </tr>
       <tr
-        v-for="purpose in filteredPurposes"
+        v-for="purpose in paginatedPurposes"
         v-else
         :key="purpose.id"
         class="border-t border-gray-100 dark:border-gray-800"
@@ -96,16 +96,29 @@
           </Badge>
         </td>
       </tr>
+
+      <template #pagination>
+        <TablePagination
+          :page="page"
+          :limit="limit"
+          :total="filteredPurposes.length"
+          :total-pages="totalPages"
+          :disabled="isLoading"
+          item-label="purposes"
+          @update:page="(p) => (page = p)"
+        />
+      </template>
     </BaseTable>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { getRequestPurposes } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
+import TablePagination from '@/components/tables/TablePagination.vue'
 import ButtonCreateRequestPurpose from '@/components/buttons/create/ButtonCreateRequestPurpose.vue'
 import ButtonUpdateRequestPurpose from '@/components/buttons/update/ButtonUpdateRequestPurpose.vue'
 import ButtonDeleteRequestPurpose from '@/components/buttons/delete/ButtonDeleteRequestPurpose.vue'
@@ -115,6 +128,8 @@ const purposes = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
+const page = ref(1)
+const limit = ref(10)
 
 const filteredPurposes = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -126,12 +141,24 @@ const filteredPurposes = computed(() => {
   )
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredPurposes.value.length / limit.value)))
+
+const paginatedPurposes = computed(() => {
+  const start = (page.value - 1) * limit.value
+  return filteredPurposes.value.slice(start, start + limit.value)
+})
+
+watch(search, () => {
+  page.value = 1
+})
+
 async function fetchRequestPurposes() {
   isLoading.value = true
   errorMessage.value = ''
   try {
     const res = await getRequestPurposes()
     purposes.value = res?.data ?? []
+    page.value = 1
   } catch (err) {
     purposes.value = []
     errorMessage.value = err?.message || 'Failed to load request purposes.'

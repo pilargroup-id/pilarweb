@@ -67,7 +67,7 @@
         </td>
       </tr>
       <tr
-        v-for="rule in filteredRules"
+        v-for="rule in paginatedRules"
         v-else
         :key="rule.id"
         class="border-t border-gray-100 dark:border-gray-800"
@@ -112,16 +112,29 @@
           </Badge>
         </td>
       </tr>
+
+      <template #pagination>
+        <TablePagination
+          :page="page"
+          :limit="limit"
+          :total="filteredRules.length"
+          :total-pages="totalPages"
+          :disabled="isLoading"
+          item-label="rules"
+          @update:page="(p) => (page = p)"
+        />
+      </template>
     </BaseTable>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { getApprovalRules } from '@/service/api'
 import Badge from '@/components/ui/Badge.vue'
 import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
+import TablePagination from '@/components/tables/TablePagination.vue'
 import ButtonCreateApprovalRules from '@/components/buttons/create/master/ButtonCreateApprovalRules.vue'
 import { RefreshIcon } from '@/icons'
 
@@ -129,6 +142,8 @@ const rules = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
+const page = ref(1)
+const limit = ref(10)
 
 const filteredRules = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -140,12 +155,24 @@ const filteredRules = computed(() => {
   )
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredRules.value.length / limit.value)))
+
+const paginatedRules = computed(() => {
+  const start = (page.value - 1) * limit.value
+  return filteredRules.value.slice(start, start + limit.value)
+})
+
+watch(search, () => {
+  page.value = 1
+})
+
 async function fetchApprovalRules() {
   isLoading.value = true
   errorMessage.value = ''
   try {
     const res = await getApprovalRules()
     rules.value = res?.data ?? []
+    page.value = 1
   } catch (err) {
     rules.value = []
     errorMessage.value = err?.message || 'Failed to load approval rules.'
