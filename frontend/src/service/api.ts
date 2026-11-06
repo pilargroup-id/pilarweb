@@ -734,8 +734,6 @@ export interface WarehouseDiscrepancyFormListItem extends AnyRecord {
   total_difference_qty: number
   nearest_resolution_due_at?: string | null
   form_status: 'OPEN' | 'OVERDUE' | 'ESCALATED' | 'SUPERVISOR_REQUIRED'
-  warehouse_department_id?: number | string
-  warehouse_department_name?: string
 }
 
 export function getWarehouseDiscrepancyForms(
@@ -759,8 +757,6 @@ export interface WarehouseDiscrepancyFormItem extends AnyRecord {
   item_name?: string
   uom_code?: string
   fulfillment_number?: string
-  warehouse_department_id?: number | string
-  warehouse_department_name?: string
   source_warehouse_name?: string
   expected_qty: number
   received_qty: number

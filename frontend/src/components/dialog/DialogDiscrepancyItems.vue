@@ -180,8 +180,8 @@ const loadError = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
-// Section 12/25: once the SLA reaches SUPERVISOR_REQUIRED, only a user with
-// WAREHOUSE_DISCREPANCY_SUPERVISOR access may submit this form's resolution.
+// Once the SLA reaches SUPERVISOR_REQUIRED, any user with the global
+// WAREHOUSE_DISCREPANCY_SUPERVISOR capability may submit this form's resolution.
 const needsSupervisor = computed(() => (form.value?.items || []).some((item) => item.status === 'SUPERVISOR_REQUIRED'))
 const hasSupervisorAccess = computed(() => Boolean(authState.capabilities?.warehouse_discrepancy_supervisor_access))
 

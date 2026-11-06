@@ -9,8 +9,6 @@ CREATE TABLE IF NOT EXISTS warehouse_fulfillments (
   fulfillment_mode ENUM('PHYSICAL','ADMINISTRATIVE') NOT NULL DEFAULT 'PHYSICAL',
   fulfillment_type ENUM('NORMAL','DISCREPANCY_RESEND','RETURN_SHORTFALL_CONVERSION') NOT NULL DEFAULT 'NORMAL',
   status VARCHAR(50) NOT NULL DEFAULT 'PICKING',
-  warehouse_department_id INT DEFAULT NULL,
-  warehouse_department_name VARCHAR(255) DEFAULT NULL,
   source_warehouse_id BIGINT UNSIGNED DEFAULT NULL,
   source_warehouse_internal_id BIGINT UNSIGNED DEFAULT NULL,
   source_warehouse_code VARCHAR(80) DEFAULT NULL,
@@ -131,8 +129,6 @@ CREATE TABLE IF NOT EXISTS delivery_discrepancies (
 CREATE TABLE IF NOT EXISTS warehouse_sla_violations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   violation_type VARCHAR(80) NOT NULL,
-  warehouse_department_id INT DEFAULT NULL,
-  warehouse_department_name VARCHAR(255) DEFAULT NULL,
   fulfillment_id BIGINT UNSIGNED NOT NULL,
   discrepancy_id BIGINT UNSIGNED NOT NULL,
   due_at DATETIME NOT NULL,
@@ -145,6 +141,5 @@ CREATE TABLE IF NOT EXISTS warehouse_sla_violations (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_warehouse_sla_violation_discrepancy (violation_type, discrepancy_id),
-  KEY idx_warehouse_sla_violations_department (warehouse_department_id, status),
   KEY idx_warehouse_sla_violations_status (status, breached_at)
 ) ENGINE=InnoDB;

@@ -19,13 +19,12 @@ async function refreshDiscrepancyStatuses(connection = null) {
   `);
   await db.query(`
     INSERT INTO warehouse_sla_violations (
-      violation_type,warehouse_department_id,warehouse_department_name,fulfillment_id,discrepancy_id,due_at,breached_at,status
+      violation_type,fulfillment_id,discrepancy_id,due_at,breached_at,status
     )
-    SELECT 'DELIVERY_DISCREPANCY_OVERDUE',wf.warehouse_department_id,wf.warehouse_department_name,dd.fulfillment_id,dd.id,dd.resolution_due_at,dd.resolution_due_at,'OPEN'
+    SELECT 'DELIVERY_DISCREPANCY_OVERDUE',dd.fulfillment_id,dd.id,dd.resolution_due_at,dd.resolution_due_at,'OPEN'
     FROM delivery_discrepancies dd
-    INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
     WHERE dd.status IN ('OVERDUE','ESCALATED','SUPERVISOR_REQUIRED')
-    ON DUPLICATE KEY UPDATE warehouse_department_id=VALUES(warehouse_department_id),warehouse_department_name=VALUES(warehouse_department_name)
+    ON DUPLICATE KEY UPDATE due_at=VALUES(due_at),breached_at=VALUES(breached_at)
   `);
 }
 
@@ -92,7 +91,7 @@ async function listDiscrepancies(user,query={}){
   const requestIds=groupRows.map((g)=>g.request_id);
   let itemRows=[];
   if(requestIds.length){
-    [itemRows]=await db.query(`SELECT dd.*,r.request_number,r.requester_name,r.department_name,ri.item_code,ri.item_name,wf.fulfillment_number,wf.warehouse_department_id,wf.warehouse_department_name,wf.source_warehouse_name,wsv.status AS sla_status,wsv.breached_at,wsv.overdue_minutes FROM delivery_discrepancies dd INNER JOIN requests r ON r.id=dd.request_id INNER JOIN request_items ri ON ri.id=dd.request_item_id INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id LEFT JOIN warehouse_sla_violations wsv ON wsv.discrepancy_id=dd.id AND wsv.violation_type='DELIVERY_DISCREPANCY_OVERDUE' WHERE dd.request_id IN (?) ORDER BY FIELD(dd.status,'SUPERVISOR_REQUIRED','ESCALATED','OVERDUE','OPEN','RESOLVED'),dd.resolution_due_at ASC`,[requestIds]);
+    [itemRows]=await db.query(`SELECT dd.*,r.request_number,r.requester_name,r.department_name,ri.item_code,ri.item_name,wf.fulfillment_number,wf.source_warehouse_name,wsv.status AS sla_status,wsv.breached_at,wsv.overdue_minutes FROM delivery_discrepancies dd INNER JOIN requests r ON r.id=dd.request_id INNER JOIN request_items ri ON ri.id=dd.request_item_id INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id LEFT JOIN warehouse_sla_violations wsv ON wsv.discrepancy_id=dd.id AND wsv.violation_type='DELIVERY_DISCREPANCY_OVERDUE' WHERE dd.request_id IN (?) ORDER BY FIELD(dd.status,'SUPERVISOR_REQUIRED','ESCALATED','OVERDUE','OPEN','RESOLVED'),dd.resolution_due_at ASC`,[requestIds]);
   }
   const STATUS_RANK={SUPERVISOR_REQUIRED:0,ESCALATED:1,OVERDUE:2,OPEN:3,RESOLVED:4};
   const groupsById=new Map();
@@ -134,12 +133,9 @@ async function listDiscrepancyForms(user,query={}){
         WHEN 3 THEN 'ESCALATED'
         WHEN 2 THEN 'OVERDUE'
         ELSE 'OPEN'
-      END AS form_status,
-      MIN(wf.warehouse_department_id) AS warehouse_department_id,
-      MIN(wf.warehouse_department_name) AS warehouse_department_name
+      END AS form_status
     FROM delivery_discrepancies dd
     INNER JOIN requests r ON r.id=dd.request_id
-    INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
     ${where}
     GROUP BY dd.request_id,r.request_number,r.requester_name,r.department_id,r.department_name,r.target_department_id,r.target_department_name
     ORDER BY severity_rank DESC,nearest_resolution_due_at ASC,r.request_number ASC
@@ -156,7 +152,7 @@ async function getDiscrepancyForm(user,requestId){
   const[requestRows]=await db.query(`SELECT id,request_number,requester_user_id,requester_name,department_id,department_name,target_department_id,target_department_name,status FROM requests WHERE id=? LIMIT 1`,[String(requestId)]);
   const request=requestRows[0];if(!request)throw createError('PB not found',404,'REQUEST_NOT_FOUND');
   const[items]=await db.query(`
-    SELECT dd.*,ri.item_code,ri.item_name,ri.uom_code,wf.fulfillment_number,wf.warehouse_department_id,wf.warehouse_department_name,wf.source_warehouse_name,wsv.status AS sla_status,wsv.breached_at,wsv.overdue_minutes
+    SELECT dd.*,ri.item_code,ri.item_name,ri.uom_code,wf.fulfillment_number,wf.source_warehouse_name,wsv.status AS sla_status,wsv.breached_at,wsv.overdue_minutes
     FROM delivery_discrepancies dd
     INNER JOIN request_items ri ON ri.id=dd.request_item_id
     INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
@@ -181,7 +177,7 @@ async function resolveDiscrepancyForm(user,requestId,payload={}){
     if(ids.some(id=>!Number.isInteger(id)||id<=0)||new Set(ids).size!==ids.length)throw createError('Each discrepancy_id must be unique and valid',422,'INVALID_DISCREPANCY_ID');
     const placeholders=ids.map(()=>'?').join(',');
     const[rows]=await c.query(`
-      SELECT dd.*,wf.warehouse_department_id,wf.warehouse_department_name,wf.fulfillment_number
+      SELECT dd.*,wf.fulfillment_number
       FROM delivery_discrepancies dd
       INNER JOIN warehouse_fulfillments wf ON wf.id=dd.fulfillment_id
       WHERE dd.request_id=? AND dd.id IN (${placeholders})
@@ -196,12 +192,8 @@ async function resolveDiscrepancyForm(user,requestId,payload={}){
     if(openIds.length!==ids.length||openIds.some(id=>!ids.includes(id)))throw createError('Submit a resolution for every unresolved item in this PB form',422,'DISCREPANCY_FORM_INCOMPLETE');
 
     const actor=UserUtil.snapshot(user);
-    const isAdmin=await AccessService.hasModuleAccess(user,'ADMIN',c);
     const needsSupervisor=rows.some(row=>row.status==='SUPERVISOR_REQUIRED');
     const hasSupervisor=needsSupervisor?await AccessService.hasModuleAccess(user,'WAREHOUSE_DISCREPANCY_SUPERVISOR',c):false;
-    for(const row of rows){
-      if(row.warehouse_department_id&&Number(actor.department_id)!==Number(row.warehouse_department_id)&&!isAdmin)throw createError('Discrepancy form belongs to another Warehouse department',403,'WAREHOUSE_DEPARTMENT_MISMATCH');
-    }
     if(needsSupervisor&&!hasSupervisor)throw createError('This overdue discrepancy form requires Warehouse supervisor access',403,'WAREHOUSE_SUPERVISOR_REQUIRED');
 
     const inputMap=new Map(inputs.map(row=>[Number(row.discrepancy_id),row]));
