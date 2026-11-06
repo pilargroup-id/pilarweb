@@ -67,6 +67,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/history-approvals',
+      name: 'History Approvals',
+      component: () => import('../components/pages/approval/HistoryApprovalPage.vue'),
+      meta: {
+        title: 'History Approvals',
+        requiresManager: true,
+      },
+    },
+    {
       path: '/finance-review',
       name: 'Finance Review',
       component: () => import('../components/pages/financial/FinanceReviewPage.vue'),

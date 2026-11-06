@@ -20,7 +20,7 @@
             </svg>
           </button>
 
-          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Receive Return</h4>
+          <h4 class="mb-1 pr-12 text-xl font-semibold text-white">Terima Return</h4>
           <p class="pr-12 text-sm text-white/70">
             {{ returnItem?.return_number }}
             <span v-if="returnItem?.request_number">&middot; {{ returnItem.request_number }}</span>
@@ -45,8 +45,9 @@
                 <thead class="bg-gray-50 dark:bg-white/[0.02]">
                   <tr>
                     <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Outstanding</th>
-                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Received Qty</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Dari Requester</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Sisa</th>
+                    <th class="px-4 py-2.5 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">Qty Diterima</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -54,6 +55,9 @@
                     <td class="px-4 py-3 align-top">
                       <span class="block text-theme-sm font-medium text-gray-800 dark:text-white/90">{{ row.item_name }}</span>
                       <span class="block text-theme-xs text-gray-500 dark:text-gray-400">{{ row.item_code }}</span>
+                    </td>
+                    <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">
+                      {{ row.requester_declared_qty !== null ? row.requester_declared_qty : '-' }}
                     </td>
                     <td class="px-4 py-3 align-top text-theme-sm text-gray-600 dark:text-gray-300">{{ row.outstanding }}</td>
                     <td class="px-4 py-3 align-top">
@@ -68,7 +72,7 @@
                     </td>
                   </tr>
                   <tr v-if="!rows.length">
-                    <td colspan="3" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="4" class="px-4 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                       Tidak ada sisa barang yang perlu diterima pada return ini.
                     </td>
                   </tr>
@@ -78,7 +82,7 @@
 
             <div>
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                Note
+                Catatan
               </label>
               <textarea
                 v-model="note"
@@ -99,7 +103,7 @@
                 :disabled="isSubmitting"
                 class="flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
               >
-                Cancel
+                Batal
               </button>
               <button
                 type="submit"
@@ -107,7 +111,7 @@
                 class="flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckIcon class="h-4 w-4" />
-                {{ isSubmitting ? 'Receiving...' : 'Receive' }}
+                {{ isSubmitting ? 'Menerima...' : 'Terima' }}
               </button>
             </div>
           </form>
@@ -175,6 +179,9 @@ async function loadReturn(returnId) {
           return_item_id: item.id,
           item_name: item.item_name,
           item_code: item.item_code,
+          requester_declared_qty: item.requester_return_qty !== null && item.requester_return_qty !== undefined
+            ? Number(item.requester_return_qty)
+            : null,
           outstanding,
           received_qty: 0,
         }
@@ -196,11 +203,6 @@ function close() {
 async function submit() {
   if (!props.returnItem) return
 
-  const hasAnyQty = rows.value.some((row) => Number(row.received_qty) > 0)
-  if (!hasAnyQty) {
-    errorMessage.value = 'Masukkan jumlah diterima untuk minimal satu item.'
-    return
-  }
   for (const row of rows.value) {
     const qty = Number(row.received_qty)
     if (Number.isNaN(qty) || qty < 0 || qty > row.outstanding + 0.0001) {

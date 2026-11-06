@@ -218,6 +218,7 @@ import {
   TableIcon,
   ChatIcon,
   CheckIcon,
+  ArchiveIcon,
 } from "../../icons";
 import { useSidebar } from "@/composables/useSidebar";
 
@@ -245,6 +246,12 @@ const rawMenuGroups = [
         icon: CheckIcon,
         name: "Approve",
         path: "/approvals",
+        approverOnly: true,
+      },
+      {
+        icon: ArchiveIcon,
+        name: "History Approvals",
+        path: "/history-approvals",
         approverOnly: true,
       },
       {

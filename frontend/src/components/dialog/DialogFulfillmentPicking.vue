@@ -36,6 +36,37 @@
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <div v-else class="flex flex-col gap-5">
+            <div
+              v-if="isPicking"
+              class="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3"
+              :class="pickingLocked ? 'border-warning-300 bg-warning-50 dark:border-warning-500/30 dark:bg-warning-500/10' : 'border-success-300 bg-success-50 dark:border-success-500/30 dark:bg-success-500/10'"
+            >
+              <div class="flex items-center gap-3">
+                <span
+                  class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-theme-xs font-semibold text-white"
+                  :class="pickingLocked ? 'bg-warning-500' : 'bg-success-500'"
+                >
+                  <CheckIcon v-if="!pickingLocked" class="h-4 w-4" />
+                  <span v-else>1</span>
+                </span>
+                <div>
+                  <p class="text-theme-sm font-medium text-gray-800 dark:text-white/90">Langkah 1 &middot; Cetak Form Picking</p>
+                  <p class="text-theme-xs text-gray-500 dark:text-gray-400">
+                    {{ pickingLocked ? 'Wajib dicetak terlebih dahulu sebelum mengisi IWT No., Source Warehouse, dan Actual Qty.' : 'Form picking sudah dicetak. Cetak ulang jika diperlukan.' }}
+                  </p>
+                </div>
+              </div>
+              <button
+                @click="handlePrintPicking"
+                type="button"
+                :disabled="isPrintingPicking || !fulfillment"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+              >
+                <PrinterIcon class="h-4 w-4" />
+                {{ isPrintingPicking ? 'Printing...' : (pickingLocked ? 'Print Picking Form' : 'Print Ulang') }}
+              </button>
+            </div>
+
             <div class="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
               <div class="flex flex-wrap items-start gap-6">
                 <div class="flex flex-col gap-1.5">
@@ -82,27 +113,6 @@
                   <span v-if="fulfillment?.last_do_printed_at" class="text-theme-xs text-gray-500 dark:text-gray-400">
                     &middot; DO printed {{ formatDateTime(fulfillment.last_do_printed_at) }}
                   </span>
-                </div>
-                <div v-if="isEditable" class="flex items-center gap-2">
-                  <button
-                    v-if="isPicking"
-                    @click="handlePrintPicking"
-                    type="button"
-                    :disabled="isPrintingPicking || !fulfillment"
-                    class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-                  >
-                    <PrinterIcon class="h-4 w-4" />
-                    {{ isPrintingPicking ? 'Printing...' : 'Print Picking Form' }}
-                  </button>
-                  <button
-                    @click="handleSaveProgress"
-                    type="button"
-                    :disabled="isSaving || !fulfillment"
-                    class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-                  >
-                    <SaveIcon class="h-4 w-4" />
-                    {{ isSaving ? 'Saving...' : 'Save Progress' }}
-                  </button>
                 </div>
                 <div v-if="!isAdministrative && fulfillment?.status === 'READY_FOR_DISPATCH'" class="flex w-64 flex-col items-start gap-1.5">
                   <input
@@ -152,8 +162,9 @@
                         step="1"
                         min="0"
                         :max="row.approved_qty"
+                        :disabled="pickingLocked"
                         @input="sanitizeActualQty(row)"
-                        class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
+                        class="dark:bg-dark-900 w-24 rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800"
                       />
                       <span v-else class="text-theme-sm text-gray-600 dark:text-gray-300">{{ formatQty(row.actual_qty) }}</span>
                     </td>
@@ -162,9 +173,10 @@
                         v-if="isPicking"
                         v-model="row.note"
                         type="text"
+                        :disabled="pickingLocked"
                         :placeholder="isNoteRequired(row) ? 'Catatan wajib diisi karena actual qty tidak penuh' : 'Catatan (opsional)'"
                         :class="[
-                          'dark:bg-dark-900 w-full rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:placeholder:text-white/30',
+                          'dark:bg-dark-900 w-full rounded-lg border bg-transparent px-3 py-2 text-theme-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 disabled:cursor-not-allowed disabled:opacity-60 dark:placeholder:text-white/30',
                           isNoteRequired(row) && !row.note?.trim()
                             ? 'border-error-300 text-error-600 focus:border-error-300 focus:ring-error-500/10 dark:border-error-500/30 dark:text-error-500'
                             : 'border-gray-300 text-gray-800 focus:border-brand-300 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:focus:border-brand-800',
@@ -191,9 +203,20 @@
 
             <div v-if="isEditable" class="flex items-center justify-end gap-3 pt-2">
               <button
+                @click="handleSaveProgress"
+                type="button"
+                :disabled="isSaving || !fulfillment || pickingLocked"
+                :title="pickingLocked ? 'Cetak form picking terlebih dahulu' : ''"
+                class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+              >
+                <SaveIcon class="h-4 w-4" />
+                {{ isSaving ? 'Saving...' : 'Save Progress' }}
+              </button>
+              <button
                 @click="handleCompletePicking"
                 type="button"
-                :disabled="isCompleting || isSaving || !fulfillment"
+                :disabled="isCompleting || isSaving || !fulfillment || pickingLocked"
+                :title="pickingLocked ? 'Cetak form picking terlebih dahulu' : ''"
                 class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckIcon class="h-4 w-4" />
@@ -301,6 +324,8 @@ const isReturnable = computed(() => fulfillment.value?.purpose_return_type === '
 const isAdministrative = computed(() => fulfillment.value?.fulfillment_mode === 'ADMINISTRATIVE')
 const isAdministrativePending = computed(() => fulfillment.value?.status === 'ADMINISTRATIVE_PENDING')
 const isEditable = computed(() => isPicking.value || isAdministrativePending.value)
+const hasPrintedPicking = computed(() => !!fulfillment.value?.last_picking_printed_at)
+const pickingLocked = computed(() => isPicking.value && !hasPrintedPicking.value)
 
 const warehouseOptions = computed(() =>
   warehouseLocations.value.map((opt) => ({
@@ -468,6 +493,10 @@ function validateForComplete() {
 async function handleSaveProgress() {
   if (!fulfillment.value) return
   infoMessage.value = ''
+  if (pickingLocked.value) {
+    errorMessage.value = 'Cetak form picking terlebih dahulu sebelum menyimpan progres.'
+    return
+  }
   const validationError = validateQuantities()
   if (validationError) {
     errorMessage.value = validationError
@@ -491,6 +520,10 @@ async function handleSaveProgress() {
 async function handleCompletePicking() {
   if (!fulfillment.value) return
   infoMessage.value = ''
+  if (pickingLocked.value) {
+    errorMessage.value = 'Cetak form picking terlebih dahulu sebelum menyelesaikan picking.'
+    return
+  }
   const validationError = validateForComplete()
   if (validationError) {
     errorMessage.value = validationError

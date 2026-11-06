@@ -53,18 +53,18 @@
           class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
         >
           <RefreshIcon :class="['h-4 w-4', { 'animate-spin': isLoading }]" />
-          Refresh
+          Muat Ulang
         </button>
       </template>
 
       <template #head>
-        <TableHeadCell>Action</TableHeadCell>
-        <TableHeadCell>Return No</TableHeadCell>
-        <TableHeadCell>Request No</TableHeadCell>
+        <TableHeadCell>Aksi</TableHeadCell>
+        <TableHeadCell>No Return</TableHeadCell>
+        <TableHeadCell>No Request</TableHeadCell>
         <TableHeadCell>Requester</TableHeadCell>
-        <TableHeadCell>Department</TableHeadCell>
-        <TableHeadCell>Due Date</TableHeadCell>
-        <TableHeadCell>Outstanding Qty</TableHeadCell>
+        <TableHeadCell>Departemen</TableHeadCell>
+        <TableHeadCell>Tanggal Jatuh Tempo</TableHeadCell>
+        <TableHeadCell>Sisa Qty</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
@@ -107,7 +107,7 @@
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
             >
               <CheckIcon class="h-4 w-4" />
-              Receive
+              Terima
             </button>
           </div>
         </td>
@@ -216,7 +216,7 @@
               </div>
 
               <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Department</label>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Departemen</label>
                 <SearchableSelect
                   v-model="draftDepartmentFilter"
                   :options="departmentOptions"
@@ -226,7 +226,7 @@
               </div>
 
               <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Due Date Range</label>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Rentang Tanggal Jatuh Tempo</label>
                 <div class="grid grid-cols-2 gap-3">
                   <DateField v-model="draftDateFromFilter" />
                   <DateField v-model="draftDateToFilter" />
@@ -234,7 +234,7 @@
               </div>
 
               <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Sort Order</label>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Urutan</label>
                 <SearchableSelect
                   v-model="draftSortOrder"
                   :options="sortOrderOptions"
@@ -249,14 +249,14 @@
               type="button"
               class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
             >
-              Reset
+              Atur Ulang
             </button>
             <button
               @click="applyFilters"
               type="button"
               class="flex-1 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white hover:bg-brand-600"
             >
-              Apply Filter
+              Terapkan Filter
             </button>
           </div>
         </div>
@@ -293,13 +293,13 @@ const returnToView = ref(null)
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
   { id: '', name: 'Semua status' },
-  { id: 'PENDING_REQUESTER', name: 'Pending Requester' },
-  { id: 'SUBMITTED', name: 'Submitted' },
-  { id: 'COMPLETED', name: 'Completed' },
+  { id: 'PENDING_REQUESTER', name: 'Menunggu Requester' },
+  { id: 'SUBMITTED', name: 'Diajukan' },
+  { id: 'COMPLETED', name: 'Selesai' },
 ]
 const sortOrderOptions = [
-  { id: 'desc', name: 'Newest due date first' },
-  { id: 'asc', name: 'Oldest due date first' },
+  { id: 'desc', name: 'Tanggal jatuh tempo terbaru' },
+  { id: 'asc', name: 'Tanggal jatuh tempo terlama' },
 ]
 
 const statusFilter = ref('')
@@ -418,13 +418,13 @@ const STATUS_BADGE_COLOR = {
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 
-const formatStatusLabel = (status) => {
-  if (!status) return '-'
-  return status
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
+const STATUS_LABEL_ID = {
+  PENDING_REQUESTER: 'Menunggu Requester',
+  SUBMITTED: 'Diajukan',
+  COMPLETED: 'Selesai',
 }
+
+const formatStatusLabel = (status) => STATUS_LABEL_ID[status] || status || '-'
 
 const formatDate = (value) => {
   if (!value) return '-'

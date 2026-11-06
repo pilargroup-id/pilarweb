@@ -123,7 +123,6 @@
                     :index="index"
                     :can-remove="items.length > 1"
                     :show-errors="submitAttempted"
-                    :locked="!!row.recordId"
                     @update:model-value="updateRow(index, $event)"
                     @remove="removeRow(index)"
                   />
@@ -432,7 +431,11 @@ function populateForm() {
     items.value = requestItems.length
       ? requestItems.map((it) => {
           rowKeySeed += 1
-          originalItemsById.set(it.id, { requested_qty: Number(it.requested_qty), notes: it.notes || '' })
+          originalItemsById.set(it.id, {
+            itembase_item_id: String(it.itembase_item_id),
+            requested_qty: Number(it.requested_qty),
+            notes: it.notes || '',
+          })
           return {
             key: rowKeySeed,
             recordId: it.id,
@@ -545,10 +548,12 @@ async function submitEdit() {
     if (!row.recordId) continue
     const original = originalItemsById.get(row.recordId)
     if (!original) continue
+    const itemChanged = String(row.item_id) !== original.itembase_item_id
     const qtyChanged = Number(row.qty) !== original.requested_qty
     const notesChanged = (row.notes || '').trim() !== (original.notes || '')
-    if (qtyChanged || notesChanged) {
+    if (itemChanged || qtyChanged || notesChanged) {
       await updateRequestItem(requestId, row.recordId, {
+        ...(itemChanged ? { itembase_item_id: row.item_id } : {}),
         requested_qty: Number(row.qty),
         notes: row.notes?.trim() || null,
       })

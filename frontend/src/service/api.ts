@@ -358,6 +358,7 @@ export function addRequestItem(
 }
 
 export interface UpdateRequestItemPayload {
+  itembase_item_id?: string | number
   requested_qty?: number
   notes?: string | null
 }
@@ -411,6 +412,37 @@ export function getApprovals(
 
 export function getApprovalById(id: number | string): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/approvals/${id}`)
+}
+
+export interface ApprovalHistoryItem extends AnyRecord {
+  id: number | string
+  request_id: string
+  request_number: string
+  status: 'APPROVED' | 'REVERTED' | 'CANCELED'
+  requester_name?: string
+  department_name?: string
+  request_purpose_name?: string
+  submitted_at?: string
+  decided_at?: string | null
+  reverted_at?: string | null
+  request_status: string
+}
+
+export function getApprovalHistory(
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    target_department_id?: number | string
+    purpose_id?: number | string
+    return_type?: string
+    date_from?: string
+    date_to?: string
+    sort_order?: 'asc' | 'desc'
+  } = {},
+): Promise<PaginatedResponse<ApprovalHistoryItem[]>> {
+  return request('/api/approvals/history', { params })
 }
 
 export function approveApproval(
