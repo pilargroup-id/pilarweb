@@ -36,6 +36,20 @@
             <p class="text-error-600 text-theme-sm dark:text-error-500">{{ loadError }}</p>
           </div>
           <form v-else class="flex flex-col gap-5" @submit.prevent="submit">
+          <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">Purpose</span>
+              <span class="text-theme-sm text-gray-500 dark:text-gray-400">:</span>
+              <span class="text-theme-sm text-gray-600 dark:text-gray-300">{{ requestDetail?.request_purpose_name || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <span class="text-theme-sm font-medium text-gray-700 dark:text-gray-300">Reason</span>
+              <p class="whitespace-pre-line break-words text-theme-sm text-gray-600 dark:text-gray-300">
+                {{ requestDetail?.reason || '-' }}
+              </p>
+            </div>
+          </div>
+
           <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
               <thead class="bg-gray-50 dark:bg-white/[0.02]">
@@ -179,6 +193,7 @@ const isSubmitting = ref(false)
 const errorMessage = ref('')
 const note = ref('')
 const rows = ref([])
+const requestDetail = ref(null)
 
 function sanitizeApprovedQty(row) {
   let value = Math.trunc(Number(row.approved_qty) || 0)
@@ -208,6 +223,7 @@ watch(
       note.value = ''
       errorMessage.value = ''
       loadError.value = ''
+      requestDetail.value = null
     }
   }
 )
@@ -220,6 +236,7 @@ async function loadRequest(requestId) {
   try {
     const res = await getFinanceRequestById(requestId)
     const detail = res?.data
+    requestDetail.value = detail
     const itemsById = new Map((detail?.items || []).map((item) => [Number(item.id), item]))
     const financeItems = detail?.finance_review?.items || []
     rows.value = financeItems.map((fri) => {
@@ -238,6 +255,7 @@ async function loadRequest(requestId) {
     })
   } catch (err) {
     rows.value = []
+    requestDetail.value = null
     loadError.value = err?.message || 'Failed to load request detail.'
   } finally {
     isLoading.value = false

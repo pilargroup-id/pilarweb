@@ -59,7 +59,7 @@
           <button
             @click="isExportOpen = true"
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white shadow-theme-xs hover:bg-brand-600"
           >
             <DownloadIcon class="h-4 w-4" />
             Export
@@ -74,7 +74,7 @@
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Return Type</TableHeadCell>
-        <TableHeadCell>Reason</TableHeadCell>
+        <TableHeadCell>Reason Requestor</TableHeadCell>
         <TableHeadCell>Reviewed</TableHeadCell>
         <TableHeadCell>Reviewer</TableHeadCell>
         <TableHeadCell>Approved Qty</TableHeadCell>
