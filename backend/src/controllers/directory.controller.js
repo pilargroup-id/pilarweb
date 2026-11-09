@@ -17,4 +17,12 @@ async function departments(req, res, next) {
   }
 }
 
-module.exports = { jobLevels, departments };
+async function users(req, res, next) {
+  try {
+    return R.ok(res, await DirectoryService.getUsers(req.accessToken), 'Users loaded');
+  } catch (e) {
+    return next(e);
+  }
+}
+
+module.exports = { jobLevels, departments, users };

@@ -282,7 +282,9 @@ const rawMenuGroups = [
         subItems: [
           { name: "Request Purpose", path: "/data/RequestPurpose", pro: false },
           { name: "Approval Rules", path: "/data/ApprovalRules", pro: false },
-          { name: "WH Locations", path: "/data/WHLocations", pro: false }
+          { name: "WH Locations", path: "/data/WHLocations", pro: false },
+          { name: "Validation Override", path: "/data/ValidationOverride", pro: false },
+          { name: "Open Block Violations", path: "/data/OpenBlockViolations", pro: false }
         ],
       },
     ],

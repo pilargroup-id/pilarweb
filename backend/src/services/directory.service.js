@@ -68,7 +68,14 @@ async function getDepartments(token) {
   });
 }
 
+async function getUsers(token) {
+  return fetchListFromPilargroup('/api/internal/directory/users', token, {
+    'X-Internal-Secret': config.auth.internalSyncSecret,
+  });
+}
+
 module.exports = {
   getJobLevels,
   getDepartments,
+  getUsers,
 };

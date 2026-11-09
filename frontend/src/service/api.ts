@@ -218,6 +218,17 @@ export function getDepartments(): Promise<ApiResponse<DepartmentRecord[]>> {
   return request('/api/internal/directory/departments')
 }
 
+export interface DirectoryUserRecord extends AnyRecord {
+  id: string | number
+  name?: string
+  username?: string
+  email?: string
+}
+
+export function getDirectoryUsers(): Promise<ApiResponse<DirectoryUserRecord[]>> {
+  return request('/api/internal/directory/users')
+}
+
 export function getWarehouseLocations(
   options: { includeInactive?: boolean } = {},
 ): Promise<ApiResponse<WarehouseLocation[]>> {
@@ -244,6 +255,87 @@ export function updateWarehouseLocation(
   payload: WarehouseLocationPayload,
 ): Promise<ApiResponse<WarehouseLocation>> {
   return request(`/api/master/warehouse-locations/${id}`, { method: 'PUT', body: payload })
+}
+
+export interface ValidationOverrideUser extends AnyRecord {
+  id: number | string
+  user_id: string
+  name: string
+  is_active?: boolean | number
+}
+
+export function getValidationOverrideUsers(): Promise<ApiResponse<ValidationOverrideUser[]>> {
+  return request('/api/master/validation-override-users')
+}
+
+export interface ValidationOverrideUserPayload {
+  user_id: string
+  name: string
+  is_active?: boolean | number
+}
+
+export function createValidationOverrideUser(
+  payload: ValidationOverrideUserPayload,
+): Promise<ApiResponse<ValidationOverrideUser>> {
+  return request('/api/master/validation-override-users', { method: 'POST', body: payload })
+}
+
+export function updateValidationOverrideUser(
+  id: string | number,
+  payload: ValidationOverrideUserPayload,
+): Promise<ApiResponse<ValidationOverrideUser>> {
+  return request(`/api/master/validation-override-users/${id}`, { method: 'PUT', body: payload })
+}
+
+// ---------------------------------------------------------------------------
+// Validation violations / overrides ("Open Block Violations")
+// ---------------------------------------------------------------------------
+
+export interface ValidationViolation extends AnyRecord {
+  id: number | string
+  validation_code: string
+  rule_name?: string
+  block_scope?: 'NONE' | 'USER' | 'DEPARTMENT'
+  is_blocking?: boolean | number
+  allow_override?: boolean | number
+  status: 'ACTIVE' | 'OVERRIDDEN' | 'RESOLVED'
+  has_active_override?: boolean | number
+  user_id?: string | number | null
+  name?: string | null
+  department_id?: number | null
+  department_name?: string | null
+  request_id?: number | null
+  request_number?: string | null
+  return_id?: number | null
+  return_number?: string | null
+  detected_at?: string
+  resolved_at?: string | null
+  resolution_note?: string | null
+}
+
+export function getValidationViolations(
+  filters: { code?: string; department_id?: string | number; user_id?: string | number } = {},
+): Promise<ApiResponse<ValidationViolation[]>> {
+  return request('/api/validation-overrides/violations', { params: filters })
+}
+
+export interface ValidationOverridePayload {
+  violation_id: number | string
+  reason: string
+  valid_until?: string | null
+}
+
+export function createValidationOverride(
+  payload: ValidationOverridePayload,
+): Promise<ApiResponse<{ id: number | string; violation_id: number | string }>> {
+  return request('/api/validation-overrides', { method: 'POST', body: payload })
+}
+
+export function resolveValidationViolation(
+  id: string | number,
+  payload: { reason?: string } = {},
+): Promise<ApiResponse<{ id: number | string }>> {
+  return request(`/api/validation-overrides/violations/${id}/resolve`, { method: 'POST', body: payload })
 }
 
 export function getFinancialClosing(): Promise<ApiResponse<FinancialClosing>> {

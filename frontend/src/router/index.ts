@@ -159,6 +159,24 @@ const router = createRouter({
       },
     },
     {
+      path: '/data/ValidationOverride',
+      name: 'Validation Override',
+      component: () => import('../components/pages/master/ValidationOveride.vue'),
+      meta: {
+        title: 'Validation Override',
+        requiresIT: true,
+      },
+    },
+    {
+      path: '/data/OpenBlockViolations',
+      name: 'Open Block Violations',
+      component: () => import('../components/pages/master/OpenBlockViolations.vue'),
+      meta: {
+        title: 'Open Block Violations',
+        requiresIT: true,
+      },
+    },
+    {
       path: '/error-404',
       name: '404 Error',
       component: () => import('../views/Errors/FourZeroFour.vue'),

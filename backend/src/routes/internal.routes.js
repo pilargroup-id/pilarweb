@@ -7,5 +7,6 @@ const router = express.Router();
 router.use(authenticate, requireApp(config.app.slug));
 
 router.get('/directory/departments', DirectoryController.departments);
+router.get('/directory/users', DirectoryController.users);
 
 module.exports = router;
