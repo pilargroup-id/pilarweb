@@ -28,10 +28,10 @@ INSERT INTO module_access_rules (module_code,user_id,name,priority,is_active)
 SELECT 'ADMIN','834110d0-bd59-4bd1-81a9-03e9341fb6e4','Yulliemty',1,1
 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='ADMIN' AND user_id='834110d0-bd59-4bd1-81a9-03e9341fb6e4');
 
--- Warehouse discrepancy supervisor access, scoped by the user's warehouse department.
-INSERT INTO module_access_rules (module_code,user_id,name,department_id,priority,is_active)
-SELECT 'WAREHOUSE_DISCREPANCY_SUPERVISOR','b8d631ad-6921-45d0-9920-0ae02739b767','M.Rizky Fahrizal Lubis',5,1,1
+-- Warehouse discrepancy supervisor access: user-specific and valid across all Warehouse locations.
+INSERT INTO module_access_rules (module_code,user_id,name,priority,is_active)
+SELECT 'WAREHOUSE_DISCREPANCY_SUPERVISOR','b8d631ad-6921-45d0-9920-0ae02739b767','M.Rizky Fahrizal Lubis',1,1
 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='WAREHOUSE_DISCREPANCY_SUPERVISOR' AND user_id='b8d631ad-6921-45d0-9920-0ae02739b767');
-INSERT INTO module_access_rules (module_code,user_id,name,department_id,priority,is_active)
-SELECT 'WAREHOUSE_DISCREPANCY_SUPERVISOR','c6dba7cd-019c-4c66-a52a-398626b3357d','Nurna Bella AP.',6,1,1
+INSERT INTO module_access_rules (module_code,user_id,name,priority,is_active)
+SELECT 'WAREHOUSE_DISCREPANCY_SUPERVISOR','c6dba7cd-019c-4c66-a52a-398626b3357d','Nurna Bella AP.',1,1
 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='WAREHOUSE_DISCREPANCY_SUPERVISOR' AND user_id='c6dba7cd-019c-4c66-a52a-398626b3357d');

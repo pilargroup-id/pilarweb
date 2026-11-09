@@ -33,12 +33,8 @@ async function createResendBatch(connection,discrepancies,actor){
   const requestIds=[...new Set(rows.map(row=>String(row.request_id)))];
   if(requestIds.length!==1)throw createError('All RESEND discrepancies must belong to the same PB',422,'MIXED_REQUEST_DISCREPANCIES');
 
-  const warehouseDepartments=[...new Set(rows.map(row=>String(row.warehouse_department_id??'')))];
-  if(warehouseDepartments.length>1)throw createError('All RESEND items in one form must belong to the same Warehouse department',422,'MIXED_WAREHOUSE_DEPARTMENTS');
-
   const parentIds=[...new Set(rows.map(row=>Number(row.fulfillment_id)).filter(Boolean))];
   const parentFulfillmentId=parentIds.length===1?parentIds[0]:null;
-  const first=rows[0];
 
   const requestItemIds=[...new Set(rows.map(row=>Number(row.request_item_id)).filter(Boolean))];
   const placeholders=requestItemIds.map(()=>'?').join(',');
@@ -61,9 +57,9 @@ async function createResendBatch(connection,discrepancies,actor){
   const[result]=await connection.query(`
     INSERT INTO warehouse_fulfillments (
       request_id,parent_fulfillment_id,fulfillment_number,fulfillment_mode,fulfillment_type,status,
-      warehouse_department_id,warehouse_department_name,created_by_user_id,created_by_name
-    ) VALUES (?,?,?,'PHYSICAL','DISCREPANCY_RESEND','PICKING',?,?,?,?)
-  `,[requestIds[0],parentFulfillmentId,number,first.warehouse_department_id||null,first.warehouse_department_name||null,actor.user_id||null,actor.name||null]);
+      created_by_user_id,created_by_name
+    ) VALUES (?,?,?,'PHYSICAL','DISCREPANCY_RESEND','PICKING',?,?)
+  `,[requestIds[0],parentFulfillmentId,number,actor.user_id||null,actor.name||null]);
 
   for(const item of grouped.values()){
     await connection.query(`
@@ -86,13 +82,13 @@ async function lockFulfillment(c,id){const[rows]=await c.query(`SELECT wf.*,r.re
 async function printPicking(user,id){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'WAREHOUSE',c);const f=await lockFulfillment(c,id);if(f.fulfillment_mode!=='PHYSICAL'||f.status!=='PICKING')throw createError('Picking form is only available for physical fulfillment in PICKING status',409,'FULFILLMENT_NOT_PICKING');await c.query(`UPDATE warehouse_fulfillments SET picking_print_count=picking_print_count+1,last_picking_printed_by_user_id=?,last_picking_printed_by_name=?,last_picking_printed_at=NOW() WHERE id=?`,[user.id,user.name||null,f.id]);await ActivityService.log(c,{request_id:f.request_id,entity_type:'FULFILLMENT',entity_id:f.id,action_code:'PICKING_FORM_PRINTED',actor_user_id:user.id,actor_name:user.name});await c.commit();return showFulfillment(user,f.id);}catch(e){await c.rollback();throw e;}finally{c.release();}}
 
 async function applyProgress(c,user,f,payload,{requireComplete=false}={}){
-  const actor=UserUtil.snapshot(user);if(f.warehouse_department_id&&Number(f.warehouse_department_id)!==Number(actor.department_id)&&!(await AccessService.hasModuleAccess(user,'ADMIN',c)))throw createError('Fulfillment belongs to another Warehouse department',403,'WAREHOUSE_DEPARTMENT_MISMATCH');
+  const actor=UserUtil.snapshot(user);
   let warehouse=null;if(payload.source_warehouse_id!==undefined)warehouse=await resolveWarehouse(c,payload.source_warehouse_id);else if(f.source_warehouse_id){const[rows]=await c.query('SELECT * FROM warehouse_locations WHERE id=? LIMIT 1',[f.source_warehouse_id]);warehouse=rows[0]||null;}
   let iwt=f.inventory_transfer_number;if(payload.inventory_transfer_number!==undefined)iwt=payload.inventory_transfer_number?normalizeIwt(payload.inventory_transfer_number):null;
   const items=Array.isArray(payload.items)?payload.items:[];for(const input of items){const[idRows]=await c.query('SELECT * FROM warehouse_fulfillment_items WHERE id=? AND fulfillment_id=? LIMIT 1 FOR UPDATE',[Number(input.fulfillment_item_id),f.id]);const item=idRows[0];if(!item)throw createError('Fulfillment item not found',404,'FULFILLMENT_ITEM_NOT_FOUND');const qty=nonNegativeNumber(input.actual_qty,'actual_qty');if(qty>Number(item.finance_approved_qty_snapshot)+0.000001)throw createError(`actual_qty for ${item.item_code} cannot exceed Finance approved quantity`,422,'ACTUAL_QTY_EXCEEDS_APPROVED');await c.query('UPDATE warehouse_fulfillment_items SET actual_qty=?,note=? WHERE id=?',[qty,input.note!==undefined?optionalText(input.note,500):item.note,item.id]);}
   if(requireComplete){if(!warehouse)throw createError('source_warehouse_id is required before completion',422,'SOURCE_WAREHOUSE_REQUIRED');iwt=normalizeIwt(iwt);const[missing]=await c.query('SELECT id FROM warehouse_fulfillment_items WHERE fulfillment_id=? AND actual_qty IS NULL LIMIT 1',[f.id]);if(missing[0])throw createError('actual_qty is required for every fulfillment item',422,'ACTUAL_QTY_REQUIRED');const[sum]=await c.query('SELECT COALESCE(SUM(actual_qty),0) AS total FROM warehouse_fulfillment_items WHERE fulfillment_id=?',[f.id]);if(f.fulfillment_mode==='PHYSICAL'&&Number(sum[0]?.total||0)<=0)throw createError('At least one item must have actual_qty greater than 0',422,'ACTUAL_QTY_REQUIRED');}
   const iwtChanged=String(iwt||'')!==String(f.inventory_transfer_number||'');
-  await c.query(`UPDATE warehouse_fulfillments SET warehouse_department_id=COALESCE(warehouse_department_id,?),warehouse_department_name=COALESCE(warehouse_department_name,?),source_warehouse_id=?,source_warehouse_internal_id=?,source_warehouse_code=?,source_warehouse_name=?,inventory_transfer_number=?,inventory_transfer_recorded_at=CASE WHEN ?=1 THEN NOW() ELSE inventory_transfer_recorded_at END,progress_saved_by_user_id=?,progress_saved_by_name=?,progress_saved_at=NOW() WHERE id=?`,[actor.department_id,actor.department_name,warehouse?.id||null,warehouse?.internal_id||null,warehouse?.code||null,warehouse?.name||null,iwt,iwtChanged?1:0,actor.user_id,actor.name,f.id]);
+  await c.query(`UPDATE warehouse_fulfillments SET source_warehouse_id=?,source_warehouse_internal_id=?,source_warehouse_code=?,source_warehouse_name=?,inventory_transfer_number=?,inventory_transfer_recorded_at=CASE WHEN ?=1 THEN NOW() ELSE inventory_transfer_recorded_at END,progress_saved_by_user_id=?,progress_saved_by_name=?,progress_saved_at=NOW() WHERE id=?`,[warehouse?.id||null,warehouse?.internal_id||null,warehouse?.code||null,warehouse?.name||null,iwt,iwtChanged?1:0,actor.user_id,actor.name,f.id]);
 }
 
 async function saveProgress(user,id,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'WAREHOUSE',c);const f=await lockFulfillment(c,id);if(!['PICKING','ADMINISTRATIVE_PENDING'].includes(f.status))throw createError('Fulfillment progress can no longer be edited',409,'FULFILLMENT_NOT_EDITABLE');await applyProgress(c,user,f,payload,{requireComplete:false});await ActivityService.log(c,{request_id:f.request_id,entity_type:'FULFILLMENT',entity_id:f.id,action_code:'FULFILLMENT_PROGRESS_SAVED',actor_user_id:user.id,actor_name:user.name});await c.commit();return showFulfillment(user,f.id);}catch(e){await c.rollback();throw e;}finally{c.release();}}
