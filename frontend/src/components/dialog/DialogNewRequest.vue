@@ -417,6 +417,91 @@ function buildPayload() {
   }
 }
 
+const DRAFT_STORAGE_PREFIX = 'pilarweb:new-request-draft'
+
+function getDraftStorageKey() {
+  const userId = authState.user?.id ?? 'anon'
+  return `${DRAFT_STORAGE_PREFIX}:${userId}`
+}
+
+let skipDraftSaveOnClose = false
+
+function saveDraft() {
+  if (isEditMode.value) return
+  try {
+    const hasContent =
+      form.request_purpose_id ||
+      form.reason.trim() ||
+      items.value.some((row) => row.item_id || row.qty || row.notes?.trim())
+    if (!hasContent) {
+      clearDraft()
+      return
+    }
+    const draft = {
+      form: { ...form },
+      items: items.value.map(({ item_id, item_code, item_name, item_uom, qty, notes }) => ({
+        item_id,
+        item_code,
+        item_name,
+        item_uom,
+        qty,
+        notes,
+      })),
+    }
+    localStorage.setItem(getDraftStorageKey(), JSON.stringify(draft))
+  } catch {
+    // ignore storage errors (e.g. private browsing)
+  }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(getDraftStorageKey())
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(getDraftStorageKey())
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function applyDraft(draft) {
+  removedItemIds.value = []
+  originalItemsById = new Map()
+
+  form.request_purpose_id = draft.form?.request_purpose_id ?? ''
+  form.target_department_id = draft.form?.target_department_id || ownDepartmentId.value
+  form.reason = draft.form?.reason ?? ''
+  form.return_due_date = draft.form?.return_due_date ?? ''
+
+  const draftItems = Array.isArray(draft.items) && draft.items.length ? draft.items : null
+  items.value = draftItems
+    ? draftItems.map((it) => {
+        rowKeySeed += 1
+        return {
+          key: rowKeySeed,
+          recordId: null,
+          item_id: it.item_id ?? '',
+          item_code: it.item_code ?? '',
+          item_name: it.item_name ?? '',
+          item_uom: it.item_uom ?? '',
+          qty: it.qty ?? '',
+          notes: it.notes ?? '',
+        }
+      })
+    : [createEmptyRow()]
+
+  submitAttempted.value = false
+  validationErrors.value = []
+  submitNotice.value = null
+}
+
 function populateForm() {
   removedItemIds.value = []
   originalItemsById = new Map()
@@ -511,6 +596,11 @@ watch(
   () => props.isOpen,
   (open) => {
     if (!open) {
+      if (skipDraftSaveOnClose) {
+        skipDraftSaveOnClose = false
+      } else {
+        saveDraft()
+      }
       requestDetail.value = null
       loadError.value = ''
       return
@@ -519,7 +609,12 @@ watch(
       loadRequest()
     } else {
       requestDetail.value = null
-      populateForm()
+      const draft = loadDraft()
+      if (draft) {
+        applyDraft(draft)
+      } else {
+        populateForm()
+      }
     }
     loadMaster()
     loadDepartments()
@@ -584,6 +679,8 @@ async function handleSubmit() {
       emit('updated')
     } else {
       const res = await createRequest(buildPayload())
+      skipDraftSaveOnClose = true
+      clearDraft()
       emit('created', res?.data)
     }
     close()
