@@ -144,8 +144,12 @@ export function getMasterBootstrap(): Promise<ApiResponse<MasterBootstrap>> {
   return request('/api/master/bootstrap')
 }
 
-export function getRequestPurposes(): Promise<ApiResponse<RequestPurpose[]>> {
-  return request('/api/master/request-purposes')
+export function getRequestPurposes(
+  options: { includeInactive?: boolean } = {},
+): Promise<ApiResponse<RequestPurpose[]>> {
+  return request('/api/master/request-purposes', {
+    params: { include_inactive: options.includeInactive ? '1' : undefined },
+  })
 }
 
 export interface RequestPurposePayload {

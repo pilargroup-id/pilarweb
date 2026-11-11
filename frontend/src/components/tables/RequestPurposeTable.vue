@@ -157,7 +157,7 @@ async function fetchRequestPurposes() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await getRequestPurposes()
+    const res = await getRequestPurposes({ includeInactive: true })
     purposes.value = res?.data ?? []
     page.value = 1
   } catch (err) {

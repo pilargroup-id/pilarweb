@@ -1,6 +1,6 @@
 const R=require('../utils/response.util');
 const MasterService=require('../services/master.service');
-async function requestPurposes(req,res,next){try{return R.ok(res,await MasterService.getRequestPurposes(),'Request purposes loaded');}catch(e){return next(e);}}
+async function requestPurposes(req,res,next){try{return R.ok(res,await MasterService.getRequestPurposes({includeInactive:['1','true'].includes(String(req.query.include_inactive).toLowerCase())}),'Request purposes loaded');}catch(e){return next(e);}}
 async function approvalRules(req,res,next){try{return R.ok(res,await MasterService.getApprovalRules(req.query.department_id),'Approval rules loaded');}catch(e){return next(e);}}
 async function warehouseLocations(req,res,next){try{return R.ok(res,await MasterService.getWarehouseLocations({includeInactive:['1','true'].includes(String(req.query.include_inactive).toLowerCase())}),'Warehouse locations loaded');}catch(e){return next(e);}}
 async function financialClosing(req,res,next){try{return R.ok(res,await MasterService.getFinancialClosingSetting(),'Financial closing setting loaded');}catch(e){return next(e);}}
