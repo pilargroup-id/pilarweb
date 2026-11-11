@@ -156,6 +156,7 @@ export interface RequestPurposePayload {
   code: string
   name: string
   description?: string | null
+  return_type?: 'RETURNABLE' | 'NON_RETURNABLE'
   sort_order?: number
   is_active?: boolean | number
 }

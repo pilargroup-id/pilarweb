@@ -45,22 +45,23 @@
         <TableHeadCell>Code</TableHeadCell>
         <TableHeadCell>Name</TableHeadCell>
         <TableHeadCell>Description</TableHeadCell>
+        <TableHeadCell>Return Type</TableHeadCell>
         <TableHeadCell>Sort Order</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading request purposes...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!filteredPurposes.length">
-        <td colspan="6" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="7" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No request purposes found.</p>
         </td>
       </tr>
@@ -86,6 +87,11 @@
         </td>
         <td class="px-5 py-4 sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ purpose.description || '-' }}</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge :color="purpose.return_type === 'RETURNABLE' ? 'success' : 'light'" size="sm">
+            {{ purpose.return_type === 'RETURNABLE' ? 'Returnable' : 'Non-returnable' }}
+          </Badge>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ purpose.sort_order }}</p>

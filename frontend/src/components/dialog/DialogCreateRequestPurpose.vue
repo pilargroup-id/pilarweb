@@ -64,6 +64,14 @@
           </div>
 
           <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Return Type *</label>
+            <SelectField v-model="form.return_type" placeholder="Select return type">
+              <option value="NON_RETURNABLE">Non-returnable</option>
+              <option value="RETURNABLE">Returnable</option>
+            </SelectField>
+          </div>
+
+          <div>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Sort Order</label>
             <input
               v-model.number="form.sort_order"
@@ -106,9 +114,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import ToggleSwitch from '@/components/forms/FormElements/ToggleSwitch.vue'
+import SelectField from '@/components/forms/FormElements/SelectField.vue'
 import { createRequestPurpose, updateRequestPurpose } from '@/service/api'
 
 const props = defineProps({
@@ -128,6 +137,7 @@ const isEditMode = computed(() => !!props.purpose)
 
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const isPopulating = ref(false)
 
 function slugifyCode(value) {
   const base = (value || '')
@@ -144,6 +154,7 @@ const form = reactive({
   code: '',
   name: '',
   description: '',
+  return_type: 'NON_RETURNABLE',
   sort_order: 0,
   is_active: true,
 })
@@ -151,22 +162,29 @@ const form = reactive({
 watch(
   () => form.name,
   (name) => {
-    if (!isEditMode.value) form.code = slugifyCode(name)
+    if (isPopulating.value) return
+    form.code = slugifyCode(name)
   }
 )
 
 function populateForm(purpose) {
+  isPopulating.value = true
   form.code = purpose.code || ''
   form.name = purpose.name || ''
   form.description = purpose.description || ''
+  form.return_type = purpose.return_type === 'RETURNABLE' ? 'RETURNABLE' : 'NON_RETURNABLE'
   form.sort_order = Number.isFinite(Number(purpose.sort_order)) ? Number(purpose.sort_order) : 0
   form.is_active = purpose.is_active === undefined ? true : !!purpose.is_active
+  nextTick(() => {
+    isPopulating.value = false
+  })
 }
 
 function resetForm() {
   form.code = ''
   form.name = ''
   form.description = ''
+  form.return_type = 'NON_RETURNABLE'
   form.sort_order = 0
   form.is_active = true
   errorMessage.value = ''
@@ -195,6 +213,7 @@ async function submit() {
     code: form.code.trim() || `PURPOSE-${Date.now().toString(36).toUpperCase()}`,
     name: form.name.trim(),
     description: form.description.trim() || null,
+    return_type: form.return_type === 'RETURNABLE' ? 'RETURNABLE' : 'NON_RETURNABLE',
     sort_order: Number.isFinite(Number(form.sort_order)) ? Number(form.sort_order) : 0,
     is_active: form.is_active,
   }
