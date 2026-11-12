@@ -80,10 +80,10 @@ function canCreateRequestWithRule(user, rule) {
 }
 
 function canApproveWithSnapshot(user, approval) {
-  const department = UserUtil.primaryDepartment(user);
+  const departmentIds = UserUtil.departmentIds(user);
   const level = UserUtil.jobLevelValue(user);
-  if (!department || level === null) return false;
-  if (Number(department.id) !== Number(approval.department_id)) return false;
+  if (!departmentIds.length || level === null) return false;
+  if (!departmentIds.includes(Number(approval.department_id))) return false;
   const min = Number(approval.required_job_level_value);
   if (!Number.isFinite(min)) return false;
   return Number(approval.allow_higher_job_level) === 1 ? level >= min : level === min;
@@ -93,6 +93,8 @@ async function getCapabilities(user, connection = null) {
   const db = connection || requireDatabase();
   const department = UserUtil.primaryDepartment(user);
   const rule = department ? await findApprovalRuleForDepartment(department.id, db) : null;
+  const departmentIds = UserUtil.departmentIds(user);
+  const rules = (await Promise.all(departmentIds.map((id) => findApprovalRuleForDepartment(id, db)))).filter(Boolean);
   const [admin, finance, warehouse, override, supervisor] = await Promise.all([
     hasModuleAccess(user, 'ADMIN', db),
     hasModuleAccess(user, 'FINANCE', db),
@@ -100,14 +102,12 @@ async function getCapabilities(user, connection = null) {
     hasValidationOverrideAccess(user, db),
     hasModuleAccess(user, 'WAREHOUSE_DISCREPANCY_SUPERVISOR', db),
   ]);
-  let canApproveDepartment = false;
-  if (department && rule) {
-    const level = UserUtil.jobLevelValue(user);
-    const min = Number(rule.approver_min_job_level_value);
-    if (Number.isFinite(level) && Number.isFinite(min)) {
-      canApproveDepartment = Number(rule.allow_higher_job_level) === 1 ? level >= min : level === min;
-    }
-  }
+  const level = UserUtil.jobLevelValue(user);
+  const canApproveDepartment = rules.some((r) => {
+    const min = Number(r.approver_min_job_level_value);
+    if (!Number.isFinite(level) || !Number.isFinite(min)) return false;
+    return Number(r.allow_higher_job_level) === 1 ? level >= min : level === min;
+  });
   return {
     can_create_request: canCreateRequestWithRule(user, rule),
     can_approve_department: canApproveDepartment,
@@ -116,7 +116,7 @@ async function getCapabilities(user, connection = null) {
     warehouse_discrepancy_supervisor_access: supervisor,
     admin_access: admin,
     validation_override_access: override,
-    approval_rule_configured: Boolean(rule),
+    approval_rule_configured: rules.length > 0,
   };
 }
 

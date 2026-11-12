@@ -25,6 +25,19 @@ function primaryDepartment(user) {
   };
 }
 
+// Returns every department id the user belongs to (multi-department managers), not just the primary one.
+function departmentIds(user) {
+  const departments = Array.isArray(user?.departments) ? user.departments : [];
+  const ids = departments
+    .map((row) => Number(row?.department_id ?? row?.id))
+    .filter((id) => Number.isInteger(id));
+
+  if (ids.length) return [...new Set(ids)];
+
+  const primary = primaryDepartment(user);
+  return primary ? [primary.id] : [];
+}
+
 function primaryCompany(user) {
   if (user?.company_id) {
     return {
@@ -63,6 +76,7 @@ function snapshot(user) {
 module.exports = {
   jobLevelValue,
   primaryDepartment,
+  departmentIds,
   primaryCompany,
   snapshot,
 };
