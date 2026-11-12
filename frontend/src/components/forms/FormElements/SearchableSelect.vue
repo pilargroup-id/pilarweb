@@ -61,23 +61,34 @@
           v-for="option in filteredOptions"
           :key="option.id"
           @click="select(option)"
-          class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
-          :class="isSelected(option) ? 'bg-brand-50 dark:bg-brand-500/10' : ''"
+          class="flex cursor-pointer gap-2 px-4 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
+          :class="[
+            isSelected(option) ? 'bg-brand-50 dark:bg-brand-500/10' : '',
+            option.description ? 'items-start' : 'items-center',
+          ]"
         >
-          <span class="flex min-w-0 items-center gap-2">
-            <CheckIcon
-              class="h-3.5 w-3.5 shrink-0 text-brand-500"
-              :class="isSelected(option) ? 'opacity-100' : 'opacity-0'"
-            />
-            <span
-              class="truncate text-sm font-medium"
-              :class="isSelected(option) ? 'text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'"
-            >
-              {{ option.name }}
+          <CheckIcon
+            class="h-3.5 w-3.5 shrink-0 text-brand-500"
+            :class="[isSelected(option) ? 'opacity-100' : 'opacity-0', option.description ? 'mt-0.5' : '']"
+          />
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="flex min-w-0 items-center gap-2">
+              <span
+                class="truncate text-sm font-medium"
+                :class="isSelected(option) ? 'text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'"
+              >
+                {{ option.name }}
+              </span>
+              <Badge v-if="option.badge" size="sm" :color="option.badgeColor || 'light'">
+                {{ option.badge }}
+              </Badge>
             </span>
-            <Badge v-if="option.badge" size="sm" :color="option.badgeColor || 'light'">
-              {{ option.badge }}
-            </Badge>
+            <span
+              v-if="option.description"
+              class="whitespace-pre-line text-theme-xs leading-relaxed text-gray-500 dark:text-gray-400"
+            >
+              {{ option.description }}
+            </span>
           </span>
         </li>
         <li v-if="!options.length" class="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">

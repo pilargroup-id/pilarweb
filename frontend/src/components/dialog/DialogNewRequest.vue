@@ -307,6 +307,7 @@ const purposeOptions = computed(() =>
   purposes.value.map((purpose) => ({
     id: purpose.id,
     name: purpose.name,
+    description: purpose.description ? String(purpose.description).trim() : '',
     badge: purpose.return_type === 'RETURNABLE' ? 'Returnable' : 'Non-returnable',
     badgeColor: purpose.return_type === 'RETURNABLE' ? 'success' : 'light',
   }))

@@ -58,9 +58,12 @@
             <textarea
               v-model="form.description"
               rows="3"
-              placeholder="Optional description"
+              :placeholder="'Optional description\n- Breakdown point 1\n- Breakdown point 2'"
               class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             ></textarea>
+            <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+              Ditampilkan saat user memilih purpose ini di New Request. Awali baris dengan "-" atau "1." untuk breakdown poin.
+            </p>
           </div>
 
           <div>

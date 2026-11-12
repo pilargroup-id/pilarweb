@@ -454,7 +454,7 @@ function decidedAt(item) {
 const STATUS_BADGE_COLOR = {
   APPROVED: 'success',
   REVERTED: 'warning',
-  CANCELED: 'error',
+  CANCELED: 'error',  
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
