@@ -1,5 +1,20 @@
 USE pilarweb;
--- Department-based operational access
+
+-- SUPER USER departments.
+-- PilarGroup master_departments:
+--   8 = IT
+--   9 = Board Of Director
+-- SUPER_USER is an umbrella permission handled by backend AccessService.
+INSERT INTO module_access_rules (module_code,department_id,priority,is_active)
+SELECT 'SUPER_USER',8,1,1
+WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='SUPER_USER' AND department_id=8 AND user_id IS NULL);
+INSERT INTO module_access_rules (module_code,department_id,priority,is_active)
+SELECT 'SUPER_USER',9,1,1
+WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='SUPER_USER' AND department_id=9 AND user_id IS NULL);
+
+-- Department-based operational access.
+-- These direct rules remain for backward compatibility and explicit access
+-- visibility. SUPER_USER already grants the same modules to IT.
 INSERT INTO module_access_rules (module_code,department_id,priority,is_active)
 SELECT 'FINANCE',7,100,1 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='FINANCE' AND department_id=7 AND user_id IS NULL);
 INSERT INTO module_access_rules (module_code,department_id,priority,is_active)
@@ -11,7 +26,8 @@ SELECT 'FINANCE',8,100,1 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHE
 INSERT INTO module_access_rules (module_code,department_id,priority,is_active)
 SELECT 'WAREHOUSE',8,100,1 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='WAREHOUSE' AND department_id=8 AND user_id IS NULL);
 
--- ADMIN: user-specific bootstrap access.
+-- ADMIN: user-specific bootstrap access. These rows are retained; SUPER_USER
+-- already grants ADMIN to every active member of departments 8 and 9.
 INSERT INTO module_access_rules (module_code,user_id,name,priority,is_active)
 SELECT 'ADMIN','17808bc0-9d46-4103-a384-735562f71c12','Al Fatih Zainul Falah',1,1
 WHERE NOT EXISTS (SELECT 1 FROM module_access_rules WHERE module_code='ADMIN' AND user_id='17808bc0-9d46-4103-a384-735562f71c12');

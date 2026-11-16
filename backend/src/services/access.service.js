@@ -18,43 +18,86 @@ function matchesRule(user, rule) {
   const department = UserUtil.primaryDepartment(user);
   const company = UserUtil.primaryCompany(user);
   const level = UserUtil.jobLevelValue(user);
+
   if (rule.user_id && String(rule.user_id) !== String(user?.id || '')) return false;
+
   if (rule.department_id !== null && rule.department_id !== undefined) {
     if (!department || Number(rule.department_id) !== Number(department.id)) return false;
   }
+
   if (rule.company_id) {
     if (!company || String(rule.company_id) !== String(company.id)) return false;
   }
+
   if (rule.min_job_level_value !== null && rule.min_job_level_value !== undefined) {
     if (level === null || level < Number(rule.min_job_level_value)) return false;
   }
+
   if (rule.max_job_level_value !== null && rule.max_job_level_value !== undefined) {
     if (level === null || level > Number(rule.max_job_level_value)) return false;
   }
+
   return true;
 }
 
-async function hasModuleAccess(user, moduleCode, connection = null) {
+async function hasDirectModuleAccess(user, moduleCode, connection = null) {
   const rules = await findModuleRules(moduleCode, connection);
   return rules.some((rule) => matchesRule(user, rule));
 }
 
+async function isSuperUser(user, connection = null) {
+  if (!user) return false;
+  return hasDirectModuleAccess(user, 'SUPER_USER', connection);
+}
+
+async function hasModuleAccess(user, moduleCode, connection = null) {
+  const code = String(moduleCode).toUpperCase();
+
+  // SUPER_USER is the umbrella permission. Avoid recursive lookup when the
+  // requested module itself is SUPER_USER.
+  if (code === 'SUPER_USER') {
+    return hasDirectModuleAccess(user, code, connection);
+  }
+
+  if (await hasDirectModuleAccess(user, code, connection)) {
+    return true;
+  }
+
+  return isSuperUser(user, connection);
+}
+
 async function requireModuleAccess(user, moduleCode, connection = null) {
   if (!(await hasModuleAccess(user, moduleCode, connection))) {
-    throw createError(`User does not have ${String(moduleCode).toUpperCase()} access`, 403, 'MODULE_ACCESS_FORBIDDEN');
+    throw createError(
+      `User does not have ${String(moduleCode).toUpperCase()} access`,
+      403,
+      'MODULE_ACCESS_FORBIDDEN'
+    );
   }
 }
 
 async function hasValidationOverrideAccess(user, connection = null) {
   if (!user?.id) return false;
+
+  // SUPER_USER may perform Validation Override without needing a duplicate
+  // row in validation_override_users.
+  if (await isSuperUser(user, connection)) return true;
+
   const db = connection || requireDatabase();
-  const [rows] = await db.query('SELECT id FROM validation_override_users WHERE user_id=? AND is_active=1 LIMIT 1', [String(user.id)]);
+  const [rows] = await db.query(
+    'SELECT id FROM validation_override_users WHERE user_id=? AND is_active=1 LIMIT 1',
+    [String(user.id)]
+  );
   return Boolean(rows[0]);
 }
 
 async function requireValidationOverrideAccess(user, connection = null) {
   if (!(await hasValidationOverrideAccess(user, connection))) {
-    throw createError('User does not have Validation Override access', 403, 'VALIDATION_OVERRIDE_ACCESS_FORBIDDEN');
+    throw createError(
+      'User does not have Validation Override access',
+      403,
+      'VALIDATION_OVERRIDE_ACCESS_FORBIDDEN'
+    );
   }
 }
 
@@ -75,7 +118,8 @@ function canCreateRequestWithRule(user, rule) {
   const level = UserUtil.jobLevelValue(user);
   if (level === null) return false;
   const block = rule.requester_block_min_job_level_value !== null && rule.requester_block_min_job_level_value !== undefined
-    ? Number(rule.requester_block_min_job_level_value) : Number(rule.approver_min_job_level_value);
+    ? Number(rule.requester_block_min_job_level_value)
+    : Number(rule.approver_min_job_level_value);
   return Number.isFinite(block) && level < block;
 }
 
@@ -94,7 +138,11 @@ async function getCapabilities(user, connection = null) {
   const department = UserUtil.primaryDepartment(user);
   const rule = department ? await findApprovalRuleForDepartment(department.id, db) : null;
   const departmentIds = UserUtil.departmentIds(user);
-  const rules = (await Promise.all(departmentIds.map((id) => findApprovalRuleForDepartment(id, db)))).filter(Boolean);
+  const rules = (
+    await Promise.all(departmentIds.map((id) => findApprovalRuleForDepartment(id, db)))
+  ).filter(Boolean);
+
+  const superUser = await isSuperUser(user, db);
   const [admin, finance, warehouse, override, supervisor] = await Promise.all([
     hasModuleAccess(user, 'ADMIN', db),
     hasModuleAccess(user, 'FINANCE', db),
@@ -102,26 +150,37 @@ async function getCapabilities(user, connection = null) {
     hasValidationOverrideAccess(user, db),
     hasModuleAccess(user, 'WAREHOUSE_DISCREPANCY_SUPERVISOR', db),
   ]);
+
   const level = UserUtil.jobLevelValue(user);
-  const canApproveDepartment = rules.some((r) => {
+  const canApproveDepartment = superUser || rules.some((r) => {
     const min = Number(r.approver_min_job_level_value);
     if (!Number.isFinite(level) || !Number.isFinite(min)) return false;
     return Number(r.allow_higher_job_level) === 1 ? level >= min : level === min;
   });
+
   return {
     can_create_request: canCreateRequestWithRule(user, rule),
     can_approve_department: canApproveDepartment,
+    super_user_access: superUser,
     finance_access: finance,
     warehouse_access: warehouse,
     warehouse_discrepancy_supervisor_access: supervisor,
     admin_access: admin,
     validation_override_access: override,
-    approval_rule_configured: rules.length > 0,
+    approval_rule_configured: superUser || rules.length > 0,
   };
 }
 
 module.exports = {
-  findModuleRules, hasModuleAccess, requireModuleAccess,
-  hasValidationOverrideAccess, requireValidationOverrideAccess,
-  findApprovalRuleForDepartment, canCreateRequestWithRule, canApproveWithSnapshot, getCapabilities,
+  findModuleRules,
+  hasDirectModuleAccess,
+  isSuperUser,
+  hasModuleAccess,
+  requireModuleAccess,
+  hasValidationOverrideAccess,
+  requireValidationOverrideAccess,
+  findApprovalRuleForDepartment,
+  canCreateRequestWithRule,
+  canApproveWithSnapshot,
+  getCapabilities,
 };
