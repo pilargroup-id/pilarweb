@@ -152,7 +152,9 @@ async function getCapabilities(user, connection = null) {
   ]);
 
   const level = UserUtil.jobLevelValue(user);
-  const canApproveDepartment = superUser || rules.some((r) => {
+  // SUPER_USER only expands module access. Approval eligibility must remain
+  // governed by department approval rules and the user's real job level.
+  const canApproveDepartment = rules.some((r) => {
     const min = Number(r.approver_min_job_level_value);
     if (!Number.isFinite(level) || !Number.isFinite(min)) return false;
     return Number(r.allow_higher_job_level) === 1 ? level >= min : level === min;
@@ -167,7 +169,7 @@ async function getCapabilities(user, connection = null) {
     warehouse_discrepancy_supervisor_access: supervisor,
     admin_access: admin,
     validation_override_access: override,
-    approval_rule_configured: superUser || rules.length > 0,
+    approval_rule_configured: rules.length > 0,
   };
 }
 

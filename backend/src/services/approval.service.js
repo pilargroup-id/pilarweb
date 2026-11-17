@@ -8,20 +8,18 @@ const { createError, optionalText, parsePositiveInt, normalizeDate } = require('
 
 async function listQueue(user,query={}){
   const db=requireDatabase();
-  const superUser=await AccessService.isSuperUser(user,db);
   const page=parsePositiveInt(query.page,1,100000);
   const limit=parsePositiveInt(query.limit,20,100);
   const offset=(page-1)*limit;
   const params=[];
   let where=`WHERE ra.status='PENDING' AND r.status='PENDING_DEPARTMENT_APPROVAL' AND r.request_origin='NORMAL'`;
 
-  if(!superUser){
-    const departmentIds=UserUtil.departmentIds(user);
-    const level=UserUtil.jobLevelValue(user);
-    if(!departmentIds.length||level===null)return{data:[],meta:{page,limit,total:0,totalPages:1}};
-    where+=` AND ra.department_id IN (?) AND ((ra.allow_higher_job_level=1 AND ?>=ra.required_job_level_value) OR (ra.allow_higher_job_level=0 AND ?=ra.required_job_level_value))`;
-    params.push(departmentIds,level,level);
-  }
+  // SUPER_USER does not bypass Manager Approval eligibility.
+  const departmentIds=UserUtil.departmentIds(user);
+  const level=UserUtil.jobLevelValue(user);
+  if(!departmentIds.length||level===null)return{data:[],meta:{page,limit,total:0,totalPages:1}};
+  where+=` AND ra.department_id IN (?) AND ((ra.allow_higher_job_level=1 AND ?>=ra.required_job_level_value) OR (ra.allow_higher_job_level=0 AND ?=ra.required_job_level_value))`;
+  params.push(departmentIds,level,level);
 
   if(query.search){
     const term=`%${String(query.search).trim()}%`;
@@ -35,25 +33,21 @@ async function listQueue(user,query={}){
   return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
 }
 
-// Normal approvers only see their own department/job-level scope. SUPER_USER
-// sees approval history across departments without changing the underlying
-// approval snapshot or allowing self-approval.
+// Approval history follows the same department/job-level scope as the queue.
+// SUPER_USER is intentionally not a workflow-role override.
 async function listHistory(user,query={}){
   const db=requireDatabase();
-  const superUser=await AccessService.isSuperUser(user,db);
   const page=parsePositiveInt(query.page,1,100000);
   const limit=parsePositiveInt(query.limit,20,100);
   const offset=(page-1)*limit;
   const params=[];
   let where=`WHERE ra.status IN ('APPROVED','REVERTED','CANCELED') AND r.request_origin='NORMAL'`;
 
-  if(!superUser){
-    const departmentIds=UserUtil.departmentIds(user);
-    const level=UserUtil.jobLevelValue(user);
-    if(!departmentIds.length||level===null)return{data:[],meta:{page,limit,total:0,totalPages:1}};
-    where+=` AND ra.department_id IN (?) AND ((ra.allow_higher_job_level=1 AND ?>=ra.required_job_level_value) OR (ra.allow_higher_job_level=0 AND ?=ra.required_job_level_value))`;
-    params.push(departmentIds,level,level);
-  }
+  const departmentIds=UserUtil.departmentIds(user);
+  const level=UserUtil.jobLevelValue(user);
+  if(!departmentIds.length||level===null)return{data:[],meta:{page,limit,total:0,totalPages:1}};
+  where+=` AND ra.department_id IN (?) AND ((ra.allow_higher_job_level=1 AND ?>=ra.required_job_level_value) OR (ra.allow_higher_job_level=0 AND ?=ra.required_job_level_value))`;
+  params.push(departmentIds,level,level);
 
   const status=String(query.status||'').toUpperCase();
   if(['APPROVED','REVERTED','CANCELED'].includes(status)){where+=' AND ra.status=?';params.push(status);}
@@ -72,7 +66,7 @@ async function listHistory(user,query={}){
 }
 
 async function getById(user,id){const db=requireDatabase();const[rows]=await db.query(`SELECT ra.*,r.requester_user_id,r.status AS request_status FROM request_approvals ra INNER JOIN requests r ON r.id=ra.request_id WHERE ra.id=? LIMIT 1`,[Number(id)]);const a=rows[0];if(!a)throw createError('Approval not found',404,'APPROVAL_NOT_FOUND');if(!AccessService.canApproveWithSnapshot(user,a)&&!(await AccessService.hasModuleAccess(user,'ADMIN')))throw createError('Approval is not accessible',403,'APPROVAL_ACCESS_FORBIDDEN');return RequestService.getById(a.request_id,user);}
-async function lockPending(c,user,id){const[rows]=await c.query(`SELECT ra.*,r.status AS request_status,r.requester_user_id,r.request_origin,r.purpose_return_type FROM request_approvals ra INNER JOIN requests r ON r.id=ra.request_id WHERE ra.id=? LIMIT 1 FOR UPDATE`,[Number(id)]);const a=rows[0];if(!a)throw createError('Approval not found',404,'APPROVAL_NOT_FOUND');if(a.request_origin!=='NORMAL'||a.status!=='PENDING'||a.request_status!=='PENDING_DEPARTMENT_APPROVAL')throw createError('Manager approval is no longer pending',409,'APPROVAL_NOT_PENDING');if(String(a.requester_user_id)===String(user.id))throw createError('Requester cannot approve their own request',403,'SELF_APPROVAL_FORBIDDEN');if(!AccessService.canApproveWithSnapshot(user,a)&&!(await AccessService.isSuperUser(user,c)))throw createError('User does not meet this approval rule',403,'APPROVAL_ACCESS_FORBIDDEN');return a;}
+async function lockPending(c,user,id){const[rows]=await c.query(`SELECT ra.*,r.status AS request_status,r.requester_user_id,r.request_origin,r.purpose_return_type FROM request_approvals ra INNER JOIN requests r ON r.id=ra.request_id WHERE ra.id=? LIMIT 1 FOR UPDATE`,[Number(id)]);const a=rows[0];if(!a)throw createError('Approval not found',404,'APPROVAL_NOT_FOUND');if(a.request_origin!=='NORMAL'||a.status!=='PENDING'||a.request_status!=='PENDING_DEPARTMENT_APPROVAL')throw createError('Manager approval is no longer pending',409,'APPROVAL_NOT_PENDING');if(String(a.requester_user_id)===String(user.id))throw createError('Requester cannot approve their own request',403,'SELF_APPROVAL_FORBIDDEN');if(!AccessService.canApproveWithSnapshot(user,a))throw createError('User does not meet this approval rule',403,'APPROVAL_ACCESS_FORBIDDEN');return a;}
 
 async function approve(user,id,payload={}){
   const db=requireDatabase();const c=await db.getConnection();
