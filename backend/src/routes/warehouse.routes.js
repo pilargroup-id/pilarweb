@@ -9,6 +9,7 @@ router.get('/fulfillments/:fulfillmentId',WarehouseController.showFulfillment);
 router.post('/fulfillments/:fulfillmentId/print-picking',WarehouseController.printPicking);
 router.put('/fulfillments/:fulfillmentId/progress',WarehouseController.saveProgress);
 router.post('/fulfillments/:fulfillmentId/complete',WarehouseController.complete);
+router.post('/fulfillments/:fulfillmentId/unable-to-fulfill',WarehouseController.unableToFulfill);
 router.post('/fulfillments/:fulfillmentId/print-do',WarehouseController.printDo);
 router.get('/discrepancy-forms',WarehouseController.discrepancyForms);
 router.get('/discrepancy-forms/:requestId',WarehouseController.showDiscrepancyForm);

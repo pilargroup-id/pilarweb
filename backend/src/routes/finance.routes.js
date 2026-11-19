@@ -9,4 +9,5 @@ router.get('/requests/history',FinanceController.history);
 router.get('/reports/requests/export',FinanceController.exportRequests);
 router.get('/requests/:requestId',FinanceController.show);
 router.post('/requests/:requestId/review',FinanceController.review);
+router.post('/requests/:requestId/reject',FinanceController.rejectRequest);
 module.exports=router;

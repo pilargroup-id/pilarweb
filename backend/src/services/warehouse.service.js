@@ -108,9 +108,36 @@ async function complete(user,id,payload={}){const db=requireDatabase();const c=a
     await c.commit();return showFulfillment(user,f.id);
   }catch(e){await c.rollback();throw e;}finally{c.release();}}
 
+async function unableToFulfill(user,id,payload={}){
+  const reason=optionalText(payload.reason??payload.note,5000);
+  if(!reason)throw createError('Unable to fulfill reason is required',422,'UNABLE_TO_FULFILL_REASON_REQUIRED');
+  const db=requireDatabase();const c=await db.getConnection();
+  try{
+    await c.beginTransaction();
+    await AccessService.requireModuleAccess(user,'WAREHOUSE',c);
+    const f=await lockFulfillment(c,id);
+    if(f.fulfillment_mode!=='PHYSICAL'||f.fulfillment_type!=='NORMAL'||f.status!=='PICKING')throw createError('Only NORMAL physical fulfillment in PICKING status can be marked unable to fulfill',409,'FULFILLMENT_NOT_UNABLE_TO_FULFILL');
+    const[financeRows]=await c.query('SELECT * FROM finance_reviews WHERE request_id=? LIMIT 1 FOR UPDATE',[f.request_id]);
+    const finance=financeRows[0];
+    if(!finance)throw createError('Finance review not found',404,'FINANCE_REVIEW_NOT_FOUND');
+    if(finance.status!=='APPROVED')throw createError('Only a Finance-approved fulfillment can be returned to Finance',409,'FINANCE_REVIEW_NOT_APPROVED');
+    const[qtyRows]=await c.query('SELECT COALESCE(SUM(actual_qty),0) AS total_actual_qty FROM warehouse_fulfillment_items WHERE fulfillment_id=?',[f.id]);
+    const previousActualQty=Number(qtyRows[0]?.total_actual_qty||0);
+    const actor=UserUtil.snapshot(user);
+    await c.query(`UPDATE warehouse_fulfillments SET status='UNABLE_TO_FULFILL',unable_reason=?,unable_by_user_id=?,unable_by_name=?,unable_at=NOW() WHERE id=?`,[reason,actor.user_id,actor.name,f.id]);
+    await c.query('UPDATE warehouse_fulfillment_items SET actual_qty=NULL WHERE fulfillment_id=?',[f.id]);
+    await c.query("UPDATE finance_reviews SET status='PENDING',reviewer_user_id=NULL,reviewer_internal_id=NULL,reviewer_name=NULL,note=NULL,reviewed_at=NULL WHERE id=?",[finance.id]);
+    await c.query("UPDATE finance_review_items SET decision='PENDING',approved_qty=0,rejected_qty=0,note=NULL WHERE finance_review_id=?",[finance.id]);
+    await c.query("UPDATE requests SET status='PENDING_FINANCE_REVIEW',completed_at=NULL WHERE id=?",[f.request_id]);
+    await ActivityService.log(c,{request_id:f.request_id,entity_type:'FULFILLMENT',entity_id:f.id,action_code:'WAREHOUSE_UNABLE_TO_FULFILL',actor_user_id:actor.user_id,actor_name:actor.name,before:{fulfillment_status:f.status,request_status:f.request_status,finance_status:finance.status,total_actual_qty:previousActualQty},after:{fulfillment_status:'UNABLE_TO_FULFILL',request_status:'PENDING_FINANCE_REVIEW',finance_status:'PENDING',reason,finance_review_id:finance.id}});
+    await c.commit();
+    return showFulfillment(user,f.id);
+  }catch(e){await c.rollback();throw e;}finally{c.release();}
+}
+
 async function printDo(user,id,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'WAREHOUSE',c);const f=await lockFulfillment(c,id);if(f.fulfillment_mode!=='PHYSICAL'||f.status!=='READY_FOR_DISPATCH')throw createError('DO can only be printed for physical fulfillment that is READY_FOR_DISPATCH',409,'FULFILLMENT_NOT_READY_FOR_DISPATCH');const actor=UserUtil.snapshot(user);await c.query(`UPDATE warehouse_fulfillments SET status='DISPATCHED',do_print_count=do_print_count+1,last_do_printed_by_user_id=?,last_do_printed_by_name=?,last_do_printed_at=NOW(),dispatched_at=NOW() WHERE id=?`,[actor.user_id,actor.name,f.id]);const[receiptResult]=await c.query(`INSERT INTO delivery_receipts (request_id,fulfillment_id,status,confirmation_deadline_at) VALUES (?,?,'PENDING',DATE_ADD(NOW(),INTERVAL ? DAY))`,[f.request_id,f.id,Number(f.receipt_confirmation_days_snapshot||2)]);const[items]=await c.query('SELECT * FROM warehouse_fulfillment_items WHERE fulfillment_id=? ORDER BY id',[f.id]);for(const item of items){await c.query(`INSERT INTO delivery_receipt_items (delivery_receipt_id,fulfillment_item_id,request_item_id,dispatched_qty) VALUES (?,?,?,?)`,[receiptResult.insertId,item.id,item.request_item_id,Number(item.actual_qty||0)]);}
     if(f.fulfillment_type==='NORMAL')await c.query("UPDATE requests SET status='DISPATCHED' WHERE id=?",[f.request_id]);else await c.query("UPDATE requests SET status='PARTIALLY_RECEIVED' WHERE id=?",[f.request_id]);
     await ActivityService.log(c,{request_id:f.request_id,entity_type:'FULFILLMENT',entity_id:f.id,action_code:'DO_PRINTED_DISPATCHED',actor_user_id:actor.user_id,actor_name:actor.name,after:{status:'DISPATCHED',delivery_receipt_id:receiptResult.insertId,confirmation_method:'PENDING',note:optionalText(payload.note,500)}});await c.commit();return showFulfillment(user,f.id);
   }catch(e){await c.rollback();throw e;}finally{c.release();}}
 
-module.exports={createFromFinance,createResendBatch,listFulfillments,showFulfillment,printPicking,saveProgress,complete,printDo,lockFulfillment};
+module.exports={createFromFinance,createResendBatch,listFulfillments,showFulfillment,printPicking,saveProgress,complete,unableToFulfill,printDo,lockFulfillment};
