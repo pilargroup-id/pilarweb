@@ -94,15 +94,27 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <button
-            @click="openPickingDialog(item)"
-            type="button"
-            :title="processLabel(item.status)"
-            :class="processButtonClass(item.status)"
-          >
-            <PencilIcon class="h-4 w-4" />
-            {{ processLabel(item.status) }}
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="openPickingDialog(item)"
+              type="button"
+              :title="processLabel(item.status)"
+              :class="processButtonClass(item.status)"
+            >
+              <PencilIcon class="h-4 w-4" />
+              {{ processLabel(item.status) }}
+            </button>
+            <button
+              v-if="canMarkUnable(item)"
+              @click="openUnableDialog(item)"
+              type="button"
+              title="Unable to Fulfill"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-800 dark:bg-gray-800 dark:text-error-500 dark:hover:bg-white/[0.03]"
+            >
+              <CloseIcon class="h-4 w-4" />
+              Unable to Fulfill
+            </button>
+          </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -165,6 +177,13 @@
       :queue-item="requestToProcess"
       @close="closePickingDialog"
       @changed="emit('changed')"
+    />
+
+    <DialogFulfillmentUnable
+      :is-open="isUnableDialogOpen"
+      :fulfillment="fulfillmentToMarkUnable"
+      @close="closeUnableDialog"
+      @done="emit('changed')"
     />
 
     <Teleport to="body">
@@ -287,6 +306,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogFulfillmentPicking from '@/components/dialog/DialogFulfillmentPicking.vue'
+import DialogFulfillmentUnable from '@/components/dialog/DialogFulfillmentUnable.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
 import { RefreshIcon, PencilIcon, FilterIcon, CloseIcon } from '@/icons'
@@ -302,6 +322,9 @@ const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const isPickingDialogOpen = ref(false)
 const requestToProcess = ref(null)
+
+const isUnableDialogOpen = ref(false)
+const fulfillmentToMarkUnable = ref(null)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
@@ -424,6 +447,20 @@ function openPickingDialog(item) {
 function closePickingDialog() {
   isPickingDialogOpen.value = false
   requestToProcess.value = null
+}
+
+// Docs: Unable to Fulfill only applies to PHYSICAL + NORMAL fulfillments in PICKING.
+const canMarkUnable = (item) =>
+  item?.status === 'PICKING' && item?.fulfillment_mode === 'PHYSICAL' && item?.fulfillment_type === 'NORMAL'
+
+function openUnableDialog(item) {
+  fulfillmentToMarkUnable.value = item
+  isUnableDialogOpen.value = true
+}
+
+function closeUnableDialog() {
+  isUnableDialogOpen.value = false
+  fulfillmentToMarkUnable.value = null
 }
 
 // Section 23: one dialog drives the whole fulfillment lifecycle, so the row

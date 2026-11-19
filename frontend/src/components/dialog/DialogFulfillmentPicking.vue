@@ -201,7 +201,60 @@
             <p v-if="errorMessage" class="text-sm text-error-600 dark:text-error-500">{{ errorMessage }}</p>
             <p v-if="infoMessage" class="text-sm text-success-600 dark:text-success-500">{{ infoMessage }}</p>
 
-            <div v-if="isEditable" class="flex items-center justify-end gap-3 pt-2">
+            <div
+              v-if="isUnableFormOpen"
+              class="flex flex-col gap-4 rounded-xl border border-error-300 bg-error-50 px-4 py-4 dark:border-error-500/30 dark:bg-error-500/10"
+            >
+              <div>
+                <p class="text-theme-sm font-semibold text-error-700 dark:text-error-500">Unable to Fulfill</p>
+                <p class="mt-1 text-theme-xs text-gray-600 dark:text-gray-400">
+                  PB <span class="font-medium text-gray-800 dark:text-white/90">{{ queueItem?.request_number }}</span>
+                  &middot; Fulfillment <span class="font-medium text-gray-800 dark:text-white/90">{{ fulfillment?.fulfillment_number }}</span>
+                  akan ditandai tidak dapat dipenuhi dan PB dikembalikan ke Finance Review.
+                </p>
+              </div>
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Reason <span class="text-error-500">*</span>
+                </label>
+                <textarea
+                  v-model="unableReason"
+                  rows="3"
+                  placeholder="Jelaskan alasan fulfillment ini tidak dapat dipenuhi"
+                  class="dark:bg-dark-900 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                ></textarea>
+              </div>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  @click="closeUnableForm"
+                  type="button"
+                  :disabled="isMarkingUnable"
+                  class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+                >
+                  Cancel
+                </button>
+                <button
+                  @click="handleUnableToFulfill"
+                  type="button"
+                  :disabled="isMarkingUnable || !unableReason.trim()"
+                  class="inline-flex items-center justify-center rounded-lg bg-error-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-error-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {{ isMarkingUnable ? 'Processing...' : 'Confirm Unable to Fulfill' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else-if="isEditable" class="flex flex-wrap items-center justify-end gap-3 pt-2">
+              <button
+                v-if="canMarkUnable"
+                @click="openUnableForm"
+                type="button"
+                :disabled="isSaving || isCompleting"
+                class="mr-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2.5 text-sm font-medium text-error-600 hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-800 dark:bg-gray-800 dark:text-error-500 dark:hover:bg-white/[0.03]"
+              >
+                <CloseIcon class="h-4 w-4" />
+                Unable to Fulfill
+              </button>
               <button
                 @click="handleSaveProgress"
                 type="button"
@@ -277,9 +330,10 @@ import Badge from '@/components/ui/Badge.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import FFPrintPicking from '@/components/layout/print/FFPrintPicking.vue'
 import FFPrintFulfillmentDo from '@/components/layout/print/FFPrintFulfillmentDo.vue'
-import { PrinterIcon, SaveIcon, CheckIcon } from '@/icons'
+import { PrinterIcon, SaveIcon, CheckIcon, CloseIcon } from '@/icons'
 import {
   getWarehouseFulfillmentDetail,
+  markFulfillmentUnableToFulfill,
   getWarehouseLocations,
   printPickingForm,
   saveFulfillmentProgress,
@@ -317,6 +371,9 @@ const iwtNumber = ref('')
 const iwtRecordedAt = ref(null)
 const warehouseLocations = ref([])
 const sourceWarehouseId = ref('')
+const isUnableFormOpen = ref(false)
+const unableReason = ref('')
+const isMarkingUnable = ref(false)
 let hasChanges = false
 
 const isPicking = computed(() => fulfillment.value?.status === 'PICKING')
@@ -326,6 +383,13 @@ const isAdministrativePending = computed(() => fulfillment.value?.status === 'AD
 const isEditable = computed(() => isPicking.value || isAdministrativePending.value)
 const hasPrintedPicking = computed(() => !!fulfillment.value?.last_picking_printed_at)
 const pickingLocked = computed(() => isPicking.value && !hasPrintedPicking.value)
+// Docs: Unable to Fulfill only applies to PHYSICAL + NORMAL fulfillments in PICKING.
+const canMarkUnable = computed(
+  () =>
+    isPicking.value &&
+    fulfillment.value?.fulfillment_mode === 'PHYSICAL' &&
+    fulfillment.value?.fulfillment_type === 'NORMAL'
+)
 
 const warehouseOptions = computed(() =>
   warehouseLocations.value.map((opt) => ({
@@ -382,6 +446,8 @@ function reset() {
   iwtNumber.value = ''
   iwtRecordedAt.value = null
   sourceWarehouseId.value = ''
+  isUnableFormOpen.value = false
+  unableReason.value = ''
   hasChanges = false
 }
 
@@ -442,8 +508,38 @@ async function loadDetail(fulfillmentId) {
 }
 
 function close() {
-  if (isSaving.value || isCompleting.value) return
+  if (isSaving.value || isCompleting.value || isMarkingUnable.value) return
   emit('close')
+}
+
+function openUnableForm() {
+  unableReason.value = ''
+  errorMessage.value = ''
+  infoMessage.value = ''
+  isUnableFormOpen.value = true
+}
+
+function closeUnableForm() {
+  if (isMarkingUnable.value) return
+  isUnableFormOpen.value = false
+  unableReason.value = ''
+}
+
+async function handleUnableToFulfill() {
+  if (!fulfillment.value || !unableReason.value.trim()) return
+  errorMessage.value = ''
+  infoMessage.value = ''
+  isMarkingUnable.value = true
+  try {
+    await markFulfillmentUnableToFulfill(fulfillment.value.id, { reason: unableReason.value.trim() })
+    hasChanges = true
+    isMarkingUnable.value = false
+    close()
+  } catch (err) {
+    errorMessage.value = err?.message || 'Gagal menandai fulfillment sebagai Unable to Fulfill.'
+  } finally {
+    isMarkingUnable.value = false
+  }
 }
 
 function buildItemsPayload() {
@@ -600,6 +696,7 @@ const STATUS_BADGE_COLOR = {
   READY_FOR_DISPATCH: 'warning',
   DISPATCHED: 'success',
   COMPLETED: 'success',
+  UNABLE_TO_FULFILL: 'error',
 }
 
 const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'

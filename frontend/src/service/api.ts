@@ -641,6 +641,13 @@ export function submitFinanceReview(
   return request(`/api/finance/requests/${requestId}/review`, { method: 'POST', body: payload })
 }
 
+export function rejectFinanceRequest(
+  requestId: string,
+  payload: { reason: string },
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/finance/requests/${requestId}/reject`, { method: 'POST', body: payload })
+}
+
 export interface FinanceReportExportParams extends AnyRecord {
   date_from?: string
   date_to?: string
@@ -696,7 +703,7 @@ export async function exportFinanceRequestsReport(
 export interface WarehouseFulfillmentListItem extends AnyRecord {
   id: number | string
   fulfillment_number: string
-  status: 'PICKING' | 'ADMINISTRATIVE_PENDING' | 'READY_FOR_DISPATCH' | 'DISPATCHED' | 'COMPLETED'
+  status: 'PICKING' | 'ADMINISTRATIVE_PENDING' | 'READY_FOR_DISPATCH' | 'DISPATCHED' | 'COMPLETED' | 'UNABLE_TO_FULFILL'
   request_id: string
   request_number: string
   request_status?: string
@@ -762,6 +769,13 @@ export function completeFulfillmentPicking(
   payload: FulfillmentProgressPayload,
 ): Promise<ApiResponse<AnyRecord>> {
   return request(`/api/warehouse/fulfillments/${fulfillmentId}/complete`, { method: 'POST', body: payload })
+}
+
+export function markFulfillmentUnableToFulfill(
+  fulfillmentId: string | number,
+  payload: { reason: string },
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/warehouse/fulfillments/${fulfillmentId}/unable-to-fulfill`, { method: 'POST', body: payload })
 }
 
 export function printFulfillmentDeliveryOrder(

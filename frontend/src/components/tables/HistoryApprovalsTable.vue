@@ -461,7 +461,7 @@ const statusColor = (status) => STATUS_BADGE_COLOR[status] || 'light'
 
 const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
 
-const formatReturnType = (returnType) => (returnType === 'RETURNABLE' ? 'Returnable' : 'Non-returnable')
+const formatReturnType = (returnType) => (returnType === 'RETURNABLE' ? 'Returnable' : 'Non-returnable')  
 
 const formatStatusLabel = (status) => {
   if (!status) return '-'

@@ -72,17 +72,17 @@
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading finance queue...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!queue.length">
-        <td colspan="10" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="11" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests pending Finance review.</p>
         </td>
       </tr>
@@ -93,14 +93,27 @@
         class="border-t border-gray-100 dark:border-gray-800"
       >
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
-          <button
-            @click="openReview(item)"
-            type="button"
-            class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
-          >
-            <FileCheckIcon class="h-4 w-4" />
-            Review
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="openReview(item)"
+              type="button"
+              title="Review"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-2 text-theme-sm font-medium text-brand-500 shadow-theme-xs hover:bg-brand-50 dark:border-brand-800 dark:bg-gray-800 dark:hover:bg-white/[0.03]"
+            >
+              <FileCheckIcon class="h-4 w-4" />
+              Review
+            </button>
+            <button
+              v-if="item.request_status === 'PENDING_FINANCE_REVIEW'"
+              @click="openReject(item)"
+              type="button"
+              title="Reject PB"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-error-300 bg-white px-3 py-2 text-theme-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-800 dark:bg-gray-800 dark:text-error-500 dark:hover:bg-white/[0.03]"
+            >
+              <CloseIcon class="h-4 w-4" />
+              Reject
+            </button>
+          </div>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -162,6 +175,13 @@
       :queue-item="selectedItem"
       @close="isReviewOpen = false"
       @reviewed="handleReviewed"
+    />
+
+    <DialogFinanceReject
+      :is-open="isRejectOpen"
+      :queue-item="selectedRejectItem"
+      @close="isRejectOpen = false"
+      @rejected="handleReviewed"
     />
 
     <Teleport to="body">
@@ -284,6 +304,7 @@ import BaseTable from '@/components/tables/BaseTable.vue'
 import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogFinanceReview from '@/components/dialog/DialogFinanceReview.vue'
+import DialogFinanceReject from '@/components/dialog/DialogFinanceReject.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
 import { RefreshIcon, FileCheckIcon, FilterIcon, CloseIcon } from '@/icons'
@@ -297,6 +318,9 @@ const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 
 const isReviewOpen = ref(false)
 const selectedItem = ref(null)
+
+const isRejectOpen = ref(false)
+const selectedRejectItem = ref(null)
 
 const isFilterOpen = ref(false)
 const returnTypeFilterOptions = [
@@ -413,6 +437,11 @@ function resetFilters() {
 function openReview(item) {
   selectedItem.value = item
   isReviewOpen.value = true
+}
+
+function openReject(item) {
+  selectedRejectItem.value = item
+  isRejectOpen.value = true
 }
 
 function handleReviewed() {
