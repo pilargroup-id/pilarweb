@@ -242,7 +242,7 @@ const isEditMode = computed(() => !!props.requestId)
 // Company decides which Itembase business units the item picker searches in.
 // `id` matches the backend's item_company_code (KATO / PNM).
 const COMPANIES = [
-  { id: 'KATO', name: 'PT Kato Indonesia', businessUnitIds: ['bu-kato-0001'] },
+  { id: 'KATO', name: 'PT Kato Piagam Indonesia', businessUnitIds: ['bu-kato-0001'] },
   { id: 'PNM', name: 'PT Pilar Niaga Makmur', businessUnitIds: ['bu-goto-0001', 'bu-gosave-0001'] },
 ]
 
