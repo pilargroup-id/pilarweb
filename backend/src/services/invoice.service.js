@@ -2,6 +2,7 @@ const { requireDatabase } = require('../config/database.config');
 const AccessService = require('./access.service');
 const ActivityService = require('./activity.service');
 const UserUtil = require('../utils/user.util');
+const SchemaUtil = require('../utils/schema.util');
 const { createError, optionalText, parsePositiveInt } = require('../utils/business.util');
 
 const COMPANY_NAMES = Object.freeze({
@@ -89,4 +90,9 @@ async function removeRequest(user,id,requestId,payload={}){
   const reason=optionalText(payload.reason,5000);if(!reason)throw createError('reason is required to remove a PB from an invoice',422,'INVOICE_REMOVE_REASON_REQUIRED');const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'FINANCE',c);const[groups]=await c.query('SELECT * FROM finance_invoice_groups WHERE id=? LIMIT 1 FOR UPDATE',[Number(id)]);const group=groups[0];if(!group)throw createError('Invoice group not found',404,'INVOICE_GROUP_NOT_FOUND');const[requests]=await c.query('SELECT * FROM requests WHERE id=? LIMIT 1 FOR UPDATE',[String(requestId)]);const r=requests[0];if(!r)throw createError('PB not found',404,'REQUEST_NOT_FOUND');const[memberships]=await c.query('SELECT * FROM finance_invoice_group_requests WHERE invoice_group_id=? AND request_id=? AND removed_at IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE',[group.id,r.id]);const membership=memberships[0];if(!membership)throw createError('PB is not actively assigned to this invoice',409,'PB_NOT_IN_INVOICE_GROUP');const actor=UserUtil.snapshot(user);await c.query(`UPDATE finance_invoice_group_requests SET removed_at=NOW(),removed_by_user_id=?,removed_by_name=?,removal_reason=? WHERE id=?`,[actor.user_id,actor.name,reason,membership.id]);await c.query("UPDATE requests SET invoice_status='READY_TO_INVOICE' WHERE id=?",[r.id]);await ActivityService.log(c,{request_id:r.id,entity_type:'FINANCE_INVOICE_GROUP',entity_id:group.id,action_code:'PB_REMOVED_FROM_INVOICE',actor_user_id:actor.user_id,actor_name:actor.name,before:{invoice_number:group.invoice_number,invoice_status:r.invoice_status},after:{invoice_status:'READY_TO_INVOICE',reason}});await c.commit();return getGroup(user,group.id);}catch(e){await c.rollback();throw e;}finally{c.release();}
 }
 
-module.exports={listEligible,listGroups,getGroup,createGroup,addRequests,removeRequest};
+// Invoice grouping needs migration 013 (requests.item_company_* / invoice_status and the
+// finance_invoice_* tables). Until it is applied, every endpoint answers with a clear error
+// instead of a raw SQL "Unknown column" failure.
+function requireInvoiceSchema(fn){return async(...args)=>{if(!(await SchemaUtil.hasInvoiceSchema()))throw createError('Invoice grouping is not available yet: database migration 013 has not been applied',503,'INVOICE_GROUPING_UNAVAILABLE');return fn(...args);};}
+
+module.exports={listEligible:requireInvoiceSchema(listEligible),listGroups:requireInvoiceSchema(listGroups),getGroup:requireInvoiceSchema(getGroup),createGroup:requireInvoiceSchema(createGroup),addRequests:requireInvoiceSchema(addRequests),removeRequest:requireInvoiceSchema(removeRequest)};

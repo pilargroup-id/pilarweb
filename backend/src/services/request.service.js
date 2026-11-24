@@ -8,6 +8,7 @@ const ValidationService = require('./validation.service');
 const PolicyService = require('./policy.service');
 const UserUtil = require('../utils/user.util');
 const SequenceUtil = require('../utils/sequence.util');
+const SchemaUtil = require('../utils/schema.util');
 const { createError, optionalText, positiveNumber, parsePositiveInt } = require('../utils/business.util');
 
 const EDITABLE_STATUSES = new Set(['PENDING_DEPARTMENT_APPROVAL','REVERTED_TO_REQUESTER']);
@@ -23,18 +24,32 @@ function normalizeItemCompany(value){
   if(!company)throw createError('item_company_code must be KATO or PNM',422,'ITEM_COMPANY_INVALID');
   return company;
 }
-function businessUnitCode(item){
-  return String(item?.business_unit?.code??item?.business_unit_code??item?.businessUnit?.code??item?.businessUnitCode??'').trim().toUpperCase();
+// Itembase does not put the business unit on the item itself: it lives on the brand's sales
+// channels (item.parent.brand.channels[].business_unit_code). A brand can sell through
+// several business units (e.g. GOTO + GOSAVE), so collect all of them. Flat fields are kept
+// as a fallback in case Itembase starts returning them directly.
+function businessUnitCodes(item){
+  const codes=[item?.business_unit?.code,item?.business_unit_code,item?.businessUnit?.code,item?.businessUnitCode];
+  const channels=Array.isArray(item?.parent?.brand?.channels)?item.parent.brand.channels:[];
+  for(const ch of channels){if(Number(ch?.is_active??1)!==0)codes.push(ch?.business_unit_code);}
+  return [...new Set(codes.map(c=>String(c??'').trim().toUpperCase()).filter(Boolean))];
 }
-function companyFromItem(item){
-  const bu=businessUnitCode(item);
-  if(!bu)throw createError('Itembase item is missing business unit information',502,'ITEMBASE_BUSINESS_UNIT_MISSING');
-  return bu==='KATO'?ITEM_COMPANIES.KATO:ITEM_COMPANIES.PNM;
+function businessUnitCode(item){return businessUnitCodes(item).join(',');}
+function companyCodeForBusinessUnit(bu){return bu==='KATO'?'KATO':'PNM';}
+// Returns the item's company. When its business units span both companies, the expected
+// company (the one chosen on the PB) wins if the item belongs to it.
+function companyFromItem(item,expectedCompanyCode=null){
+  const codes=businessUnitCodes(item);
+  if(!codes.length)throw createError('Itembase item is missing business unit information',502,'ITEMBASE_BUSINESS_UNIT_MISSING');
+  const companies=[...new Set(codes.map(companyCodeForBusinessUnit))];
+  const expected=expectedCompanyCode?String(expectedCompanyCode).trim().toUpperCase():null;
+  const code=expected&&companies.includes(expected)?expected:companies[0];
+  return ITEM_COMPANIES[code];
 }
 
 function itemFromItembase(body){const item=body?.data&&typeof body.data==='object'?body.data:body;if(!item?.id)throw createError('Invalid Itembase item response',502,'ITEMBASE_INVALID_RESPONSE');if(String(item.item_kind||'').toLowerCase()!=='regular')throw createError('Only regular items can be requested',422,'ITEM_KIND_NOT_ALLOWED');return item;}
 function itemSnapshot(item){return{itembase_item_id:String(item.id),item_code:String(item.item_code||'').trim(),item_name:String(item.item_name||'').trim(),selling_name:item.selling_name?String(item.selling_name).trim():null,parent_id:item.parent?.id?String(item.parent.id):null,parent_name:item.parent?.parent_name?String(item.parent.parent_name):null,variant_name:item.variant_summary?String(item.variant_summary):null,uom_code:item.uom?.code?String(item.uom.code):null,item_kind:'regular'};}
-async function resolveItemSnapshot(id,{requireCompany=false}={}){const item=itemFromItembase(await ItembaseService.getItemById(id));const s=itemSnapshot(item);if(!s.item_code||!s.item_name)throw createError('Itembase item is missing item code or name',502,'ITEMBASE_INVALID_RESPONSE');if(requireCompany){const company=companyFromItem(item);s.item_company_code=company.code;s.item_company_name=company.name;s.business_unit_code=businessUnitCode(item);}return s;}
+async function resolveItemSnapshot(id,{requireCompany=false,expectedCompanyCode=null}={}){const item=itemFromItembase(await ItembaseService.getItemById(id));const s=itemSnapshot(item);if(!s.item_code||!s.item_name)throw createError('Itembase item is missing item code or name',502,'ITEMBASE_INVALID_RESPONSE');if(requireCompany){const company=companyFromItem(item,expectedCompanyCode);s.item_company_code=company.code;s.item_company_name=company.name;s.business_unit_code=businessUnitCode(item);}return s;}
 function assertItemCompany(snapshot,expectedCompanyCode){if(!expectedCompanyCode)return;const expected=normalizeItemCompany(expectedCompanyCode);if(snapshot.item_company_code!==expected.code)throw createError(`Item ${snapshot.item_code||snapshot.itembase_item_id} belongs to ${snapshot.item_company_name}, not ${expected.name}`,422,'REQUEST_ITEM_COMPANY_MISMATCH');}
 
 async function getPurpose(connection,purposeId,{allowSystem=false}={}){
@@ -63,7 +78,7 @@ async function assertRequesterCanCreate(connection,user){
 
 async function insertItem(connection,requestId,payload,expectedCompanyCode=null){
   const itemId=String(payload?.itembase_item_id||'').trim();if(!itemId)throw createError('itembase_item_id is required',422,'VALIDATION_ERROR');
-  const qty=positiveNumber(payload?.requested_qty,'requested_qty');const notes=optionalText(payload?.notes,500);const s=await resolveItemSnapshot(itemId,{requireCompany:Boolean(expectedCompanyCode)});assertItemCompany(s,expectedCompanyCode);
+  const qty=positiveNumber(payload?.requested_qty,'requested_qty');const notes=optionalText(payload?.notes,500);const s=await resolveItemSnapshot(itemId,{requireCompany:Boolean(expectedCompanyCode),expectedCompanyCode});assertItemCompany(s,expectedCompanyCode);
   const [dup]=await connection.query('SELECT id FROM request_items WHERE request_id=? AND itembase_item_id=? LIMIT 1',[requestId,s.itembase_item_id]);if(dup[0])throw createError('Item already exists in this request',409,'REQUEST_ITEM_DUPLICATE');
   const [result]=await connection.query(`INSERT INTO request_items (request_id,itembase_item_id,item_code,item_name,selling_name,parent_id,parent_name,variant_name,uom_code,item_kind,requested_qty,notes) VALUES (?,?,?,?,?,?,?,?,?,'regular',?,?)`,[requestId,s.itembase_item_id,s.item_code,s.item_name,s.selling_name,s.parent_id,s.parent_name,s.variant_name,s.uom_code,qty,notes]);
   return{id:result.insertId,...s,requested_qty:qty,notes};
@@ -78,12 +93,13 @@ async function create(user,accessToken,payload={}){
     await c.query(`INSERT INTO requests (
       id,request_number,request_origin,request_purpose_id,request_purpose_code,request_purpose_name,purpose_return_type,status,
       requester_user_id,requester_internal_id,requester_name,requester_job_level_value,requester_job_level_name,
-      department_id,department_name,target_department_id,target_department_name,company_id,company_name,item_company_code,item_company_name,reason,
+      department_id,department_name,target_department_id,target_department_name,company_id,company_name,reason,
       receipt_confirmation_days_snapshot,discrepancy_resolution_days_snapshot,discrepancy_escalation_days_snapshot,discrepancy_supervisor_lock_days_snapshot,return_due_days_snapshot,policy_timezone_snapshot,submitted_at
-    ) VALUES (?,?,'NORMAL',?,?,?,?,'PENDING_DEPARTMENT_APPROVAL',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,[
-      id,requestNumber,purpose.id,purpose.code,purpose.name,purpose.return_type,snapshot.user_id,snapshot.internal_id,snapshot.name,snapshot.job_level_value,snapshot.job_level_name,snapshot.department_id,snapshot.department_name,target.id,target.name,snapshot.company_id,snapshot.company_name,itemCompany.code,itemCompany.name,reason,
+    ) VALUES (?,?,'NORMAL',?,?,?,?,'PENDING_DEPARTMENT_APPROVAL',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,[
+      id,requestNumber,purpose.id,purpose.code,purpose.name,purpose.return_type,snapshot.user_id,snapshot.internal_id,snapshot.name,snapshot.job_level_value,snapshot.job_level_name,snapshot.department_id,snapshot.department_name,target.id,target.name,snapshot.company_id,snapshot.company_name,reason,
       policy.receipt_confirmation_days,policy.discrepancy_resolution_days,policy.discrepancy_escalation_days,policy.discrepancy_supervisor_lock_days,policy.return_due_days,policy.timezone
     ]);
+    await SchemaUtil.setRequestCompany(c,id,itemCompany.code,itemCompany.name);
     for(const item of items)await insertItem(c,id,item,itemCompany.code);
     await c.query(`INSERT INTO request_approvals (request_id,approval_rule_id,approval_order,department_id,department_name,required_job_level_value,required_job_level_name,allow_higher_job_level,status) VALUES (?,?,1,?,?,?,?,?,'PENDING')`,[id,rule.id,snapshot.department_id,snapshot.department_name,rule.approver_min_job_level_value,rule.approver_job_level_name,rule.allow_higher_job_level]);
     await ActivityService.log(c,{request_id:id,entity_type:'REQUEST',entity_id:id,action_code:'REQUEST_CREATED',actor_user_id:snapshot.user_id,actor_name:snapshot.name,after:{request_number:requestNumber,status:'PENDING_DEPARTMENT_APPROVAL',request_origin:'NORMAL',target_department_id:target.id,purpose_return_type:purpose.return_type,item_company_code:itemCompany.code,item_company_name:itemCompany.name}});
@@ -103,7 +119,7 @@ async function addItem(user,requestId,payload={}){const db=requireDatabase();con
 async function updateItem(user,requestId,itemId,payload={}){const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();const r=await lockRequest(c,requestId);assertOwner(user,r);assertEditable(r);if(r.request_origin!=='NORMAL')throw createError('System-generated PB items cannot be changed',409,'SYSTEM_REQUEST_NOT_EDITABLE');const [rows]=await c.query('SELECT * FROM request_items WHERE id=? AND request_id=? LIMIT 1 FOR UPDATE',[Number(itemId),r.id]);const item=rows[0];if(!item)throw createError('Request item not found',404,'REQUEST_ITEM_NOT_FOUND');
   const newItemId=payload.itembase_item_id!==undefined?String(payload.itembase_item_id||'').trim():null;
   let snapshot={itembase_item_id:item.itembase_item_id,item_code:item.item_code,item_name:item.item_name,selling_name:item.selling_name,parent_id:item.parent_id,parent_name:item.parent_name,variant_name:item.variant_name,uom_code:item.uom_code};
-  if(newItemId&&newItemId!==item.itembase_item_id){const [dup]=await c.query('SELECT id FROM request_items WHERE request_id=? AND itembase_item_id=? AND id<>? LIMIT 1',[r.id,newItemId,item.id]);if(dup[0])throw createError('Item already exists in this request',409,'REQUEST_ITEM_DUPLICATE');snapshot=await resolveItemSnapshot(newItemId,{requireCompany:Boolean(r.item_company_code)});assertItemCompany(snapshot,r.item_company_code);}
+  if(newItemId&&newItemId!==item.itembase_item_id){const [dup]=await c.query('SELECT id FROM request_items WHERE request_id=? AND itembase_item_id=? AND id<>? LIMIT 1',[r.id,newItemId,item.id]);if(dup[0])throw createError('Item already exists in this request',409,'REQUEST_ITEM_DUPLICATE');snapshot=await resolveItemSnapshot(newItemId,{requireCompany:Boolean(r.item_company_code),expectedCompanyCode:r.item_company_code});assertItemCompany(snapshot,r.item_company_code);}
   const qty=payload.requested_qty!==undefined?positiveNumber(payload.requested_qty,'requested_qty'):Number(item.requested_qty);const notes=payload.notes!==undefined?optionalText(payload.notes,500):item.notes;
   await c.query('UPDATE request_items SET itembase_item_id=?,item_code=?,item_name=?,selling_name=?,parent_id=?,parent_name=?,variant_name=?,uom_code=?,requested_qty=?,notes=? WHERE id=?',[snapshot.itembase_item_id,snapshot.item_code,snapshot.item_name,snapshot.selling_name,snapshot.parent_id,snapshot.parent_name,snapshot.variant_name,snapshot.uom_code,qty,notes,item.id]);
   await ActivityService.log(c,{request_id:r.id,entity_type:'REQUEST_ITEM',entity_id:item.id,action_code:'REQUEST_ITEM_UPDATED',actor_user_id:user.id,actor_name:user.name,before:{itembase_item_id:item.itembase_item_id,item_name:item.item_name,requested_qty:item.requested_qty,notes:item.notes},after:{itembase_item_id:snapshot.itembase_item_id,item_name:snapshot.item_name,requested_qty:qty,notes}});
@@ -119,7 +135,7 @@ async function canViewRequest(c,user,r){if(String(r.requester_user_id)===String(
 async function getById(requestId,user){const db=requireDatabase();const c=await db.getConnection();try{const[rows]=await c.query('SELECT * FROM requests WHERE id=? LIMIT 1',[requestId]);const r=rows[0];if(!r)throw createError('Request not found',404,'REQUEST_NOT_FOUND');if(!(await canViewRequest(c,user,r)))throw createError('Request is not accessible',403,'REQUEST_ACCESS_FORBIDDEN');const[items]=await c.query('SELECT * FROM request_items WHERE request_id=? ORDER BY id',[r.id]);const[approvals]=await c.query('SELECT * FROM request_approvals WHERE request_id=? ORDER BY approval_order,id',[r.id]);const[frRows]=await c.query('SELECT * FROM finance_reviews WHERE request_id=? LIMIT 1',[r.id]);let finance=frRows[0]||null;if(finance){const[fi]=await c.query('SELECT * FROM finance_review_items WHERE finance_review_id=? ORDER BY id',[finance.id]);finance={...finance,items:fi};}
     const[fulfillments]=await c.query('SELECT * FROM warehouse_fulfillments WHERE request_id=? ORDER BY created_at,id',[r.id]);for(const f of fulfillments){const[fi]=await c.query('SELECT * FROM warehouse_fulfillment_items WHERE fulfillment_id=? ORDER BY id',[f.id]);const[dr]=await c.query('SELECT * FROM delivery_receipts WHERE fulfillment_id=? LIMIT 1',[f.id]);f.items=fi;f.delivery_receipt=dr[0]||null;if(f.delivery_receipt){const[dri]=await c.query('SELECT * FROM delivery_receipt_items WHERE delivery_receipt_id=? ORDER BY id',[f.delivery_receipt.id]);f.delivery_receipt.items=dri;}}
     const[disc]=await c.query('SELECT * FROM delivery_discrepancies WHERE request_id=? ORDER BY created_at,id',[r.id]);const[rtRows]=await c.query('SELECT rt.*,rt.due_at AS due_date,(rt.expected_total_qty-COALESCE(rt.warehouse_received_total_qty,0)) AS outstanding_qty FROM returns rt WHERE rt.request_id=? LIMIT 1',[r.id]);let ret=rtRows[0]||null;if(ret){const[ri]=await c.query('SELECT * FROM return_items WHERE return_id=? ORDER BY id',[ret.id]);ret={...ret,items:ri};}
-    const[invoiceRows]=await c.query(`SELECT fig.id,fig.invoice_number,fig.item_company_code,fig.item_company_name,fig.created_at,figr.assigned_at,figr.assigned_by_user_id,figr.assigned_by_name FROM finance_invoice_group_requests figr INNER JOIN finance_invoice_groups fig ON fig.id=figr.invoice_group_id WHERE figr.request_id=? AND figr.removed_at IS NULL ORDER BY figr.assigned_at DESC,figr.id DESC LIMIT 1`,[r.id]);
+    const[invoiceRows]=(await SchemaUtil.hasInvoiceSchema())?await c.query(`SELECT fig.id,fig.invoice_number,fig.item_company_code,fig.item_company_name,fig.created_at,figr.assigned_at,figr.assigned_by_user_id,figr.assigned_by_name FROM finance_invoice_group_requests figr INNER JOIN finance_invoice_groups fig ON fig.id=figr.invoice_group_id WHERE figr.request_id=? AND figr.removed_at IS NULL ORDER BY figr.assigned_at DESC,figr.id DESC LIMIT 1`,[r.id]):[[]];
     return{...r,items,approvals,finance_review:finance,fulfillments,delivery_discrepancies:disc,return:ret,invoice_group:invoiceRows[0]||null};
   }finally{c.release();}}
 

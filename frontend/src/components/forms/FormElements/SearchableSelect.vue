@@ -47,7 +47,7 @@
       v-if="open"
       class="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-dark"
     >
-      <div v-if="!searchInField" class="border-b border-gray-100 p-2 dark:border-gray-800">
+      <div v-if="!searchInField && searchable" class="border-b border-gray-100 p-2 dark:border-gray-800">
         <input
           ref="searchInputRef"
           v-model="searchQuery"
@@ -129,6 +129,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // false hides the search box in the dropdown (for short option lists).
+  searchable: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -197,7 +202,7 @@ watch(
 )
 
 watch(open, (isOpen) => {
-  if (!isOpen || props.searchInField) return
+  if (!isOpen || props.searchInField || !props.searchable) return
   nextTick(() => searchInputRef.value?.focus())
 })
 </script>

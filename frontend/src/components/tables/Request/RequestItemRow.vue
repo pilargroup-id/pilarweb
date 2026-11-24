@@ -15,14 +15,15 @@
         <button
           @click="toggleDropdown"
           type="button"
-          class="dark:bg-dark-900 flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-transparent px-4 py-2.5 text-left text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:focus:border-brand-800"
+          :disabled="!hasCompany"
+          class="disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-white/[0.03] dark:bg-dark-900 flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-transparent px-4 py-2.5 text-left text-sm shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:bg-gray-900 dark:focus:border-brand-800"
           :class="hasItemError ? 'border-error-400 dark:border-error-500' : 'border-gray-300 dark:border-gray-700'"
         >
           <span
             class="min-w-0 flex-1 truncate"
             :class="modelValue.item_name ? 'text-gray-800 dark:text-white/90' : 'text-gray-400 dark:text-gray-500'"
           >
-            {{ modelValue.item_name || 'Select item...' }}
+            {{ modelValue.item_name || (hasCompany ? 'Select item...' : 'Select company first') }}
           </span>
           <ChevronDownIcon
             class="h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400"
@@ -157,6 +158,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // Itembase business_unit_id values the search is restricted to (set by the
+  // selected company). null = no restriction; [] = no company chosen yet, so
+  // the picker stays disabled until one is selected.
+  businessUnitIds: {
+    type: Array,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'remove'])
@@ -172,6 +180,7 @@ const searchInputRef = ref(null)
 const dropdownStyle = reactive({ top: '0px', left: '0px', width: '0px' })
 let searchTimer = null
 
+const hasCompany = computed(() => props.businessUnitIds === null || props.businessUnitIds.length > 0)
 const hasItemError = computed(() => props.showErrors && !props.modelValue.item_id)
 const hasQtyError = computed(() => {
   if (!props.showErrors) return false
@@ -217,6 +226,24 @@ function getItemUom(item) {
   return item?.uom_code ?? item?.uom_name ?? ''
 }
 
+// Itembase has no business unit on the item itself; it comes from the brand's sales channels
+// (item.parent.brand.channels[].business_unit_id). A brand may sell through several units.
+function getItemBusinessUnitIds(item) {
+  const ids = [item?.business_unit_id, item?.business_unit?.id]
+  const channels = Array.isArray(item?.parent?.brand?.channels) ? item.parent.brand.channels : []
+  channels.forEach((ch) => {
+    if (Number(ch?.is_active ?? 1) !== 0) ids.push(ch?.business_unit_id)
+  })
+  return [...new Set(ids.filter(Boolean).map(String))]
+}
+
+// The unit the item was picked under: one allowed by the current company when possible.
+function getItemBusinessUnitId(item) {
+  const ids = getItemBusinessUnitIds(item)
+  const allowed = props.businessUnitIds
+  return (allowed && ids.find((id) => allowed.includes(id))) || ids[0] || ''
+}
+
 function normalizeItemList(payload) {
   const data = payload?.data
   if (Array.isArray(data)) return data
@@ -230,8 +257,24 @@ async function runSearch(query) {
   isSearching.value = true
   searchError.value = ''
   try {
-    const data = await getItems({ search: query, limit: 10 })
-    results.value = normalizeItemList(data)
+    const unitIds = props.businessUnitIds
+    // One request per business unit (a company may span several), merged and de-duplicated.
+    const responses = unitIds
+      ? await Promise.all(unitIds.map((business_unit_id) => getItems({ search: query, limit: 10, business_unit_id })))
+      : [await getItems({ search: query, limit: 10 })]
+    if (query !== searchQuery.value.trim()) return
+    const seen = new Set()
+    results.value = responses
+      .flatMap(normalizeItemList)
+      .filter((item) => {
+        // Guard in case Itembase ignores the filter: drop items from other business units.
+        const itemUnitIds = getItemBusinessUnitIds(item)
+        if (unitIds && itemUnitIds.length && !itemUnitIds.some((id) => unitIds.includes(id))) return false
+        const id = String(getItemId(item))
+        if (seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
   } catch (err) {
     results.value = []
     searchError.value = err?.message || 'Failed to search items.'
@@ -249,6 +292,7 @@ function updateDropdownPosition() {
 }
 
 function toggleDropdown() {
+  if (!hasCompany.value) return
   if (isDropdownOpen.value) {
     isDropdownOpen.value = false
     return
@@ -279,6 +323,7 @@ function selectItem(item) {
     item_code: getItemCode(item),
     item_name: getItemName(item),
     item_uom: getItemUom(item),
+    business_unit_id: getItemBusinessUnitId(item),
   })
 }
 
@@ -288,6 +333,14 @@ function handleClickOutside(event) {
   if (dropdownRef.value?.contains(target)) return
   isDropdownOpen.value = false
 }
+
+watch(
+  () => (props.businessUnitIds ?? []).join(','),
+  () => {
+    isDropdownOpen.value = false
+    results.value = []
+  }
+)
 
 watch(isDropdownOpen, (open) => {
   if (open) {

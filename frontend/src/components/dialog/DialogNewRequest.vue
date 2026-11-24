@@ -45,6 +45,28 @@
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Company <span class="text-error-500">*</span>
+                </label>
+                <SearchableSelect
+                  v-model="form.item_company_code"
+                  :options="companyOptions"
+                  :searchable="false"
+                  :disabled="isCompanyLocked"
+                  placeholder="Select company"
+                />
+                <p v-if="hasCompanyError" class="mt-1.5 text-xs text-error-600 dark:text-error-500">
+                  Company is required.
+                </p>
+                <p v-else-if="isCompanyLocked" class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                  Company tidak dapat diubah setelah request dibuat.
+                </p>
+                <p v-else class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                  Item yang bisa dipilih akan difilter sesuai company.
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Request Purpose <span class="text-error-500">*</span>
                 </label>
                 <SearchableSelect
@@ -57,7 +79,9 @@
                   Request Purpose is required.
                 </p>
               </div>
+            </div>
 
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Purpose for Division
@@ -72,10 +96,8 @@
                   Default ke departemen Anda sendiri. Ubah bila request ditujukan ke departemen lain.
                 </p>
               </div>
-            </div>
 
-            <div v-if="requiresReturn" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
+              <div v-if="requiresReturn">
                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Return Due Date <span class="text-error-500">*</span>
                 </label>
@@ -123,6 +145,7 @@
                     :index="index"
                     :can-remove="items.length > 1"
                     :show-errors="submitAttempted"
+                    :business-unit-ids="selectedCompany?.businessUnitIds ?? []"
                     @update:model-value="updateRow(index, $event)"
                     @remove="removeRow(index)"
                   />
@@ -216,6 +239,19 @@ const emit = defineEmits(['close', 'created', 'updated'])
 
 const isEditMode = computed(() => !!props.requestId)
 
+// Company decides which Itembase business units the item picker searches in.
+// `id` matches the backend's item_company_code (KATO / PNM).
+const COMPANIES = [
+  { id: 'KATO', name: 'PT Kato Indonesia', businessUnitIds: ['bu-kato-0001'] },
+  { id: 'PNM', name: 'PT Pilar Niaga Makmur', businessUnitIds: ['bu-goto-0001', 'bu-gosave-0001'] },
+]
+
+const companyOptions = COMPANIES.map(({ id, name }) => ({ id, name }))
+
+// A saved PB's company is immutable, so lock the field in edit mode, unless the PB has no
+// stored company (older PBs, or a database without the company columns yet).
+const isCompanyLocked = computed(() => isEditMode.value && !!requestDetail.value?.item_company_code)
+
 const isLoadingMaster = ref(false)
 const masterError = ref('')
 const purposes = ref([])
@@ -273,6 +309,7 @@ const loadError = ref('')
 const requestDetail = ref(null)
 
 const form = reactive({
+  item_company_code: '',
   request_purpose_id: '',
   target_department_id: '',
   reason: '',
@@ -282,7 +319,17 @@ const form = reactive({
 let rowKeySeed = 0
 function createEmptyRow() {
   rowKeySeed += 1
-  return { key: rowKeySeed, recordId: null, item_id: '', item_code: '', item_name: '', item_uom: '', qty: '', notes: '' }
+  return {
+    key: rowKeySeed,
+    recordId: null,
+    item_id: '',
+    item_code: '',
+    item_name: '',
+    item_uom: '',
+    business_unit_id: '',
+    qty: '',
+    notes: '',
+  }
 }
 
 const items = ref([createEmptyRow()])
@@ -302,6 +349,25 @@ function removeRow(index) {
 function updateRow(index, value) {
   items.value.splice(index, 1, value)
 }
+
+const selectedCompany = computed(
+  () => COMPANIES.find((company) => company.id === String(form.item_company_code || '').toUpperCase()) ?? null
+)
+
+// Switching company invalidates items picked from the other company's business units.
+// Rows whose business unit is unknown (e.g. restored from an older draft) are left alone.
+watch(
+  () => form.item_company_code,
+  (code, previous) => {
+    if (!previous || code === previous || isEditMode.value) return
+    const allowed = selectedCompany.value?.businessUnitIds ?? []
+    items.value = items.value.map((row) =>
+      row.item_id && row.business_unit_id && !allowed.includes(row.business_unit_id)
+        ? { ...row, item_id: '', item_code: '', item_name: '', item_uom: '', business_unit_id: '' }
+        : row
+    )
+  }
+)
 
 const purposeOptions = computed(() =>
   purposes.value.map((purpose) => ({
@@ -361,6 +427,7 @@ const validationErrors = ref([])
 const submitNotice = ref(null)
 const isSubmitting = ref(false)
 
+const hasCompanyError = computed(() => submitAttempted.value && !form.item_company_code)
 const hasPurposeError = computed(() => submitAttempted.value && !form.request_purpose_id)
 const hasReasonError = computed(() => submitAttempted.value && !form.reason.trim())
 
@@ -377,6 +444,7 @@ const returnDateError = computed(() => (submitAttempted.value ? getReturnDateIss
 
 function validate() {
   const errors = []
+  if (!form.item_company_code) errors.push('Company is required.')
   if (!form.request_purpose_id) errors.push('Request Purpose is required.')
   if (!form.reason.trim()) errors.push('Reason is required.')
   const returnDateIssue = getReturnDateIssue()
@@ -406,6 +474,7 @@ function validate() {
 
 function buildPayload() {
   return {
+    item_company_code: form.item_company_code,
     request_purpose_id: form.request_purpose_id,
     ...(form.target_department_id ? { target_department_id: form.target_department_id } : {}),
     reason: form.reason.trim(),
@@ -431,6 +500,7 @@ function saveDraft() {
   if (isEditMode.value) return
   try {
     const hasContent =
+      form.item_company_code ||
       form.request_purpose_id ||
       form.reason.trim() ||
       items.value.some((row) => row.item_id || row.qty || row.notes?.trim())
@@ -440,11 +510,12 @@ function saveDraft() {
     }
     const draft = {
       form: { ...form },
-      items: items.value.map(({ item_id, item_code, item_name, item_uom, qty, notes }) => ({
+      items: items.value.map(({ item_id, item_code, item_name, item_uom, business_unit_id, qty, notes }) => ({
         item_id,
         item_code,
         item_name,
         item_uom,
+        business_unit_id,
         qty,
         notes,
       })),
@@ -476,6 +547,7 @@ function applyDraft(draft) {
   removedItemIds.value = []
   originalItemsById = new Map()
 
+  form.item_company_code = draft.form?.item_company_code ?? ''
   form.request_purpose_id = draft.form?.request_purpose_id ?? ''
   form.target_department_id = draft.form?.target_department_id || ownDepartmentId.value
   form.reason = draft.form?.reason ?? ''
@@ -492,6 +564,7 @@ function applyDraft(draft) {
           item_code: it.item_code ?? '',
           item_name: it.item_name ?? '',
           item_uom: it.item_uom ?? '',
+          business_unit_id: it.business_unit_id ?? '',
           qty: it.qty ?? '',
           notes: it.notes ?? '',
         }
@@ -508,6 +581,7 @@ function populateForm() {
   originalItemsById = new Map()
 
   if (requestDetail.value) {
+    form.item_company_code = requestDetail.value.item_company_code ?? ''
     form.request_purpose_id = requestDetail.value.request_purpose_id ?? ''
     form.target_department_id = requestDetail.value.target_department_id ?? ''
     form.reason = requestDetail.value.reason ?? ''
@@ -529,12 +603,14 @@ function populateForm() {
             item_code: it.item_code,
             item_name: it.item_name,
             item_uom: it.uom_code,
+            business_unit_id: '',
             qty: it.requested_qty,
             notes: it.notes || '',
           }
         })
       : [createEmptyRow()]
   } else {
+    form.item_company_code = ''
     form.request_purpose_id = ''
     form.target_department_id = ownDepartmentId.value
     form.reason = ''
