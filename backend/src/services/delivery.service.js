@@ -29,7 +29,7 @@ async function refreshDiscrepancyStatuses(connection = null) {
 }
 
 async function createReturnObligation(connection,request,receivedRows){
-  const total=receivedRows.reduce((s,r)=>s+Number(r.received_qty||0),0);if(total<=0){await connection.query("UPDATE requests SET status='COMPLETED',completed_at=NOW() WHERE id=?",[request.id]);return null;}
+  const total=receivedRows.reduce((s,r)=>s+Number(r.received_qty||0),0);if(total<=0){await connection.query("UPDATE requests SET status='COMPLETED',invoice_status='READY_TO_INVOICE',completed_at=NOW() WHERE id=?",[request.id]);return null;}
   const number=await SequenceUtil.nextNumber(connection,'RB',SequenceUtil.yearMonthPeriod(),'RB',5,'');
   const[result]=await connection.query(`INSERT INTO returns (return_number,request_id,status,due_at,expected_total_qty) VALUES (?,?,'PENDING_REQUESTER',DATE_ADD(NOW(),INTERVAL ? DAY),?)`,[number,request.id,Number(request.return_due_days_snapshot||14),total]);
   for(const row of receivedRows){const qty=Number(row.received_qty||0);if(qty<=0)continue;await connection.query(`INSERT INTO return_items (return_id,request_item_id,item_code,item_name,expected_qty) VALUES (?,?,?,?,?)`,[result.insertId,row.request_item_id,row.item_code,row.item_name,qty]);}
@@ -59,7 +59,7 @@ async function finalizeRequestReceipt(connection,requestId,actor={user_id:null,n
   `,[requestId]);
   await connection.query('UPDATE requests SET final_received_at=NOW() WHERE id=?',[requestId]);
   let returnId=null;
-  if(request.purpose_return_type==='RETURNABLE')returnId=await createReturnObligation(connection,request,receivedRows);else await connection.query("UPDATE requests SET status='COMPLETED',completed_at=NOW() WHERE id=?",[requestId]);
+  if(request.purpose_return_type==='RETURNABLE')returnId=await createReturnObligation(connection,request,receivedRows);else await connection.query("UPDATE requests SET status='COMPLETED',invoice_status='READY_TO_INVOICE',completed_at=NOW() WHERE id=?",[requestId]);
   await ActivityService.log(connection,{request_id:requestId,entity_type:'REQUEST',entity_id:requestId,action_code:'DELIVERY_FULLY_RESOLVED',actor_user_id:actor.user_id||null,actor_name:actor.name||'SYSTEM',after:{purpose_return_type:request.purpose_return_type,return_id:returnId,total_received_qty:receivedRows.reduce((s,r)=>s+Number(r.received_qty||0),0)}});
   return true;
 }
