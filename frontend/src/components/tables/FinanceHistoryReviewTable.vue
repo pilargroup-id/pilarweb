@@ -48,6 +48,23 @@
           </div>
         </div>
         <div class="flex items-center gap-3">
+          <template v-if="selectedCount">
+            <button
+              @click="clearSelection"
+              type="button"
+              class="text-theme-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              Clear ({{ selectedCount }})
+            </button>
+            <button
+              @click="isGroupingOpen = true"
+              type="button"
+              class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-theme-sm font-medium text-white shadow-theme-xs hover:bg-brand-600"
+            >
+              Grouping
+              <span class="rounded-full bg-white/20 px-2 py-0.5 text-xs">{{ selectedCount }}</span>
+            </button>
+          </template>
           <button
             @click="fetchHistory(meta.page)"
             :disabled="isLoading"
@@ -68,12 +85,25 @@
       </template>
 
       <template #head>
+        <TableHeadCell>
+          <input
+            type="checkbox"
+            title="Select all on this page"
+            :checked="isAllPageSelected"
+            :indeterminate.prop="isSomePageSelected && !isAllPageSelected"
+            :disabled="isLoading || !selectableOnPage.length"
+            @change="toggleSelectPage($event.target.checked)"
+            class="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-500 focus:ring-brand-500/20 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+          />
+        </TableHeadCell>
         <TableHeadCell>Action</TableHeadCell>
         <TableHeadCell>Request No</TableHeadCell>
+        <TableHeadCell>Company</TableHeadCell>
         <TableHeadCell>Requester</TableHeadCell>
         <TableHeadCell>Department</TableHeadCell>
         <TableHeadCell>Request Purpose</TableHeadCell>
         <TableHeadCell>Return Type</TableHeadCell>
+        <TableHeadCell>Invoice Status</TableHeadCell>
         <TableHeadCell>Reason Requestor</TableHeadCell>
         <TableHeadCell>Reviewed</TableHeadCell>
         <TableHeadCell>Reviewer</TableHeadCell>
@@ -84,17 +114,17 @@
       </template>
 
       <tr v-if="isLoading">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="16" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">Loading finance history...</p>
         </td>
       </tr>
       <tr v-else-if="errorMessage">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="16" class="px-5 py-10 text-center sm:px-6">
           <p class="text-error-600 text-theme-sm dark:text-error-500">{{ errorMessage }}</p>
         </td>
       </tr>
       <tr v-else-if="!history.length">
-        <td colspan="13" class="px-5 py-10 text-center sm:px-6">
+        <td colspan="16" class="px-5 py-10 text-center sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">No requests have been reviewed by Finance yet.</p>
         </td>
       </tr>
@@ -103,7 +133,18 @@
         v-else
         :key="item.finance_review_id"
         class="border-t border-gray-100 dark:border-gray-800"
+        :class="{ 'bg-brand-50/60 dark:bg-brand-500/5': isSelected(item) }"
       >
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <input
+            type="checkbox"
+            :checked="isSelected(item)"
+            :disabled="!canSelect(item)"
+            :title="selectDisabledReason(item)"
+            @change="toggleSelect(item, $event.target.checked)"
+            class="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-500 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900"
+          />
+        </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <button
             @click="viewRequest(item)"
@@ -121,6 +162,11 @@
           </span>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <p class="text-gray-500 text-theme-sm dark:text-gray-400" :title="item.item_company_name || ''">
+            {{ item.item_company_name || item.item_company_code || '-' }}
+          </p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <p class="text-gray-500 text-theme-sm dark:text-gray-400">{{ item.requester_name || '-' }}</p>
         </td>
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
@@ -132,6 +178,12 @@
         <td class="px-5 py-4 whitespace-nowrap sm:px-6">
           <Badge v-if="item.purpose_return_type" :color="returnTypeColor(item.purpose_return_type)" size="sm">
             {{ formatReturnType(item.purpose_return_type) }}
+          </Badge>
+          <p v-else class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
+        </td>
+        <td class="px-5 py-4 whitespace-nowrap sm:px-6">
+          <Badge v-if="item.invoice_status" :color="invoiceStatusColor(item.invoice_status)" size="sm">
+            {{ formatStatusLabel(item.invoice_status) }}
           </Badge>
           <p v-else class="text-gray-500 text-theme-sm dark:text-gray-400">-</p>
         </td>
@@ -183,6 +235,13 @@
 
     <DialogExportFinanceHistory :is-open="isExportOpen" @close="isExportOpen = false" />
 
+    <DialogCreateInvoiceGroup
+      :is-open="isGroupingOpen"
+      :requests="selectedItems"
+      @close="isGroupingOpen = false"
+      @created="onInvoiceCreated"
+    />
+
     <Teleport to="body">
       <Transition
         enter-active-class="transition-opacity duration-300"
@@ -232,6 +291,15 @@
                   v-model="draftStatusFilter"
                   :options="statusFilterOptions"
                   placeholder="All statuses"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Invoice Status</label>
+                <SearchableSelect
+                  v-model="draftInvoiceStatusFilter"
+                  :options="invoiceStatusFilterOptions"
+                  placeholder="All invoice statuses"
                 />
               </div>
 
@@ -313,6 +381,7 @@ import TableHeadCell from '@/components/tables/TableHeadCell.vue'
 import TablePagination from '@/components/tables/TablePagination.vue'
 import DialogRequestDetail from '@/components/dialog/DialogRequestDetail.vue'
 import DialogExportFinanceHistory from '@/components/dialog/secondary/DialogExportFinanceHistory.vue'
+import DialogCreateInvoiceGroup from '@/components/dialog/DialogCreateInvoiceGroup.vue'
 import SearchableSelect from '@/components/forms/FormElements/SearchableSelect.vue'
 import DateField from '@/components/forms/FormElements/DateField.vue'
 import { RefreshIcon, EyeIcon, DownloadIcon, FilterIcon, CloseIcon } from '@/icons'
@@ -328,6 +397,7 @@ const meta = reactive({ page: 1, limit: 50, total: 0, totalPages: 1 })
 const isDetailOpen = ref(false)
 const viewingRequestId = ref(null)
 const isExportOpen = ref(false)
+const isGroupingOpen = ref(false)
 
 const isFilterOpen = ref(false)
 const statusFilterOptions = [
@@ -335,6 +405,12 @@ const statusFilterOptions = [
   { id: 'APPROVED', name: 'Approved' },
   { id: 'REJECTED', name: 'Rejected' },
   { id: 'CANCELED', name: 'Canceled' },
+]
+const invoiceStatusFilterOptions = [
+  { id: '', name: 'All invoice statuses' },
+  { id: 'READY_TO_INVOICE', name: 'Ready To Invoice' },
+  { id: 'NOT_READY', name: 'Not Ready' },
+  { id: 'INVOICED', name: 'Invoiced' },
 ]
 const returnTypeFilterOptions = [
   { id: '', name: 'All types' },
@@ -347,6 +423,7 @@ const sortOrderOptions = [
 ]
 
 const departmentFilter = ref('')
+const invoiceStatusFilter = ref('')
 const purposeFilter = ref('')
 const returnTypeFilter = ref('')
 const dateFromFilter = ref('')
@@ -355,6 +432,7 @@ const sortOrder = ref('desc')
 
 const draftStatusFilter = ref('')
 const draftDepartmentFilter = ref('')
+const draftInvoiceStatusFilter = ref('')
 const draftPurposeFilter = ref('')
 const draftReturnTypeFilter = ref('')
 const draftDateFromFilter = ref('')
@@ -364,6 +442,7 @@ const draftSortOrder = ref('desc')
 const hasActiveFilters = computed(
   () =>
     !!statusFilter.value ||
+    !!invoiceStatusFilter.value ||
     !!departmentFilter.value ||
     !!purposeFilter.value ||
     !!returnTypeFilter.value ||
@@ -418,6 +497,7 @@ async function loadFilterMaster() {
 
 function openFilter() {
   draftStatusFilter.value = statusFilter.value
+  draftInvoiceStatusFilter.value = invoiceStatusFilter.value
   draftDepartmentFilter.value = departmentFilter.value
   draftPurposeFilter.value = purposeFilter.value
   draftReturnTypeFilter.value = returnTypeFilter.value
@@ -430,6 +510,7 @@ function openFilter() {
 
 function applyFilters() {
   statusFilter.value = draftStatusFilter.value
+  invoiceStatusFilter.value = draftInvoiceStatusFilter.value
   departmentFilter.value = draftDepartmentFilter.value
   purposeFilter.value = draftPurposeFilter.value
   returnTypeFilter.value = draftReturnTypeFilter.value
@@ -442,6 +523,7 @@ function applyFilters() {
 
 function resetFilters() {
   statusFilter.value = ''
+  invoiceStatusFilter.value = ''
   departmentFilter.value = ''
   purposeFilter.value = ''
   returnTypeFilter.value = ''
@@ -450,6 +532,66 @@ function resetFilters() {
   sortOrder.value = 'desc'
   isFilterOpen.value = false
   fetchHistory(1)
+}
+
+// Selection for grouping — keyed by request_id, kept across pages/filters.
+// Only COMPLETED + READY_TO_INVOICE PB can be grouped, and one invoice = one company.
+// PB without company (legacy) can join any group; Finance picks the company in the dialog.
+const selected = ref(new Map())
+const selectedCount = computed(() => selected.value.size)
+const selectedItems = computed(() => Array.from(selected.value.values()))
+const selectedCompany = computed(
+  () => selectedItems.value.find((item) => item.item_company_code)?.item_company_code || null
+)
+
+const isSelected = (item) => selected.value.has(item.request_id)
+const isInvoiceable = (item) =>
+  item.request_status === 'COMPLETED' && item.invoice_status === 'READY_TO_INVOICE'
+const sameCompany = (item) =>
+  !selectedCompany.value || !item.item_company_code || item.item_company_code === selectedCompany.value
+const canSelect = (item) => isSelected(item) || (isInvoiceable(item) && sameCompany(item))
+
+function selectDisabledReason(item) {
+  if (canSelect(item)) return ''
+  if (!isInvoiceable(item)) return 'Only completed PB that is ready to invoice can be grouped'
+  return 'Only PB from the same company can be grouped'
+}
+
+const selectableOnPage = computed(() => {
+  const company =
+    selectedCompany.value || history.value.find((item) => isInvoiceable(item) && item.item_company_code)?.item_company_code
+  return history.value.filter(
+    (item) => isInvoiceable(item) && (!item.item_company_code || item.item_company_code === company)
+  )
+})
+const isAllPageSelected = computed(
+  () => selectableOnPage.value.length > 0 && selectableOnPage.value.every((item) => isSelected(item))
+)
+const isSomePageSelected = computed(() => history.value.some((item) => isSelected(item)))
+
+function toggleSelect(item, checked) {
+  const next = new Map(selected.value)
+  if (checked && canSelect(item)) next.set(item.request_id, item)
+  else next.delete(item.request_id)
+  selected.value = next
+}
+
+function toggleSelectPage(checked) {
+  const next = new Map(selected.value)
+  selectableOnPage.value.forEach((item) => {
+    if (checked) next.set(item.request_id, item)
+    else next.delete(item.request_id)
+  })
+  selected.value = next
+}
+
+function clearSelection() {
+  selected.value = new Map()
+}
+
+function onInvoiceCreated() {
+  clearSelection()
+  fetchHistory(meta.page)
 }
 
 function viewRequest(item) {
@@ -481,6 +623,14 @@ const REQUEST_STATUS_BADGE_COLOR = {
 }
 
 const requestStatusColor = (status) => REQUEST_STATUS_BADGE_COLOR[status] || 'light'
+
+const INVOICE_STATUS_BADGE_COLOR = {
+  NOT_READY: 'light',
+  READY_TO_INVOICE: 'warning',
+  INVOICED: 'success',
+}
+
+const invoiceStatusColor = (status) => INVOICE_STATUS_BADGE_COLOR[status] || 'light'
 
 const returnTypeColor = (returnType) => (returnType === 'RETURNABLE' ? 'success' : 'light')
 
@@ -523,6 +673,7 @@ async function fetchHistory(page = 1) {
       limit: meta.limit,
       ...(search.value ? { search: search.value } : {}),
       ...(statusFilter.value ? { status: statusFilter.value } : {}),
+      ...(invoiceStatusFilter.value ? { invoice_status: invoiceStatusFilter.value } : {}),
       ...(departmentFilter.value ? { department_id: departmentFilter.value } : {}),
       ...(purposeFilter.value ? { purpose_id: purposeFilter.value } : {}),
       ...(returnTypeFilter.value ? { return_type: returnTypeFilter.value } : {}),

@@ -611,6 +611,8 @@ export function getFinanceHistory(
     limit?: number
     search?: string
     status?: string
+    invoice_status?: 'NOT_READY' | 'READY_TO_INVOICE' | 'INVOICED'
+    company_code?: 'KATO' | 'PNM'
     department_id?: number | string
     purpose_id?: number | string
     return_type?: string
@@ -620,6 +622,68 @@ export function getFinanceHistory(
   } = {},
 ): Promise<PaginatedResponse<FinanceHistoryItem[]>> {
   return request('/api/finance/requests/history', { params })
+}
+
+// Finance Invoice Grouping
+export type InvoiceCompanyCode = 'KATO' | 'PNM'
+
+export interface InvoiceEligibleRequest extends AnyRecord {
+  request_id: string
+  request_number: string
+  item_company_code: InvoiceCompanyCode
+  item_company_name: string
+  invoice_status: string
+}
+
+export function getInvoiceEligibleRequests(
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    company_code?: InvoiceCompanyCode | ''
+    status?: 'READY' | 'GROUPED'
+  } = {},
+): Promise<PaginatedResponse<InvoiceEligibleRequest[]>> {
+  return request('/api/finance/invoice-groups/eligible-requests', { params })
+}
+
+export interface CreateInvoiceGroupPayload {
+  invoice_number: string
+  request_ids: string[]
+  // Required when none of the PBs has item_company_code
+  company_code?: InvoiceCompanyCode
+  note?: string
+}
+
+export function createInvoiceGroup(payload: CreateInvoiceGroupPayload): Promise<ApiResponse<AnyRecord>> {
+  return request('/api/finance/invoice-groups', { method: 'POST', body: payload })
+}
+
+export function getInvoiceGroups(
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    company_code?: InvoiceCompanyCode | ''
+  } = {},
+): Promise<PaginatedResponse<AnyRecord[]>> {
+  return request('/api/finance/invoice-groups', { params })
+}
+
+export function getInvoiceGroup(id: number | string): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/finance/invoice-groups/${id}`)
+}
+
+// Ungroup: returns the PB to READY_TO_INVOICE. reason is required by backend.
+export function removeInvoiceGroupRequest(
+  id: number | string,
+  requestId: string,
+  payload: { reason: string },
+): Promise<ApiResponse<AnyRecord>> {
+  return request(`/api/finance/invoice-groups/${id}/requests/${requestId}/remove`, {
+    method: 'POST',
+    body: payload,
+  })
 }
 
 export interface FinanceReviewItemDecision {

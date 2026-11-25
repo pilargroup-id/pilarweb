@@ -92,6 +92,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/finance-review/invoice-grouping',
+      name: 'Finance Invoice Grouping',
+      component: () => import('../components/pages/financial/FinanceInvoiceGrouping.vue'),
+      meta: {
+        title: 'Invoice Grouping',
+      },
+    },
+    {
       path: '/financial-closing',
       name: 'Financial Closing',
       component: () => import('../components/pages/financial/FinanceClosingPage.vue'),

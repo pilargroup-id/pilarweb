@@ -28,12 +28,30 @@ function uniqueRequestIds(value){
 async function listEligible(user,query={}){
   await AccessService.requireModuleAccess(user,'FINANCE');
   const db=requireDatabase();const page=parsePositiveInt(query.page,1,100000);const limit=parsePositiveInt(query.limit,20,100);const offset=(page-1)*limit;const params=[];
-  let where="WHERE r.request_origin='NORMAL' AND r.status='COMPLETED' AND r.invoice_status='READY_TO_INVOICE' AND r.item_company_code IS NOT NULL";
+  // status=GROUPED lists PB that are actively assigned to an invoice group (with the invoice number);
+  // default (READY) lists PB still waiting to be grouped.
+  const grouped=String(query.status||'').trim().toUpperCase()==='GROUPED';
+  // PB without an item company snapshot (created before migration 013) is still eligible;
+  // its company is set when it is assigned to an invoice group.
+  let from='FROM requests r';
+  let where="WHERE r.request_origin='NORMAL' AND r.status='COMPLETED'";
+  if(grouped){
+    from+=' INNER JOIN finance_invoice_group_requests figr ON figr.request_id=r.id AND figr.removed_at IS NULL INNER JOIN finance_invoice_groups fig ON fig.id=figr.invoice_group_id';
+  }else{
+    where+=" AND r.invoice_status='READY_TO_INVOICE'";
+  }
   const companyCode=normalizeCompanyCode(query.company_code);
   if(companyCode){where+=' AND r.item_company_code=?';params.push(companyCode);}
-  if(query.search){const s=`%${String(query.search).trim()}%`;where+=' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR r.request_purpose_name LIKE ? OR r.target_department_name LIKE ?)';params.push(s,s,s,s);}
-  const[count]=await db.query(`SELECT COUNT(*) AS total FROM requests r ${where}`,params);
-  const[rows]=await db.query(`SELECT r.id AS request_id,r.request_number,r.item_company_code,r.item_company_name,r.invoice_status,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name,r.completed_at FROM requests r ${where} ORDER BY r.completed_at ASC,r.request_number ASC LIMIT ? OFFSET ?`,[...params,limit,offset]);
+  if(query.search){
+    const s=`%${String(query.search).trim()}%`;
+    where+=' AND (r.request_number LIKE ? OR r.requester_name LIKE ? OR r.request_purpose_name LIKE ? OR r.target_department_name LIKE ?';params.push(s,s,s,s);
+    if(grouped){where+=' OR fig.invoice_number LIKE ?';params.push(s);}
+    where+=')';
+  }
+  const groupCols=grouped?',fig.id AS invoice_group_id,fig.invoice_number,figr.assigned_at,figr.assigned_by_name':'';
+  const order=grouped?'ORDER BY figr.assigned_at DESC,fig.invoice_number ASC,r.request_number ASC':'ORDER BY r.completed_at ASC,r.request_number ASC';
+  const[count]=await db.query(`SELECT COUNT(*) AS total ${from} ${where}`,params);
+  const[rows]=await db.query(`SELECT r.id AS request_id,r.request_number,r.item_company_code,r.item_company_name,r.invoice_status,r.requester_name,r.department_name,r.target_department_name,r.request_purpose_name,r.completed_at${groupCols} ${from} ${where} ${order} LIMIT ? OFFSET ?`,[...params,limit,offset]);
   const total=Number(count[0]?.total||0);return{data:rows,meta:{page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit))}};
 }
 
@@ -61,7 +79,6 @@ async function lockEligibleRequests(c,ids){
   if(rows.length!==ids.length){const found=new Set(rows.map(r=>String(r.id)));const missing=ids.filter(id=>!found.has(String(id)));throw createError(`PB not found: ${missing.join(', ')}`,404,'INVOICE_REQUEST_NOT_FOUND');}
   for(const r of rows){
     if(r.request_origin!=='NORMAL'||r.status!=='COMPLETED'||r.invoice_status!=='READY_TO_INVOICE')throw createError(`PB ${r.request_number} is not ready to invoice`,409,'PB_NOT_READY_TO_INVOICE');
-    if(!r.item_company_code||!r.item_company_name)throw createError(`PB ${r.request_number} does not have item company snapshot`,409,'PB_ITEM_COMPANY_MISSING');
     const[active]=await c.query('SELECT id,invoice_group_id FROM finance_invoice_group_requests WHERE request_id=? AND removed_at IS NULL LIMIT 1 FOR UPDATE',[r.id]);
     if(active[0])throw createError(`PB ${r.request_number} is already assigned to an invoice`,409,'PB_ALREADY_INVOICED');
   }
@@ -70,7 +87,10 @@ async function lockEligibleRequests(c,ids){
 
 async function assignRows(c,group,rows,actor){
   for(const r of rows){
-    if(r.item_company_code!==group.item_company_code)throw createError(`PB ${r.request_number} belongs to ${r.item_company_name}; invoice group belongs to ${group.item_company_name}`,409,'INVOICE_COMPANY_MISMATCH');
+    if(!r.item_company_code){
+      // Legacy PB without company snapshot: take the invoice group's company.
+      await c.query('UPDATE requests SET item_company_code=?,item_company_name=? WHERE id=?',[group.item_company_code,group.item_company_name,r.id]);
+    }else if(r.item_company_code!==group.item_company_code)throw createError(`PB ${r.request_number} belongs to ${r.item_company_name}; invoice group belongs to ${group.item_company_name}`,409,'INVOICE_COMPANY_MISMATCH');
     const[result]=await c.query(`INSERT INTO finance_invoice_group_requests (invoice_group_id,request_id,assigned_by_user_id,assigned_by_name,assigned_at) VALUES (?,?,?,?,NOW())`,[group.id,r.id,actor.user_id,actor.name]);
     await c.query("UPDATE requests SET invoice_status='INVOICED' WHERE id=?",[r.id]);
     await ActivityService.log(c,{request_id:r.id,entity_type:'FINANCE_INVOICE_GROUP',entity_id:group.id,action_code:'PB_ASSIGNED_TO_INVOICE',actor_user_id:actor.user_id,actor_name:actor.name,after:{membership_id:result.insertId,invoice_number:group.invoice_number,item_company_code:group.item_company_code}});
@@ -79,7 +99,16 @@ async function assignRows(c,group,rows,actor){
 
 async function createGroup(user,payload={}){
   const invoiceNumber=String(payload.invoice_number||'').trim();if(!invoiceNumber)throw createError('invoice_number is required',422,'INVOICE_NUMBER_REQUIRED');if(invoiceNumber.length>120)throw createError('invoice_number is too long',422,'VALIDATION_ERROR');const ids=uniqueRequestIds(payload.request_ids);const note=optionalText(payload.note,5000);
-  const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'FINANCE',c);const[duplicate]=await c.query('SELECT id FROM finance_invoice_groups WHERE invoice_number=? LIMIT 1 FOR UPDATE',[invoiceNumber]);if(duplicate[0])throw createError('invoice_number already exists',409,'INVOICE_NUMBER_DUPLICATE');const rows=await lockEligibleRequests(c,ids);const companyCode=rows[0].item_company_code;if(rows.some(r=>r.item_company_code!==companyCode))throw createError('All PBs in one invoice must belong to the same company',409,'INVOICE_COMPANY_MISMATCH');const actor=UserUtil.snapshot(user);const[result]=await c.query(`INSERT INTO finance_invoice_groups (invoice_number,item_company_code,item_company_name,note,created_by_user_id,created_by_name) VALUES (?,?,?,?,?,?)`,[invoiceNumber,companyCode,rows[0].item_company_name,note,actor.user_id,actor.name]);const group={id:result.insertId,invoice_number:invoiceNumber,item_company_code:companyCode,item_company_name:rows[0].item_company_name};await assignRows(c,group,rows,actor);await c.commit();return getGroup(user,group.id);}catch(e){await c.rollback();if(e?.code==='ER_DUP_ENTRY')throw createError('invoice_number already exists',409,'INVOICE_NUMBER_DUPLICATE');throw e;}finally{c.release();}
+  const db=requireDatabase();const c=await db.getConnection();try{await c.beginTransaction();await AccessService.requireModuleAccess(user,'FINANCE',c);const[duplicate]=await c.query('SELECT id FROM finance_invoice_groups WHERE invoice_number=? LIMIT 1 FOR UPDATE',[invoiceNumber]);if(duplicate[0])throw createError('invoice_number already exists',409,'INVOICE_NUMBER_DUPLICATE');const rows=await lockEligibleRequests(c,ids);
+    // Invoice company: from the PB snapshots when present, otherwise chosen by Finance (company_code).
+    const snapshotCodes=[...new Set(rows.map(r=>r.item_company_code).filter(Boolean))];
+    if(snapshotCodes.length>1)throw createError('All PBs in one invoice must belong to the same company',409,'INVOICE_COMPANY_MISMATCH');
+    const requestedCode=normalizeCompanyCode(payload.company_code);
+    if(requestedCode&&snapshotCodes[0]&&requestedCode!==snapshotCodes[0])throw createError(`Selected company does not match PB company (${snapshotCodes[0]})`,409,'INVOICE_COMPANY_MISMATCH');
+    const companyCode=snapshotCodes[0]||requestedCode;
+    if(!companyCode)throw createError('company_code is required because the selected PBs have no company',422,'INVOICE_COMPANY_REQUIRED');
+    const companyName=rows.find(r=>r.item_company_code===companyCode)?.item_company_name||COMPANY_NAMES[companyCode];
+    const actor=UserUtil.snapshot(user);const[result]=await c.query(`INSERT INTO finance_invoice_groups (invoice_number,item_company_code,item_company_name,note,created_by_user_id,created_by_name) VALUES (?,?,?,?,?,?)`,[invoiceNumber,companyCode,companyName,note,actor.user_id,actor.name]);const group={id:result.insertId,invoice_number:invoiceNumber,item_company_code:companyCode,item_company_name:companyName};await assignRows(c,group,rows,actor);await c.commit();return getGroup(user,group.id);}catch(e){await c.rollback();if(e?.code==='ER_DUP_ENTRY')throw createError('invoice_number already exists',409,'INVOICE_NUMBER_DUPLICATE');throw e;}finally{c.release();}
 }
 
 async function addRequests(user,id,payload={}){
